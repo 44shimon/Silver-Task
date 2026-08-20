@@ -10,9 +10,12 @@ import { Copy, Trash2 } from 'lucide-react';
 import type { Task } from '@/types/task';
 import { StatusBadge } from './StatusBadge';
 import { PriorityBadge } from './PriorityBadge';
+import { EditableTitleCell } from './EditableTitleCell';
+import { EditableDateCell } from './EditableDateCell';
 import './TaskTable.css';
 
 interface TaskTableProps {
+  projectId: string;
   tasks: Task[];
   onDuplicate: (taskId: string) => void;
   onDelete: (taskId: string) => void;
@@ -20,13 +23,14 @@ interface TaskTableProps {
 
 const columnHelper = legacyCreateColumnHelper<Task>();
 
-export function TaskTable({ tasks, onDuplicate, onDelete }: TaskTableProps) {
+export function TaskTable({ projectId, tasks, onDuplicate, onDelete }: TaskTableProps) {
   const columns = useMemo<LegacyColumnDef<Task, any>[]>(
     () => [
       columnHelper.accessor('title', {
         header: 'Task',
         size: 280,
         minSize: 160,
+        cell: (info) => <EditableTitleCell task={info.row.original} projectId={projectId} />,
       }),
       columnHelper.accessor('status', {
         header: 'Status',
@@ -51,13 +55,13 @@ export function TaskTable({ tasks, onDuplicate, onDelete }: TaskTableProps) {
         header: 'Start Date',
         size: 120,
         minSize: 100,
-        cell: (info) => formatDate(info.getValue()),
+        cell: (info) => <EditableDateCell task={info.row.original} projectId={projectId} field="startDate" />,
       }),
       columnHelper.accessor('dueDate', {
         header: 'Due Date',
         size: 120,
         minSize: 100,
-        cell: (info) => formatDate(info.getValue()),
+        cell: (info) => <EditableDateCell task={info.row.original} projectId={projectId} field="dueDate" />,
       }),
       columnHelper.display({
         id: 'actions',
@@ -87,7 +91,7 @@ export function TaskTable({ tasks, onDuplicate, onDelete }: TaskTableProps) {
         ),
       }),
     ],
-    [onDuplicate, onDelete],
+    [projectId, onDuplicate, onDelete],
   );
 
   const table = useLegacyTable({
@@ -141,15 +145,4 @@ export function TaskTable({ tasks, onDuplicate, onDelete }: TaskTableProps) {
       </table>
     </div>
   );
-}
-
-/** Parses a DateOnly ("YYYY-MM-DD") string using local date components, avoiding the
- * off-by-one shift that `new Date(dateOnlyString)` can produce (it's parsed as UTC
- * midnight, then rendered in the local timezone). */
-function formatDate(value: string | null): string {
-  if (!value) {
-    return '';
-  }
-  const [year, month, day] = value.split('-').map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString();
 }

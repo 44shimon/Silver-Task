@@ -4,9 +4,9 @@ A production-oriented, spreadsheet-style task management application. Projects c
 in an editable, sortable, filterable grid (rows = tasks, columns = fields, including project-defined
 custom fields), backed by a real REST API and a relational database.
 
-> **Status:** Phases 1–6 complete (architecture, database schema, authentication & users, projects &
-> members, tasks REST API, spreadsheet UI). Inline cell editing, dropdown editors, and filter/sort/search
-> are not implemented yet — see [Development phases](#development-phases).
+> **Status:** Phases 1–7 complete (architecture, database schema, authentication & users, projects &
+> members, tasks REST API, spreadsheet UI, inline editing). Dropdown editors and filter/sort/search are
+> not implemented yet — see [Development phases](#development-phases).
 
 ## Technology stack
 
@@ -175,10 +175,31 @@ Notes:
 - "+ New Task" uses the same inline-form interaction as the sidebar's "+ New Project" (Phase 4) for
   consistency; it intentionally stays open after a successful create so adding several tasks in a row
   doesn't require reopening it.
-- Row actions (duplicate/delete) call the Phase 5 API directly; there's no inline cell editing yet — that's
-  Phase 7. Clicking a task's title/status/etc. does nothing yet.
+- Row actions (duplicate/delete) call the Phase 5 API directly.
 - Project member management (Phase 4) was moved into a collapsed `<details>` section below the grid so the
   spreadsheet is the visually dominant element, per the app's intended layout.
+
+### Inline editing
+
+- Title, Start Date, and Due Date are click-to-edit (`EditableTitleCell`/`EditableDateCell`). Status,
+  Priority, and Assigned To stay as read-only badges/text for now — their dropdown editors are Phase 8.
+- **Interaction model:** click a cell (or focus it via Tab and press Enter/Space) to open its editor.
+  `Enter` blurs the input, which is the single commit path — so `Enter` and `Tab`/click-away both commit
+  through the same code. `Escape` exits edit mode directly without blurring, so it never triggers a commit
+  (this relies on React not re-invoking `onBlur` when the input is unmounted via a state change in the same
+  handler — a common, deliberate pattern, also used for the Phase 4 project rename/description fields).
+  Cells are plain focusable elements (`tabIndex={0}`), not a custom grid controller, so `Tab`/`Shift+Tab`
+  move through them via native browser tab order — including through the row-action buttons, which is
+  intentional (keyboard users can reach Duplicate/Delete the same way).
+- **Optimistic update + rollback**, per the spec's required flow: `useUpdateTask` (`useTasks.ts`) patches
+  the React Query cache immediately in `onMutate` (UI updates before the network call resolves), snapshots
+  the prior state, sends the request, and on failure restores that snapshot in `onError` — so the cell
+  visibly reverts. `onSuccess` reconciles the row with the server's response rather than refetching the
+  whole list. A failed edit leaves the cell with a red outline (`editable-cell--error`) until the next edit
+  attempt.
+- The backend's `PUT /api/tasks/{id}` is a full-resource replace (Phase 5), so a single-field edit still
+  needs every other current value. `buildUpdateRequest` (`useTasks.ts`) merges the one changed field into
+  the task object already held in the row, rather than resending a page-wide refetch.
 
 ## Requirements
 
@@ -304,6 +325,10 @@ This project is being built incrementally. Completed phases:
       horizontal scroll; status/priority badges; the Table/Kanban/Calendar/Timeline/Gantt view-tab
       architecture (Table only implemented); inline task creation and row duplicate/delete (see
       [Spreadsheet UI](#spreadsheet-ui)). No inline cell editing yet — that's Phase 7.
+- [x] **Phase 7** — Inline editing: click-to-edit Title/Start Date/Due Date with Enter-commits/
+      Escape-cancels/Tab-moves-on, and optimistic updates with error rollback per the spec's required
+      update→send→save→revert-on-failure flow (see [Inline editing](#inline-editing)). Status/Priority/
+      Assigned To stay read-only pending Phase 8's dropdown editors.
 
-Upcoming: inline editing, dropdown columns, filtering/sorting/search, custom fields, task detail panel,
+Upcoming: dropdown columns, filtering/sorting/search, custom fields, task detail panel,
 comments & activity history, attachments, performance work, testing, and production hardening.

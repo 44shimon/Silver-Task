@@ -137,6 +137,7 @@ export function ProjectPage() {
         <p>Loading tasks...</p>
       ) : (
         <TaskTable
+          projectId={project.id}
           tasks={tasks ?? []}
           onDuplicate={(taskId) => duplicateTask.mutate(taskId)}
           onDelete={(taskId) => deleteTask.mutate(taskId)}
