@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="silver-task.client/silver-task.client.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="Silver-Task.Server/Silver-Task.Server.csproj" />
+</Solution>

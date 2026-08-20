@@ -1,0 +1,6 @@
+@Silver_Task.Server_HostAddress = http://localhost:5056
+
+GET {{Silver_Task.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
