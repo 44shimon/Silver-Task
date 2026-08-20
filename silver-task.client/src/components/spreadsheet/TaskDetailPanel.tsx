@@ -9,6 +9,8 @@ import { PriorityDropdownCell } from './PriorityDropdownCell';
 import { AssignedToDropdownCell } from './AssignedToDropdownCell';
 import { EditableDateCell } from './EditableDateCell';
 import { CustomFieldCell } from './CustomFieldCell';
+import { CommentsSection } from './CommentsSection';
+import { ActivityHistorySection } from './ActivityHistorySection';
 import './TaskDetailPanel.css';
 
 interface TaskDetailPanelProps {
@@ -16,13 +18,13 @@ interface TaskDetailPanelProps {
   projectId: string;
   members: UserSummary[];
   customFields: CustomField[];
+  currentUserId: string | undefined;
   onClose: () => void;
 }
 
-// Comments, activity history, and attachments (also listed in the spec for this panel)
-// are Phases 12–13 — there's no data or API for them yet, so this deliberately doesn't
-// render empty placeholder sections for them.
-export function TaskDetailPanel({ task, projectId, members, customFields, onClose }: TaskDetailPanelProps) {
+// Attachments (also listed in the spec for this panel) are Phase 13 — there's no data or
+// API for them yet, so this deliberately doesn't render an empty placeholder section for it.
+export function TaskDetailPanel({ task, projectId, members, customFields, currentUserId, onClose }: TaskDetailPanelProps) {
   useEffect(() => {
     function handleKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === 'Escape') {
@@ -87,6 +89,9 @@ export function TaskDetailPanel({ task, projectId, members, customFields, onClos
               ))}
             </div>
           )}
+
+          <CommentsSection taskId={task.id} currentUserId={currentUserId} />
+          <ActivityHistorySection taskId={task.id} />
         </div>
       </div>
     </div>

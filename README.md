@@ -4,9 +4,9 @@ A production-oriented, spreadsheet-style task management application. Projects c
 in an editable, sortable, filterable grid (rows = tasks, columns = fields, including project-defined
 custom fields), backed by a real REST API and a relational database.
 
-> **Status:** Phases 1–11 complete (architecture, database schema, authentication & users, projects &
+> **Status:** Phases 1–12 complete (architecture, database schema, authentication & users, projects &
 > members, tasks REST API, spreadsheet UI, inline editing, dropdown columns, filtering/sorting/search,
-> custom fields, task detail panel). Comments/activity history and attachments are not implemented yet —
+> custom fields, task detail panel, comments & activity history). Attachments are not implemented yet —
 > see [Development phases](#development-phases).
 
 ## Technology stack
@@ -53,7 +53,7 @@ Silver-Task/
 │     ├─ components/layout/   App shell (topbar, sidebar)
 │     ├─ components/auth/      Route guard (RequireAuth)
 │     ├─ components/project/   View tabs (Table/Kanban/Calendar/Timeline/Gantt stub)
-│     ├─ components/spreadsheet/ TaskTable (TanStack Table) + cell editors + TaskDetailPanel
+│     ├─ components/spreadsheet/ TaskTable (TanStack Table) + cell editors + TaskDetailPanel + comments/activity
 │     ├─ hooks/                React Query hooks (incl. auth)
 │     ├─ pages/                Route-level views (Dashboard, Login, Project)
 │     ├─ providers/            App-wide providers (React Query, etc.)
@@ -318,10 +318,40 @@ specifically for this — no migration was needed for this phase, only the API a
   panel): Title mirrors `EditableTitleCell`'s click-to-edit pattern at heading size, and Description is the
   first place a task's description is actually editable (`taskFieldChange.description` — a genuinely new
   field, everything else already existed).
-- **Comments, activity history, and attachments are not in this panel.** They're listed in the same spec
-  section but are explicitly Phases 12–13 with no backing API yet — rendering empty "Comments (0)" style
-  sections with nothing behind them would be a half-finished implementation, so they're left out entirely
-  until those phases add real data.
+- **Attachments are not in this panel yet.** Listed in the same spec section but explicitly Phase 13, with
+  no backing API — an empty placeholder section with nothing behind it would be a half-finished
+  implementation, so it's left out until that phase adds real data. Comments and Activity History (also
+  listed there) are now implemented — see below.
+
+### Comments & activity history
+
+Both `TaskComments` and `TaskActivities` tables were built in Phase 2, so — same story as Phase 10's
+custom fields — this phase is API + service layer + UI on top of an already-designed schema.
+
+- **Comments authorization is stricter than everywhere else in the app:** viewing/adding a comment uses
+  the usual participate tier, but editing or deleting one is **author-only**, with no manage-tier or
+  Administrator override — a literal reading of the spec ("edit their own comment," "delete their own
+  comment"). Verified directly: even the Administrator account gets a 403 trying to edit another user's
+  comment.
+- **Activity history is built by diffing old vs. new values inside `TaskService`**, not by a generic
+  before/after snapshot mechanism — every place a task's fields can change (`CreateAsync`, `UpdateAsync`,
+  `DuplicateAsync`, `SetCustomValueAsync`) now also builds `TaskActivity` rows for whatever actually
+  changed. `SortOrder` is deliberately excluded from diffing — reordering isn't a meaningful event for a
+  human reading the feed, unlike every other field.
+- **Assignment gets its own `"Assigned"` action** distinct from the generic `"FieldChanged"`, so it renders
+  as "Shimon assigned this task to David" rather than "Shimon changed Assigned To from (none) to David" —
+  matching the spec's example phrasing.
+- **Backend stores raw values, frontend formats them for display** (`ActivityHistorySection.tsx`) — reuses
+  the existing `STATUS_LABELS` map and `formatDate` utility rather than duplicating a labels dictionary on
+  the backend. Priority values need no mapping since the enum strings ("Low"/"High"/...) are already
+  human-readable.
+- Custom field changes are logged too, using the field's own name (e.g. "changed Cost from (none) to
+  1200.00") — raw stored values, not resolved option/user labels, since fully resolving every custom field
+  type's display value for historical entries would be significant extra scope for a "nice to have" over
+  what the spec actually asks for.
+- Comment mutations use plain invalidate-on-success (no optimistic update) — unlike spreadsheet cell edits,
+  a brief pending state on posting a comment is normal, expected UX, so the added complexity of an
+  optimistic rollback path wasn't justified here.
 
 ## Requirements
 
@@ -468,5 +498,9 @@ This project is being built incrementally. Completed phases:
       reusing the grid's own dropdown/date/custom-field editors unmodified and adding the first editable
       Description field (see [Task detail panel](#task-detail-panel)). No comments/activity/attachments
       sections yet — those are Phases 12–13.
+- [x] **Phase 12** — Comments & activity history: author-only comment edit/delete (no admin override, per
+      spec), and an activity feed built by diffing old vs. new values on every task/custom-field mutation,
+      with a special-cased "assigned to" phrasing matching the spec's examples (see
+      [Comments & activity history](#comments--activity-history)). Attachments remain Phase 13.
 
-Upcoming: comments & activity history, attachments, performance work, testing, and production hardening.
+Upcoming: attachments, performance work, testing, and production hardening.

@@ -11,6 +11,7 @@ import {
 import { useDeleteTask, useDuplicateTask, useTasks } from '@/hooks/useTasks';
 import { useTaskFilters } from '@/hooks/useTaskFilters';
 import { useCustomFields } from '@/hooks/useCustomFields';
+import { useCurrentUser } from '@/hooks/useAuth';
 import { ApiError } from '@/api/httpClient';
 import { ProjectViewTabs } from '@/components/project/ProjectViewTabs';
 import { NewTaskButton } from '@/components/spreadsheet/NewTaskButton';
@@ -20,6 +21,7 @@ import { TaskFilterPanel } from '@/components/spreadsheet/TaskFilterPanel';
 import { TaskSortMenu } from '@/components/spreadsheet/TaskSortMenu';
 import { CustomFieldsPanel } from '@/components/spreadsheet/CustomFieldsPanel';
 import { TaskDetailPanel } from '@/components/spreadsheet/TaskDetailPanel';
+import { initials } from '@/utils/initials';
 import './ProjectPage.css';
 
 const TASK_QUERY_PARAM = 'task';
@@ -31,6 +33,7 @@ export function ProjectPage() {
   const { data: members } = useProjectMembers(projectId);
   const { data: tasks, isLoading: tasksLoading } = useTasks(projectId);
   const { data: customFields } = useCustomFields(projectId);
+  const { data: currentUser } = useCurrentUser();
   const updateProject = useUpdateProject(projectId ?? '');
   const addMember = useAddProjectMember(projectId ?? '');
   const removeMember = useRemoveProjectMember(projectId ?? '');
@@ -219,6 +222,7 @@ export function ProjectPage() {
           projectId={project.id}
           members={memberUsers}
           customFields={customFields ?? []}
+          currentUserId={currentUser?.id}
           onClose={closeTaskDetail}
         />
       )}
@@ -270,13 +274,4 @@ export function ProjectPage() {
       </details>
     </div>
   );
-}
-
-function initials(name: string): string {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
 }

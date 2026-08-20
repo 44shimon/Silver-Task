@@ -25,6 +25,8 @@ namespace Silver_Task.Server.Services
         Task<TaskItem> DuplicateAsync(Guid taskId, Guid callerId, UserRole callerRole);
 
         Task<TaskItem> SetCustomValueAsync(Guid taskId, Guid customFieldId, string? value, Guid callerId, UserRole callerRole);
+
+        Task<IReadOnlyList<TaskActivity>> GetActivitiesForTaskAsync(Guid taskId, Guid callerId, UserRole callerRole);
     }
 
     public class TaskService(AppDbContext db, IProjectAccessService projectAccess) : ITaskService
@@ -78,6 +80,7 @@ namespace Silver_Task.Server.Services
             };
 
             _db.Tasks.Add(task);
+            _db.TaskActivities.Add(BuildActivity(task.Id, callerId, "Created", null, null, null));
             await _db.SaveChangesAsync();
 
             task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
@@ -97,8 +100,33 @@ namespace Silver_Task.Server.Services
             var wasComplete = task.Status == TaskItemStatus.Complete;
             var willBeComplete = request.Status == TaskItemStatus.Complete;
 
-            task.Title = request.Title.Trim();
-            task.Description = NormalizeText(request.Description);
+            // SortOrder deliberately isn't diffed here — reordering isn't a meaningful
+            // change for a human reading the activity feed, unlike every field below.
+            var activities = new List<TaskActivity>();
+            var trimmedTitle = request.Title.Trim();
+            var newDescription = NormalizeText(request.Description);
+
+            LogFieldChange(activities, taskId, callerId, "Title", task.Title, trimmedTitle);
+            LogFieldChange(activities, taskId, callerId, "Description", task.Description, newDescription);
+            LogFieldChange(activities, taskId, callerId, "Status", task.Status.ToString(), request.Status.ToString());
+            LogFieldChange(activities, taskId, callerId, "Priority", task.Priority.ToString(), request.Priority.ToString());
+            LogFieldChange(
+                activities, taskId, callerId, "Start Date",
+                DateLabel(task.StartDate), DateLabel(request.StartDate));
+            LogFieldChange(
+                activities, taskId, callerId, "Due Date",
+                DateLabel(task.DueDate), DateLabel(request.DueDate));
+
+            if (task.AssignedToUserId != request.AssignedToUserId)
+            {
+                var newAssigneeName = request.AssignedToUserId is Guid newAssigneeId
+                    ? (await _db.Users.FindAsync(newAssigneeId))?.Name
+                    : null;
+                activities.Add(BuildActivity(taskId, callerId, "Assigned", "Assigned To", task.AssignedTo?.Name, newAssigneeName));
+            }
+
+            task.Title = trimmedTitle;
+            task.Description = newDescription;
             task.Status = request.Status;
             task.Priority = request.Priority;
             task.AssignedToUserId = request.AssignedToUserId;
@@ -116,6 +144,7 @@ namespace Silver_Task.Server.Services
                 task.CompletedAt = null;
             }
 
+            _db.TaskActivities.AddRange(activities);
             await _db.SaveChangesAsync();
 
             task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
@@ -152,6 +181,7 @@ namespace Silver_Task.Server.Services
             };
 
             _db.Tasks.Add(copy);
+            _db.TaskActivities.Add(BuildActivity(copy.Id, callerId, "Created", null, null, null));
 
             foreach (var value in original.CustomValues)
             {
@@ -189,6 +219,39 @@ namespace Silver_Task.Server.Services
             return project ?? throw new NotFoundException($"Project '{projectId}' was not found.");
         }
 
+        public async Task<IReadOnlyList<TaskActivity>> GetActivitiesForTaskAsync(Guid taskId, Guid callerId, UserRole callerRole)
+        {
+            var task = await LoadTaskAsync(taskId);
+            await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+
+            return await _db.TaskActivities
+                .Include(a => a.User)
+                .Where(a => a.TaskId == taskId)
+                .OrderByDescending(a => a.CreatedAt)
+                .ToListAsync();
+        }
+
+        private static TaskActivity BuildActivity(Guid taskId, Guid userId, string action, string? fieldName, string? oldValue, string? newValue) =>
+            new()
+            {
+                Id = Guid.NewGuid(),
+                TaskId = taskId,
+                UserId = userId,
+                Action = action,
+                FieldName = fieldName,
+                OldValue = oldValue,
+                NewValue = newValue
+            };
+
+        /// <summary>Appends a "FieldChanged" activity only if the value actually changed — avoids logging no-op edits.</summary>
+        private static void LogFieldChange(List<TaskActivity> activities, Guid taskId, Guid userId, string fieldName, string? oldValue, string? newValue)
+        {
+            if (oldValue != newValue)
+            {
+                activities.Add(BuildActivity(taskId, userId, "FieldChanged", fieldName, oldValue, newValue));
+            }
+        }
+
         private async Task EnsureAssigneeIsMemberAsync(Guid projectId, Guid assigneeId)
         {
             if (!await _projectAccess.IsMemberAsync(projectId, assigneeId))
@@ -221,6 +284,9 @@ namespace Silver_Task.Server.Services
         private static string? NormalizeText(string? text) =>
             string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
+        private static string? DateLabel(DateOnly? date) =>
+            date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
         public async Task<TaskItem> SetCustomValueAsync(Guid taskId, Guid customFieldId, string? value, Guid callerId, UserRole callerRole)
         {
             var task = await LoadTaskAsync(taskId);
@@ -238,6 +304,7 @@ namespace Silver_Task.Server.Services
 
             var normalizedValue = await ValidateAndNormalizeCustomValueAsync(field, value, task.ProjectId);
             var existing = task.CustomValues.FirstOrDefault(v => v.CustomFieldId == customFieldId);
+            var oldValue = existing?.Value;
 
             if (normalizedValue is null)
             {
@@ -263,6 +330,11 @@ namespace Silver_Task.Server.Services
             {
                 existing.Value = normalizedValue;
                 existing.UpdatedAt = DateTime.UtcNow;
+            }
+
+            if (oldValue != normalizedValue)
+            {
+                _db.TaskActivities.Add(BuildActivity(taskId, callerId, "FieldChanged", field.Name, oldValue, normalizedValue));
             }
 
             await _db.SaveChangesAsync();

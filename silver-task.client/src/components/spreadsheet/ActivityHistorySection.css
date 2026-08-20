@@ -1,0 +1,36 @@
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.activity-list__empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.activity-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.activity-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.activity-row__text {
+  font-size: 12px;
+  color: var(--text-h);
+}
+
+.activity-row__date {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.6;
+}
