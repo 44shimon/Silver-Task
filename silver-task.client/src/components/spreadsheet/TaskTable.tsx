@@ -6,7 +6,7 @@ import { flexRender } from '@tanstack/react-table';
 // with resizable columns doesn't need v9's tree-shakeable feature system, and
 // the classic API is far less code to get right.
 import { getCoreRowModel, legacyCreateColumnHelper, useLegacyTable, type LegacyColumnDef } from '@tanstack/react-table/legacy';
-import { Copy, Trash2 } from 'lucide-react';
+import { Copy, Maximize2, Trash2 } from 'lucide-react';
 import type { Task } from '@/types/task';
 import type { UserSummary } from '@/types/project';
 import type { CustomField } from '@/types/customField';
@@ -31,6 +31,7 @@ interface TaskTableProps {
   onSortFieldClick: (field: TaskSortField) => void;
   onDuplicate: (taskId: string) => void;
   onDelete: (taskId: string) => void;
+  onOpenDetail: (taskId: string) => void;
 }
 
 const columnHelper = legacyCreateColumnHelper<Task>();
@@ -46,9 +47,27 @@ export function TaskTable({
   onSortFieldClick,
   onDuplicate,
   onDelete,
+  onOpenDetail,
 }: TaskTableProps) {
   const columns = useMemo<LegacyColumnDef<Task, any>[]>(
     () => [
+      columnHelper.display({
+        id: 'expand',
+        header: '',
+        size: 32,
+        minSize: 32,
+        enableResizing: false,
+        cell: (info) => (
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Open task details"
+            onClick={() => onOpenDetail(info.row.original.id)}
+          >
+            <Maximize2 size={12} />
+          </button>
+        ),
+      }),
       columnHelper.accessor('title', {
         header: () => (
           <SortableColumnHeader
@@ -167,7 +186,7 @@ export function TaskTable({
         ),
       }),
     ],
-    [projectId, members, customFields, sortField, sortDirection, onSortFieldClick, onDuplicate, onDelete],
+    [projectId, members, customFields, sortField, sortDirection, onSortFieldClick, onDuplicate, onDelete, onOpenDetail],
   );
 
   const table = useLegacyTable({

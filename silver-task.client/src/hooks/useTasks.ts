@@ -32,6 +32,10 @@ interface TaskFieldChange {
  * cache patch and the API request the same way. */
 export const taskFieldChange = {
   title: (value: string): TaskFieldChange => ({ optimistic: { title: value }, request: { title: value } }),
+  description: (value: string | null): TaskFieldChange => ({
+    optimistic: { description: value },
+    request: { description: value ?? undefined },
+  }),
   startDate: (value: string | null): TaskFieldChange => ({
     optimistic: { startDate: value },
     request: { startDate: value },

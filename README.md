@@ -4,10 +4,10 @@ A production-oriented, spreadsheet-style task management application. Projects c
 in an editable, sortable, filterable grid (rows = tasks, columns = fields, including project-defined
 custom fields), backed by a real REST API and a relational database.
 
-> **Status:** Phases 1–10 complete (architecture, database schema, authentication & users, projects &
+> **Status:** Phases 1–11 complete (architecture, database schema, authentication & users, projects &
 > members, tasks REST API, spreadsheet UI, inline editing, dropdown columns, filtering/sorting/search,
-> custom fields). The task detail panel, comments/activity history, and attachments are not implemented
-> yet — see [Development phases](#development-phases).
+> custom fields, task detail panel). Comments/activity history and attachments are not implemented yet —
+> see [Development phases](#development-phases).
 
 ## Technology stack
 
@@ -53,7 +53,7 @@ Silver-Task/
 │     ├─ components/layout/   App shell (topbar, sidebar)
 │     ├─ components/auth/      Route guard (RequireAuth)
 │     ├─ components/project/   View tabs (Table/Kanban/Calendar/Timeline/Gantt stub)
-│     ├─ components/spreadsheet/ TaskTable (TanStack Table) + badges + row/creation controls
+│     ├─ components/spreadsheet/ TaskTable (TanStack Table) + cell editors + TaskDetailPanel
 │     ├─ hooks/                React Query hooks (incl. auth)
 │     ├─ pages/                Route-level views (Dashboard, Login, Project)
 │     ├─ providers/            App-wide providers (React Query, etc.)
@@ -295,6 +295,34 @@ specifically for this — no migration was needed for this phase, only the API a
   options. Deliberately no drag-to-reorder UI for fields or options in this phase, consistent with skipping
   full column drag-reorder in Phase 6 — `SortOrder` is there and settable via the API if that's added later.
 
+### Task detail panel
+
+- **Interaction design note:** the spec says "clicking a task" opens the panel, but clicking a task's
+  cells already does inline editing (Phases 7–8) — overloading that would make Title/Status/etc. ambiguous
+  between "edit this field" and "open the task." Instead there's a dedicated expand icon
+  (`Maximize2`) as the grid's leading column, the same pattern Airtable/Notion/Linear use for exactly this
+  conflict. Cell clicks still edit in place; the icon is the unambiguous way to open the full task.
+- **`?task=<id>` query parameter** (via `useSearchParams`) drives whether the panel is open, not local
+  component state — makes a task directly linkable/bookmarkable and means the browser back button closes
+  it. The selected task is looked up from the already-loaded task list (`useTasks`), so opening the panel
+  doesn't cost a network request.
+- A right-side drawer over a backdrop (click backdrop, press Escape, or the close button to dismiss) — a
+  drawer rather than a centered modal specifically because the spec requires "the spreadsheet should
+  remain visible behind the panel," and a drawer leaves most of the grid visible while a full modal
+  wouldn't.
+- **Maximum reuse, minimal new code:** Status/Priority/Assigned To/Start Date/Due Date/Custom Fields in the
+  panel are the *exact same* `StatusDropdownCell`/`PriorityDropdownCell`/`AssignedToDropdownCell`/
+  `EditableDateCell`/`CustomFieldCell` components already used in the grid — none of them were ever coupled
+  to being inside a `<td>`, so they work unmodified in a form layout. Only Title and Description are new
+  (`TaskDetailPanel.tsx`, kept as private, non-exported subcomponents since they're single-purpose to this
+  panel): Title mirrors `EditableTitleCell`'s click-to-edit pattern at heading size, and Description is the
+  first place a task's description is actually editable (`taskFieldChange.description` — a genuinely new
+  field, everything else already existed).
+- **Comments, activity history, and attachments are not in this panel.** They're listed in the same spec
+  section but are explicitly Phases 12–13 with no backing API yet — rendering empty "Comments (0)" style
+  sections with nothing behind them would be a half-finished implementation, so they're left out entirely
+  until those phases add real data.
+
 ## Requirements
 
 - [.NET SDK 10.0+](https://dotnet.microsoft.com/download)
@@ -435,6 +463,10 @@ This project is being built incrementally. Completed phases:
       added afterward on request, all on the Phase-2 EAV schema (Link needed no migration), per-type value
       validation, dynamic grid columns with type-appropriate editors, and search extended to custom text
       fields (see [Custom fields](#custom-fields)).
+- [x] **Phase 11** — Task detail panel: a right-side drawer (spreadsheet stays visible behind it, per spec)
+      opened via a dedicated expand icon rather than overloading cell clicks, URL-driven via `?task=<id>`,
+      reusing the grid's own dropdown/date/custom-field editors unmodified and adding the first editable
+      Description field (see [Task detail panel](#task-detail-panel)). No comments/activity/attachments
+      sections yet — those are Phases 12–13.
 
-Upcoming: task detail panel, comments & activity history, attachments, performance work, testing, and
-production hardening.
+Upcoming: comments & activity history, attachments, performance work, testing, and production hardening.

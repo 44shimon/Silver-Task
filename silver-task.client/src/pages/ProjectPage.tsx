@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import {
   useAddProjectMember,
@@ -19,10 +19,14 @@ import { TaskSearchInput } from '@/components/spreadsheet/TaskSearchInput';
 import { TaskFilterPanel } from '@/components/spreadsheet/TaskFilterPanel';
 import { TaskSortMenu } from '@/components/spreadsheet/TaskSortMenu';
 import { CustomFieldsPanel } from '@/components/spreadsheet/CustomFieldsPanel';
+import { TaskDetailPanel } from '@/components/spreadsheet/TaskDetailPanel';
 import './ProjectPage.css';
+
+const TASK_QUERY_PARAM = 'task';
 
 export function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: project, isLoading, isError } = useProject(projectId);
   const { data: members } = useProjectMembers(projectId);
   const { data: tasks, isLoading: tasksLoading } = useTasks(projectId);
@@ -53,6 +57,25 @@ export function ProjectPage() {
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
   const [memberEmail, setMemberEmail] = useState('');
+
+  const selectedTaskId = searchParams.get(TASK_QUERY_PARAM);
+  const selectedTask = tasks?.find((t) => t.id === selectedTaskId) ?? null;
+
+  function openTaskDetail(taskId: string) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set(TASK_QUERY_PARAM, taskId);
+      return next;
+    });
+  }
+
+  function closeTaskDetail() {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete(TASK_QUERY_PARAM);
+      return next;
+    });
+  }
 
   if (isLoading) {
     return <p>Loading...</p>;
@@ -186,6 +209,17 @@ export function ProjectPage() {
           onSortFieldClick={setSortField}
           onDuplicate={(taskId) => duplicateTask.mutate(taskId)}
           onDelete={(taskId) => deleteTask.mutate(taskId)}
+          onOpenDetail={openTaskDetail}
+        />
+      )}
+
+      {selectedTask && (
+        <TaskDetailPanel
+          task={selectedTask}
+          projectId={project.id}
+          members={memberUsers}
+          customFields={customFields ?? []}
+          onClose={closeTaskDetail}
         />
       )}
 
