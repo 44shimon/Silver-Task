@@ -4,3 +4,41 @@ GET {{Silver_Task.Server_HostAddress}}/api/health
 Accept: application/json
 
 ###
+
+# Creates the first user (Administrator). Only works while the Users table is empty;
+# afterwards this endpoint requires an authenticated Administrator.
+POST {{Silver_Task.Server_HostAddress}}/api/users
+Content-Type: application/json
+
+{
+  "name": "Admin",
+  "email": "admin@silvertask.local",
+  "password": "changeme123",
+  "role": "Administrator"
+}
+
+###
+
+POST {{Silver_Task.Server_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@silvertask.local",
+  "password": "changeme123"
+}
+
+###
+
+GET {{Silver_Task.Server_HostAddress}}/api/auth/me
+Accept: application/json
+
+###
+
+GET {{Silver_Task.Server_HostAddress}}/api/users
+Accept: application/json
+
+###
+
+POST {{Silver_Task.Server_HostAddress}}/api/auth/logout
+
+###

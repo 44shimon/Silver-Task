@@ -4,8 +4,8 @@ A production-oriented, spreadsheet-style task management application. Projects c
 in an editable, sortable, filterable grid (rows = tasks, columns = fields, including project-defined
 custom fields), backed by a real REST API and a relational database.
 
-> **Status:** Phase 1 (project architecture) and Phase 2 (database schema & migrations) complete.
-> Authentication and the spreadsheet UI are not implemented yet — see [Development phases](#development-phases).
+> **Status:** Phases 1–3 complete (architecture, database schema, authentication & users). Projects,
+> tasks, and the spreadsheet UI are not implemented yet — see [Development phases](#development-phases).
 
 ## Technology stack
 
@@ -37,17 +37,21 @@ presentational components.
 Silver-Task/
 ├─ Silver-Task.Server/        ASP.NET Core Web API
 │  ├─ Controllers/            HTTP endpoints (thin; no business logic)
+│  ├─ Services/                Business logic (auth, users, JWT issuance), one interface + impl per file
 │  ├─ Models/Entities/        EF Core entities + enums (Status, Priority, Role, CustomFieldType)
+│  ├─ Models/DTOs/             Request/response shapes exposed by the API (never raw entities)
 │  ├─ Data/                   AppDbContext, Fluent API configurations, EF Core migrations
 │  ├─ Middleware/             Cross-cutting concerns (exception handling, etc.)
+│  ├─ Common/                  Shared helpers (claims extensions, auth cookie constants, domain exceptions)
 │  ├─ Program.cs              App startup, DI, middleware pipeline
 │  └─ appsettings*.json       Environment configuration
 ├─ silver-task.client/        React + TypeScript SPA
 │  └─ src/
 │     ├─ api/                 Centralized API client (fetch wrapper + per-resource services)
 │     ├─ components/layout/   App shell (topbar, sidebar)
-│     ├─ hooks/                React Query hooks
-│     ├─ pages/                Route-level views
+│     ├─ components/auth/      Route guard (RequireAuth)
+│     ├─ hooks/                React Query hooks (incl. auth)
+│     ├─ pages/                Route-level views (Dashboard, Login)
 │     ├─ providers/            App-wide providers (React Query, etc.)
 │     ├─ routes/                React Router route definitions
 │     └─ types/                 Shared TypeScript types
@@ -85,6 +89,26 @@ Notes:
   which is implicitly in scope everywhere via `ImplicitUsings`.
 - Enums (`Status`, `Priority`, `Role`, custom field `FieldType`) are stored as `varchar`, not native Postgres
   enum types, so adding a new value later is a plain data migration instead of an `ALTER TYPE`.
+
+### Authentication
+
+- Passwords are hashed with ASP.NET Core's `PasswordHasher<User>` (PBKDF2) — never stored or logged in
+  plain text.
+- On login, the API issues a JWT and sets it as an **httpOnly, Secure, SameSite=Strict cookie**
+  (`silvertask_auth`) rather than returning it in the response body. This keeps the token out of reach of
+  JavaScript (so an XSS bug can't exfiltrate it) and, combined with `SameSite=Strict` on an app that's
+  always same-origin (dev via the SPA proxy, production served from one host), mitigates CSRF without a
+  separate token scheme.
+- `GET /api/auth/me` is how the frontend discovers whether it's logged in (the cookie itself is invisible
+  to JS). `RequireAuth` in the client wraps all app routes and redirects to `/login` when this 401s.
+- Authorization is secure-by-default: `Program.cs` sets a `FallbackPolicy` requiring authentication on any
+  endpoint without explicit `[Authorize]`/`[AllowAnonymous]`, so a future controller can't accidentally
+  ship unauthenticated. Role checks use `[Authorize(Roles = "Administrator")]` etc.
+- **Bootstrap:** `POST /api/users` is open only while the `Users` table is empty — that first account is
+  always created as Administrator. Once any user exists, the endpoint requires an authenticated
+  Administrator. This avoids needing separate seed-data machinery just to get an initial admin into the
+  system.
+- Failed login attempts are logged (email + reason, never the password) via `AuthService`.
 
 ## Requirements
 
@@ -171,7 +195,8 @@ Not yet applicable — test projects are introduced in Phase 15.
 | Variable | Purpose | Where to set it |
 |---|---|---|
 | `ConnectionStrings:DefaultConnection` / `ConnectionStrings__DefaultConnection` | PostgreSQL connection string | User Secrets (dev) / environment variable (prod) |
-| `Jwt:Secret`, `Jwt:Issuer`, `Jwt:Audience` (Phase 3) | JWT signing configuration | User Secrets (dev) / environment variable (prod) |
+| `Jwt:Secret` | JWT signing key (32+ random bytes, e.g. `openssl rand -base64 48`) | User Secrets (dev) / environment variable (prod) |
+| `Jwt:Issuer`, `Jwt:Audience`, `Jwt:ExpiryMinutes` | JWT validation/expiry configuration (non-secret defaults already in `appsettings.json`) | `appsettings.json`, override via env if needed |
 
 ASP.NET Core does not read `.env` files directly. `.env.example` at the repo root documents the variable
 names/shapes for reference; real values go through **User Secrets** locally (`dotnet user-secrets set`,
@@ -194,7 +219,10 @@ This project is being built incrementally. Completed phases:
       backend middleware/CORS/health endpoint, verified builds and startup.
 - [x] **Phase 2** — PostgreSQL database model and EF Core migrations: all 10 core tables, relationships,
       indexes, and the `InitialCreate` migration (see [Database schema](#database-schema)).
+- [x] **Phase 3** — Authentication & users: password hashing, cookie-based JWT auth, secure-by-default
+      authorization, `/api/auth` (login/logout/me) and `/api/users` endpoints, first-user-admin bootstrap,
+      and a minimal login page + route guard on the frontend (see [Authentication](#authentication)).
 
-Upcoming: authentication, projects & members, tasks REST API, spreadsheet UI, inline editing, dropdown
-columns, filtering/sorting/search, custom fields, task detail panel, comments & activity history,
-attachments, performance work, testing, and production hardening.
+Upcoming: projects & members, tasks REST API, spreadsheet UI, inline editing, dropdown columns,
+filtering/sorting/search, custom fields, task detail panel, comments & activity history, attachments,
+performance work, testing, and production hardening.
