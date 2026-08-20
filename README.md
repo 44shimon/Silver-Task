@@ -4,8 +4,8 @@ A production-oriented, spreadsheet-style task management application. Projects c
 in an editable, sortable, filterable grid (rows = tasks, columns = fields, including project-defined
 custom fields), backed by a real REST API and a relational database.
 
-> **Status:** Phase 1 (project architecture) complete. Authentication, the database schema, and the
-> spreadsheet UI are not implemented yet — see [Development phases](#development-phases).
+> **Status:** Phase 1 (project architecture) and Phase 2 (database schema & migrations) complete.
+> Authentication and the spreadsheet UI are not implemented yet — see [Development phases](#development-phases).
 
 ## Technology stack
 
@@ -37,7 +37,8 @@ presentational components.
 Silver-Task/
 ├─ Silver-Task.Server/        ASP.NET Core Web API
 │  ├─ Controllers/            HTTP endpoints (thin; no business logic)
-│  ├─ Models/                 Entities, DTOs, shared response shapes
+│  ├─ Models/Entities/        EF Core entities + enums (Status, Priority, Role, CustomFieldType)
+│  ├─ Data/                   AppDbContext, Fluent API configurations, EF Core migrations
 │  ├─ Middleware/             Cross-cutting concerns (exception handling, etc.)
 │  ├─ Program.cs              App startup, DI, middleware pipeline
 │  └─ appsettings*.json       Environment configuration
@@ -58,11 +59,38 @@ and Vite proxies `/api/*` requests to the backend, so the browser only ever talk
 production, the ASP.NET Core app serves the compiled SPA as static files and exposes the API from the
 same host.
 
+### Database schema
+
+Entity Framework Core (Npgsql provider) maps the following tables, configured via `IEntityTypeConfiguration<T>`
+classes in `Data/Configurations/` (see `Data/AppDbContext.cs`):
+
+| Table | Purpose |
+|---|---|
+| `Users` | Accounts. Global `Role` (Administrator/Manager/Member), hashed passwords, `IsActive` for soft deactivation. |
+| `Projects` | Owned by a `User`; `IsArchived`/`ArchivedAt` for archiving instead of hard delete. |
+| `ProjectMembers` | Join table granting a user access to a project (unique per project+user). |
+| `Tasks` | The spreadsheet rows. Status/Priority are fixed enums stored as text; `SortOrder` is a fractional index for drag-reordering without renumbering siblings. |
+| `TaskComments` | Threaded comments on a task. |
+| `TaskActivities` | Append-only audit log (`Action`, `FieldName`, `OldValue`, `NewValue`) — survives the acting user being deleted. |
+| `TaskAttachments` | File metadata (name, size, MIME type, storage path); no object storage wired up yet. |
+| `CustomFields` | Project-defined columns (Text, Number, Currency, Date, Checkbox, Dropdown, MultiSelect, User, LongText, ...). |
+| `CustomFieldOptions` | Selectable options for Dropdown/MultiSelect custom fields. |
+| `TaskCustomValues` | EAV-style value storage: one row per (task, custom field), so adding a custom field never requires a schema migration. |
+
+Notes:
+- All primary keys are `uuid` (`Guid`), which lets the client generate an id for a new row and render it
+  optimistically before the API confirms it — needed for the "edit a cell, update UI immediately" spreadsheet
+  behavior in later phases.
+- The task entity/table is named `TaskItem`/`Tasks` (not `Task`) to avoid colliding with `System.Threading.Tasks.Task`,
+  which is implicitly in scope everywhere via `ImplicitUsings`.
+- Enums (`Status`, `Priority`, `Role`, custom field `FieldType`) are stored as `varchar`, not native Postgres
+  enum types, so adding a new value later is a plain data migration instead of an `ALTER TYPE`.
+
 ## Requirements
 
 - [.NET SDK 10.0+](https://dotnet.microsoft.com/download)
 - [Node.js 20+](https://nodejs.org/) and npm
-- [PostgreSQL 16+](https://www.postgresql.org/download/) (required starting Phase 2)
+- [PostgreSQL 16+](https://www.postgresql.org/download/)
 - Visual Studio 2022 (17.14+) or the `dotnet`/`npm` CLIs directly
 
 ## Installation
@@ -104,9 +132,35 @@ npm run dev
 
 ## Database setup & migrations
 
-Not yet applicable — the EF Core model and PostgreSQL wiring are introduced in Phase 2. This section
-will be filled in with `dotnet ef migrations add` / `dotnet ef database update` instructions and
-connection string configuration once that phase lands.
+1. Install PostgreSQL 16+ and create a local database (any name works; the example below uses `silvertask_dev`).
+2. Configure the connection string for local development using .NET User Secrets (never commit real
+   credentials to `appsettings*.json`):
+
+   ```bash
+   cd Silver-Task.Server
+   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=silvertask_dev;Username=postgres;Password=postgres"
+   ```
+
+   In production, set the equivalent environment variable instead: `ConnectionStrings__DefaultConnection`.
+3. EF Core tooling (`dotnet-ef`) is pinned as a local tool in `.config/dotnet-tools.json`. Restore it once
+   per clone:
+
+   ```bash
+   cd Silver-Task   # repo root
+   dotnet tool restore
+   ```
+4. Apply migrations to create/update the database schema:
+
+   ```bash
+   cd Silver-Task   # repo root
+   dotnet ef database update --project Silver-Task.Server --startup-project Silver-Task.Server
+   ```
+
+To add a new migration after changing an entity or configuration:
+
+```bash
+dotnet ef migrations add <MigrationName> --project Silver-Task.Server --startup-project Silver-Task.Server --output-dir Data/Migrations
+```
 
 ## Running tests
 
@@ -114,14 +168,16 @@ Not yet applicable — test projects are introduced in Phase 15.
 
 ## Environment variables
 
-No secrets are required yet. Once authentication and the database are introduced, this project will use:
+| Variable | Purpose | Where to set it |
+|---|---|---|
+| `ConnectionStrings:DefaultConnection` / `ConnectionStrings__DefaultConnection` | PostgreSQL connection string | User Secrets (dev) / environment variable (prod) |
+| `Jwt:Secret`, `Jwt:Issuer`, `Jwt:Audience` (Phase 3) | JWT signing configuration | User Secrets (dev) / environment variable (prod) |
 
-- A PostgreSQL connection string (via ASP.NET Core configuration / user secrets, never committed)
-- A JWT signing secret (via configuration / user secrets, never committed)
-- `VITE_API_URL` or equivalent for the frontend, if the API is ever hosted on a different origin
-
-`.env` files are already excluded via `.gitignore`; a `.env.example` will be added when real
-environment variables are introduced.
+ASP.NET Core does not read `.env` files directly. `.env.example` at the repo root documents the variable
+names/shapes for reference; real values go through **User Secrets** locally (`dotnet user-secrets set`,
+stored outside the repo) or **environment variables** in CI/production (using `__` as the config-section
+separator). Never commit `appsettings.Development.json` with real credentials filled in — it currently has
+none.
 
 ## GitHub setup
 
@@ -136,7 +192,9 @@ This project is being built incrementally. Completed phases:
 
 - [x] **Phase 1** — Project architecture: TypeScript conversion, API client/provider/routing skeleton,
       backend middleware/CORS/health endpoint, verified builds and startup.
+- [x] **Phase 2** — PostgreSQL database model and EF Core migrations: all 10 core tables, relationships,
+      indexes, and the `InitialCreate` migration (see [Database schema](#database-schema)).
 
-Upcoming: PostgreSQL/EF Core schema, authentication, projects & members, tasks REST API, spreadsheet UI,
-inline editing, dropdown columns, filtering/sorting/search, custom fields, task detail panel, comments &
-activity history, attachments, performance work, testing, and production hardening.
+Upcoming: authentication, projects & members, tasks REST API, spreadsheet UI, inline editing, dropdown
+columns, filtering/sorting/search, custom fields, task detail panel, comments & activity history,
+attachments, performance work, testing, and production hardening.
