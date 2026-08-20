@@ -3,6 +3,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/auth/RequireAuth';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { LoginPage } from '@/pages/LoginPage';
+import { ProjectPage } from '@/pages/ProjectPage';
 
 export function AppRoutes() {
   return (
@@ -15,6 +16,7 @@ export function AppRoutes() {
             <AppShell>
               <Routes>
                 <Route path="/" element={<DashboardPage />} />
+                <Route path="/projects/:projectId" element={<ProjectPage />} />
               </Routes>
             </AppShell>
           </RequireAuth>

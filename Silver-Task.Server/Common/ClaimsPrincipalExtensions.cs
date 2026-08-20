@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Silver_Task.Server.Models.Entities.Enums;
 
 namespace Silver_Task.Server.Common
 {
@@ -13,6 +14,17 @@ namespace Silver_Task.Server.Common
             }
 
             return userId;
+        }
+
+        public static UserRole GetRole(this ClaimsPrincipal principal)
+        {
+            var value = principal.FindFirstValue(ClaimTypes.Role);
+            if (value is null || !Enum.TryParse<UserRole>(value, out var role))
+            {
+                throw new InvalidOperationException("The current principal does not have a valid role claim.");
+            }
+
+            return role;
         }
     }
 }

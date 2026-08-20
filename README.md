@@ -4,8 +4,8 @@ A production-oriented, spreadsheet-style task management application. Projects c
 in an editable, sortable, filterable grid (rows = tasks, columns = fields, including project-defined
 custom fields), backed by a real REST API and a relational database.
 
-> **Status:** Phases 1–3 complete (architecture, database schema, authentication & users). Projects,
-> tasks, and the spreadsheet UI are not implemented yet — see [Development phases](#development-phases).
+> **Status:** Phases 1–4 complete (architecture, database schema, authentication & users, projects &
+> members). Tasks and the spreadsheet UI are not implemented yet — see [Development phases](#development-phases).
 
 ## Technology stack
 
@@ -37,7 +37,7 @@ presentational components.
 Silver-Task/
 ├─ Silver-Task.Server/        ASP.NET Core Web API
 │  ├─ Controllers/            HTTP endpoints (thin; no business logic)
-│  ├─ Services/                Business logic (auth, users, JWT issuance), one interface + impl per file
+│  ├─ Services/                Business logic (auth, users, projects, JWT issuance), one interface + impl per file
 │  ├─ Models/Entities/        EF Core entities + enums (Status, Priority, Role, CustomFieldType)
 │  ├─ Models/DTOs/             Request/response shapes exposed by the API (never raw entities)
 │  ├─ Data/                   AppDbContext, Fluent API configurations, EF Core migrations
@@ -51,7 +51,7 @@ Silver-Task/
 │     ├─ components/layout/   App shell (topbar, sidebar)
 │     ├─ components/auth/      Route guard (RequireAuth)
 │     ├─ hooks/                React Query hooks (incl. auth)
-│     ├─ pages/                Route-level views (Dashboard, Login)
+│     ├─ pages/                Route-level views (Dashboard, Login, Project)
 │     ├─ providers/            App-wide providers (React Query, etc.)
 │     ├─ routes/                React Router route definitions
 │     └─ types/                 Shared TypeScript types
@@ -109,6 +109,26 @@ Notes:
   Administrator. This avoids needing separate seed-data machinery just to get an initial admin into the
   system.
 - Failed login attempts are logged (email + reason, never the password) via `AuthService`.
+
+### Projects & authorization model
+
+- Anyone authenticated can create a project; the creator becomes its `Owner` and is automatically added
+  as a `ProjectMember` too (so "is a project member" checks and member listings both just work for them).
+- **View access** (`GET /api/projects/{id}`, its members): Administrators, the project owner, or any
+  project member.
+- **Manage access** (rename, add/remove members, archive): Administrators, the project owner, or a
+  `Manager` who is a member of that specific project. Plain `Member`s can never manage a project, and a
+  `Manager` who isn't a member of a given project can't see or touch it either. This is enforced in
+  `ProjectService` (`EnsureCanViewAsync`/`EnsureCanManageAsync`), not just at the controller/attribute
+  level, since it depends on runtime membership, not just role.
+- The owner can never be removed via the members endpoint (`ConflictException` → 409) — ownership
+  transfer isn't implemented yet.
+- `DELETE /api/projects/{id}` archives (`IsArchived`/`ArchivedAt`) rather than deleting the row. Archived
+  projects are excluded from `GET /api/projects` but remain directly viewable by id.
+- Members are added **by email**, not by browsing a user directory — `POST /api/projects/{id}/members`
+  looks the user up server-side. This is deliberate: `GET /api/users` is Administrator-only, so a
+  non-admin project owner/manager still needs a way to add teammates without needing that broader
+  permission.
 
 ## Requirements
 
@@ -222,7 +242,11 @@ This project is being built incrementally. Completed phases:
 - [x] **Phase 3** — Authentication & users: password hashing, cookie-based JWT auth, secure-by-default
       authorization, `/api/auth` (login/logout/me) and `/api/users` endpoints, first-user-admin bootstrap,
       and a minimal login page + route guard on the frontend (see [Authentication](#authentication)).
+- [x] **Phase 4** — Projects & project members: `/api/projects` (create/rename/archive) and
+      `/api/projects/{id}/members` (list/add-by-email/remove) with membership-aware authorization, a real
+      project list + creation form in the sidebar, and a project page for renaming and managing members
+      (see [Projects & authorization model](#projects--authorization-model)).
 
-Upcoming: projects & members, tasks REST API, spreadsheet UI, inline editing, dropdown columns,
-filtering/sorting/search, custom fields, task detail panel, comments & activity history, attachments,
-performance work, testing, and production hardening.
+Upcoming: tasks REST API, spreadsheet UI, inline editing, dropdown columns, filtering/sorting/search,
+custom fields, task detail panel, comments & activity history, attachments, performance work, testing,
+and production hardening.

@@ -1,0 +1,71 @@
+using Microsoft.AspNetCore.Mvc;
+using Silver_Task.Server.Common;
+using Silver_Task.Server.Models.DTOs.Projects;
+using Silver_Task.Server.Services;
+
+namespace Silver_Task.Server.Controllers
+{
+    [ApiController]
+    [Route("api/projects")]
+    public class ProjectsController(IProjectService projectService) : ControllerBase
+    {
+        private readonly IProjectService _projectService = projectService;
+
+        [HttpGet]
+        public async Task<ActionResult<IReadOnlyList<ProjectDto>>> GetAll()
+        {
+            var projects = await _projectService.GetAllForUserAsync(User.GetUserId(), User.GetRole());
+            return Ok(projects.Select(p => p.ToDto()));
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<ProjectDto>> Create([FromBody] CreateProjectRequest request)
+        {
+            var project = await _projectService.CreateAsync(request, User.GetUserId());
+            return CreatedAtAction(nameof(GetById), new { id = project.Id }, project.ToDto());
+        }
+
+        [HttpGet("{id:guid}")]
+        public async Task<ActionResult<ProjectDto>> GetById(Guid id)
+        {
+            var project = await _projectService.GetByIdAsync(id, User.GetUserId(), User.GetRole());
+            return Ok(project.ToDto());
+        }
+
+        [HttpPut("{id:guid}")]
+        public async Task<ActionResult<ProjectDto>> Update(Guid id, [FromBody] UpdateProjectRequest request)
+        {
+            var project = await _projectService.UpdateAsync(id, request, User.GetUserId(), User.GetRole());
+            return Ok(project.ToDto());
+        }
+
+        /// <summary>Archives the project (soft delete) rather than removing its row.</summary>
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> Archive(Guid id)
+        {
+            await _projectService.ArchiveAsync(id, User.GetUserId(), User.GetRole());
+            return NoContent();
+        }
+
+        [HttpGet("{id:guid}/members")]
+        public async Task<ActionResult<IReadOnlyList<ProjectMemberDto>>> GetMembers(Guid id)
+        {
+            var members = await _projectService.GetMembersAsync(id, User.GetUserId(), User.GetRole());
+            return Ok(members.Select(m => m.ToDto()));
+        }
+
+        [HttpPost("{id:guid}/members")]
+        public async Task<ActionResult<ProjectMemberDto>> AddMember(Guid id, [FromBody] AddProjectMemberRequest request)
+        {
+            var member = await _projectService.AddMemberAsync(id, request.Email, User.GetUserId(), User.GetRole());
+            return CreatedAtAction(nameof(GetMembers), new { id }, member.ToDto());
+        }
+
+        [HttpDelete("{id:guid}/members/{userId:guid}")]
+        public async Task<IActionResult> RemoveMember(Guid id, Guid userId)
+        {
+            await _projectService.RemoveMemberAsync(id, userId, User.GetUserId(), User.GetRole());
+            return NoContent();
+        }
+    }
+}

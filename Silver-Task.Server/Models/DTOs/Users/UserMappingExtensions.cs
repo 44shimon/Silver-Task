@@ -14,5 +14,12 @@ namespace Silver_Task.Server.Models.DTOs.Users
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdatedAt
         };
+
+        public static UserSummaryDto ToSummaryDto(this User user) => new()
+        {
+            Id = user.Id,
+            Name = user.Name,
+            Email = user.Email
+        };
     }
 }

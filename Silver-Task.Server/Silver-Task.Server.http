@@ -42,3 +42,58 @@ Accept: application/json
 POST {{Silver_Task.Server_HostAddress}}/api/auth/logout
 
 ###
+
+GET {{Silver_Task.Server_HostAddress}}/api/projects
+Accept: application/json
+
+###
+
+POST {{Silver_Task.Server_HostAddress}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "Riverside Renovation",
+  "description": "Permit, materials, and inspection tracking for the riverside job."
+}
+
+###
+
+# Replace {projectId} below with an id from the responses above.
+
+GET {{Silver_Task.Server_HostAddress}}/api/projects/{projectId}
+Accept: application/json
+
+###
+
+PUT {{Silver_Task.Server_HostAddress}}/api/projects/{projectId}
+Content-Type: application/json
+
+{
+  "name": "Riverside Renovation",
+  "description": "Updated description"
+}
+
+###
+
+GET {{Silver_Task.Server_HostAddress}}/api/projects/{projectId}/members
+Accept: application/json
+
+###
+
+POST {{Silver_Task.Server_HostAddress}}/api/projects/{projectId}/members
+Content-Type: application/json
+
+{
+  "email": "david@silvertask.local"
+}
+
+###
+
+DELETE {{Silver_Task.Server_HostAddress}}/api/projects/{projectId}/members/{userId}
+
+###
+
+# Archives the project (soft delete).
+DELETE {{Silver_Task.Server_HostAddress}}/api/projects/{projectId}
+
+###
