@@ -12,6 +12,7 @@ node_modules/
 dist/
 dist-ssr/
 *.local
+*.tsbuildinfo
 
 ## Logs
 *.log
@@ -20,3 +21,9 @@ npm-debug.log*
 ## Editor
 .vscode/*
 !.vscode/extensions.json
+
+## Secrets / environment
+.env
+.env.*
+!.env.example
+appsettings.*.local.json
