@@ -1,14 +1,5 @@
-import type { TaskStatus } from '@/types/task';
+import { STATUS_LABELS, type TaskStatus } from '@/types/task';
 import './Badges.css';
-
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  NotStarted: 'Not Started',
-  InProgress: 'In Progress',
-  Waiting: 'Waiting',
-  Blocked: 'Blocked',
-  Complete: 'Complete',
-  Cancelled: 'Cancelled',
-};
 
 interface StatusBadgeProps {
   status: TaskStatus;

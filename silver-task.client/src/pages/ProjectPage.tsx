@@ -139,6 +139,7 @@ export function ProjectPage() {
         <TaskTable
           projectId={project.id}
           tasks={tasks ?? []}
+          members={members?.map((m) => m.user) ?? []}
           onDuplicate={(taskId) => duplicateTask.mutate(taskId)}
           onDelete={(taskId) => deleteTask.mutate(taskId)}
         />

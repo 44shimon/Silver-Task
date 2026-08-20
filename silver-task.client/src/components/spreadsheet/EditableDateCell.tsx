@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent } from 'react';
 import type { Task } from '@/types/task';
-import { useUpdateTask } from '@/hooks/useTasks';
+import { taskFieldChange, useUpdateTask } from '@/hooks/useTasks';
 import { formatDate } from '@/utils/formatDate';
 import './EditableCell.css';
 
@@ -26,8 +26,8 @@ export function EditableDateCell({ task, projectId, field }: EditableDateCellPro
     setIsEditing(false);
     const newValue = draft || null;
     if (newValue !== value) {
-      const changes = field === 'startDate' ? { startDate: newValue } : { dueDate: newValue };
-      updateTask.mutate({ task, changes });
+      const change = field === 'startDate' ? taskFieldChange.startDate(newValue) : taskFieldChange.dueDate(newValue);
+      updateTask.mutate({ task, change });
     }
   }
 

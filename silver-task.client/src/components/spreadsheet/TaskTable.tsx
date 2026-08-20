@@ -8,22 +8,25 @@ import { flexRender } from '@tanstack/react-table';
 import { getCoreRowModel, legacyCreateColumnHelper, useLegacyTable, type LegacyColumnDef } from '@tanstack/react-table/legacy';
 import { Copy, Trash2 } from 'lucide-react';
 import type { Task } from '@/types/task';
-import { StatusBadge } from './StatusBadge';
-import { PriorityBadge } from './PriorityBadge';
+import type { UserSummary } from '@/types/project';
 import { EditableTitleCell } from './EditableTitleCell';
 import { EditableDateCell } from './EditableDateCell';
+import { StatusDropdownCell } from './StatusDropdownCell';
+import { PriorityDropdownCell } from './PriorityDropdownCell';
+import { AssignedToDropdownCell } from './AssignedToDropdownCell';
 import './TaskTable.css';
 
 interface TaskTableProps {
   projectId: string;
   tasks: Task[];
+  members: UserSummary[];
   onDuplicate: (taskId: string) => void;
   onDelete: (taskId: string) => void;
 }
 
 const columnHelper = legacyCreateColumnHelper<Task>();
 
-export function TaskTable({ projectId, tasks, onDuplicate, onDelete }: TaskTableProps) {
+export function TaskTable({ projectId, tasks, members, onDuplicate, onDelete }: TaskTableProps) {
   const columns = useMemo<LegacyColumnDef<Task, any>[]>(
     () => [
       columnHelper.accessor('title', {
@@ -34,22 +37,24 @@ export function TaskTable({ projectId, tasks, onDuplicate, onDelete }: TaskTable
       }),
       columnHelper.accessor('status', {
         header: 'Status',
-        size: 140,
-        minSize: 120,
-        cell: (info) => <StatusBadge status={info.getValue()} />,
+        size: 150,
+        minSize: 130,
+        cell: (info) => <StatusDropdownCell task={info.row.original} projectId={projectId} />,
       }),
       columnHelper.accessor('priority', {
         header: 'Priority',
-        size: 120,
-        minSize: 100,
-        cell: (info) => <PriorityBadge priority={info.getValue()} />,
+        size: 130,
+        minSize: 110,
+        cell: (info) => <PriorityDropdownCell task={info.row.original} projectId={projectId} />,
       }),
       columnHelper.accessor((task) => task.assignedTo?.name ?? '', {
         id: 'assignedTo',
         header: 'Assigned To',
-        size: 160,
-        minSize: 120,
-        cell: (info) => info.getValue() || <span className="task-table__empty">Unassigned</span>,
+        size: 170,
+        minSize: 130,
+        cell: (info) => (
+          <AssignedToDropdownCell task={info.row.original} projectId={projectId} members={members} />
+        ),
       }),
       columnHelper.accessor('startDate', {
         header: 'Start Date',
@@ -91,7 +96,7 @@ export function TaskTable({ projectId, tasks, onDuplicate, onDelete }: TaskTable
         ),
       }),
     ],
-    [projectId, onDuplicate, onDelete],
+    [projectId, members, onDuplicate, onDelete],
   );
 
   const table = useLegacyTable({

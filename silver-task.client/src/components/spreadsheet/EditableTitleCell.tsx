@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent } from 'react';
 import type { Task } from '@/types/task';
-import { useUpdateTask } from '@/hooks/useTasks';
+import { taskFieldChange, useUpdateTask } from '@/hooks/useTasks';
 import './EditableCell.css';
 
 interface EditableTitleCellProps {
@@ -25,7 +25,7 @@ export function EditableTitleCell({ task, projectId }: EditableTitleCellProps) {
     setIsEditing(false);
     const trimmed = draft.trim();
     if (trimmed && trimmed !== task.title) {
-      updateTask.mutate({ task, changes: { title: trimmed } });
+      updateTask.mutate({ task, change: taskFieldChange.title(trimmed) });
     }
   }
 

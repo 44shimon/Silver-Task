@@ -66,11 +66,6 @@
   background: var(--accent);
 }
 
-.task-table__empty {
-  color: var(--text);
-  opacity: 0.5;
-}
-
 .task-table__empty-state {
   text-align: center;
   padding: 32px;

@@ -4,6 +4,19 @@ export type TaskStatus = 'NotStarted' | 'InProgress' | 'Waiting' | 'Blocked' | '
 
 export type TaskPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
 
+export const STATUS_OPTIONS: TaskStatus[] = ['NotStarted', 'InProgress', 'Waiting', 'Blocked', 'Complete', 'Cancelled'];
+
+export const STATUS_LABELS: Record<TaskStatus, string> = {
+  NotStarted: 'Not Started',
+  InProgress: 'In Progress',
+  Waiting: 'Waiting',
+  Blocked: 'Blocked',
+  Complete: 'Complete',
+  Cancelled: 'Cancelled',
+};
+
+export const PRIORITY_OPTIONS: TaskPriority[] = ['Low', 'Medium', 'High', 'Urgent'];
+
 export interface Task {
   id: string;
   projectId: string;

@@ -4,9 +4,9 @@ A production-oriented, spreadsheet-style task management application. Projects c
 in an editable, sortable, filterable grid (rows = tasks, columns = fields, including project-defined
 custom fields), backed by a real REST API and a relational database.
 
-> **Status:** Phases 1–7 complete (architecture, database schema, authentication & users, projects &
-> members, tasks REST API, spreadsheet UI, inline editing). Dropdown editors and filter/sort/search are
-> not implemented yet — see [Development phases](#development-phases).
+> **Status:** Phases 1–8 complete (architecture, database schema, authentication & users, projects &
+> members, tasks REST API, spreadsheet UI, inline editing, dropdown columns). Filter/sort/search and custom
+> fields are not implemented yet — see [Development phases](#development-phases).
 
 ## Technology stack
 
@@ -198,8 +198,28 @@ Notes:
   whole list. A failed edit leaves the cell with a red outline (`editable-cell--error`) until the next edit
   attempt.
 - The backend's `PUT /api/tasks/{id}` is a full-resource replace (Phase 5), so a single-field edit still
-  needs every other current value. `buildUpdateRequest` (`useTasks.ts`) merges the one changed field into
-  the task object already held in the row, rather than resending a page-wide refetch.
+  needs every other current value. `buildBaseRequest` (`useTasks.ts`) fills in the unchanged fields; each
+  editor supplies just its own field via the `taskFieldChange` helper map.
+
+### Dropdown columns
+
+- Status and Priority are always-rendered native `<select>` elements styled to look like the existing
+  colored badges (`appearance: none` + per-value background/text color + a Lucide `ChevronDown` overlay),
+  not a click-to-open-then-select two-step. Unlike the free-text cells, choosing an option is inherently a
+  single atomic action, so there's no draft state, no `isEditing` toggle, and no Escape-to-cancel needed —
+  selecting commits immediately via the same `useUpdateTask` optimistic-update/rollback path as Phase 7.
+- Assigned To is a dropdown populated from **the project's members**, not every system user — `TaskTable`
+  receives a `members: UserSummary[]` prop from `ProjectPage` (mapped from the same `useProjectMembers`
+  data the Phase 4 member list already uses), so there's one source of truth for "who's on this project."
+  Includes an explicit "Unassigned" option to clear the assignment.
+- `taskFieldChange` (`useTasks.ts`) had to grow beyond Phase 7's simple field-name matching once assignee
+  editing arrived: the optimistic cache patch needs a `UserSummary` object (`assignedTo`) but the API
+  request needs a bare id (`assignedToUserId`). Each field now has its own `{ optimistic, request }`
+  constructor so the two shapes never have to coincide.
+- The backend still enforces "assignee must be a project member" (Phase 5's `ValidationException` → 400)
+  even though the dropdown only ever offers valid members — the UI can't be trusted to always be in sync
+  with server-side membership state (e.g. two tabs open, one removing a member while the other still shows
+  the stale option list).
 
 ## Requirements
 
@@ -329,6 +349,9 @@ This project is being built incrementally. Completed phases:
       Escape-cancels/Tab-moves-on, and optimistic updates with error rollback per the spec's required
       update→send→save→revert-on-failure flow (see [Inline editing](#inline-editing)). Status/Priority/
       Assigned To stay read-only pending Phase 8's dropdown editors.
+- [x] **Phase 8** — Dropdown columns: Status/Priority as badge-styled `<select>` editors that commit on
+      selection, and Assigned To populated from project members with an Unassigned option (see
+      [Dropdown columns](#dropdown-columns)). All spreadsheet columns are now editable in place.
 
-Upcoming: dropdown columns, filtering/sorting/search, custom fields, task detail panel,
-comments & activity history, attachments, performance work, testing, and production hardening.
+Upcoming: filtering/sorting/search, custom fields, task detail panel, comments & activity history,
+attachments, performance work, testing, and production hardening.

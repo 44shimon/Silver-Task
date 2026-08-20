@@ -1,0 +1,125 @@
+.dropdown-cell-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+}
+
+.dropdown-cell-wrapper--plain {
+  display: flex;
+  width: 100%;
+}
+
+.dropdown-cell__chevron {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text);
+  opacity: 0.6;
+}
+
+.dropdown-cell {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.dropdown-cell:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.dropdown-cell:hover:not(:disabled) {
+  border-color: var(--border);
+}
+
+.dropdown-cell:focus {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.dropdown-cell--error {
+  border-color: var(--danger) !important;
+}
+
+/* Badge-style variant: Status/Priority */
+
+.dropdown-cell--badge {
+  border-radius: 999px;
+  padding: 3px 20px 3px 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dropdown-cell--status-notstarted {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.dropdown-cell--status-inprogress {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.dropdown-cell--status-waiting {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.dropdown-cell--status-blocked {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.dropdown-cell--status-complete {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.dropdown-cell--status-cancelled {
+  background: var(--bg-subtle);
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.dropdown-cell--priority-low {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.dropdown-cell--priority-medium {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.dropdown-cell--priority-high {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.dropdown-cell--priority-urgent {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* Plain variant: Assigned To */
+
+.dropdown-cell--plain {
+  width: 100%;
+  border-radius: 4px;
+  padding: 3px 20px 3px 4px;
+  margin: -3px -4px;
+  font-size: 13px;
+  font-weight: 400;
+  background: transparent;
+  color: inherit;
+}
+
+.dropdown-cell--plain:hover:not(:disabled) {
+  background: var(--bg-subtle);
+}
