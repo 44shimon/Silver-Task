@@ -9,47 +9,95 @@ import { getCoreRowModel, legacyCreateColumnHelper, useLegacyTable, type LegacyC
 import { Copy, Trash2 } from 'lucide-react';
 import type { Task } from '@/types/task';
 import type { UserSummary } from '@/types/project';
+import type { SortDirection, TaskSortField } from '@/hooks/useTaskFilters';
 import { EditableTitleCell } from './EditableTitleCell';
 import { EditableDateCell } from './EditableDateCell';
 import { StatusDropdownCell } from './StatusDropdownCell';
 import { PriorityDropdownCell } from './PriorityDropdownCell';
 import { AssignedToDropdownCell } from './AssignedToDropdownCell';
+import { SortableColumnHeader } from './SortableColumnHeader';
 import './TaskTable.css';
 
 interface TaskTableProps {
   projectId: string;
   tasks: Task[];
   members: UserSummary[];
+  isFiltered: boolean;
+  sortField: TaskSortField;
+  sortDirection: SortDirection;
+  onSortFieldClick: (field: TaskSortField) => void;
   onDuplicate: (taskId: string) => void;
   onDelete: (taskId: string) => void;
 }
 
 const columnHelper = legacyCreateColumnHelper<Task>();
 
-export function TaskTable({ projectId, tasks, members, onDuplicate, onDelete }: TaskTableProps) {
+export function TaskTable({
+  projectId,
+  tasks,
+  members,
+  isFiltered,
+  sortField,
+  sortDirection,
+  onSortFieldClick,
+  onDuplicate,
+  onDelete,
+}: TaskTableProps) {
   const columns = useMemo<LegacyColumnDef<Task, any>[]>(
     () => [
       columnHelper.accessor('title', {
-        header: 'Task',
+        header: () => (
+          <SortableColumnHeader
+            label="Task"
+            field="title"
+            activeField={sortField}
+            direction={sortDirection}
+            onClick={onSortFieldClick}
+          />
+        ),
         size: 280,
         minSize: 160,
         cell: (info) => <EditableTitleCell task={info.row.original} projectId={projectId} />,
       }),
       columnHelper.accessor('status', {
-        header: 'Status',
+        header: () => (
+          <SortableColumnHeader
+            label="Status"
+            field="status"
+            activeField={sortField}
+            direction={sortDirection}
+            onClick={onSortFieldClick}
+          />
+        ),
         size: 150,
         minSize: 130,
         cell: (info) => <StatusDropdownCell task={info.row.original} projectId={projectId} />,
       }),
       columnHelper.accessor('priority', {
-        header: 'Priority',
+        header: () => (
+          <SortableColumnHeader
+            label="Priority"
+            field="priority"
+            activeField={sortField}
+            direction={sortDirection}
+            onClick={onSortFieldClick}
+          />
+        ),
         size: 130,
         minSize: 110,
         cell: (info) => <PriorityDropdownCell task={info.row.original} projectId={projectId} />,
       }),
       columnHelper.accessor((task) => task.assignedTo?.name ?? '', {
         id: 'assignedTo',
-        header: 'Assigned To',
+        header: () => (
+          <SortableColumnHeader
+            label="Assigned To"
+            field="assignedTo"
+            activeField={sortField}
+            direction={sortDirection}
+            onClick={onSortFieldClick}
+          />
+        ),
         size: 170,
         minSize: 130,
         cell: (info) => (
@@ -63,7 +111,15 @@ export function TaskTable({ projectId, tasks, members, onDuplicate, onDelete }: 
         cell: (info) => <EditableDateCell task={info.row.original} projectId={projectId} field="startDate" />,
       }),
       columnHelper.accessor('dueDate', {
-        header: 'Due Date',
+        header: () => (
+          <SortableColumnHeader
+            label="Due Date"
+            field="dueDate"
+            activeField={sortField}
+            direction={sortDirection}
+            onClick={onSortFieldClick}
+          />
+        ),
         size: 120,
         minSize: 100,
         cell: (info) => <EditableDateCell task={info.row.original} projectId={projectId} field="dueDate" />,
@@ -96,7 +152,7 @@ export function TaskTable({ projectId, tasks, members, onDuplicate, onDelete }: 
         ),
       }),
     ],
-    [projectId, members, onDuplicate, onDelete],
+    [projectId, members, sortField, sortDirection, onSortFieldClick, onDuplicate, onDelete],
   );
 
   const table = useLegacyTable({
@@ -142,7 +198,9 @@ export function TaskTable({ projectId, tasks, members, onDuplicate, onDelete }: 
           {tasks.length === 0 && (
             <tr>
               <td colSpan={columns.length} className="task-table__empty-state">
-                No tasks yet. Click &ldquo;New Task&rdquo; to add one.
+                {isFiltered
+                  ? 'No tasks match your search/filters.'
+                  : 'No tasks yet. Click "New Task" to add one.'}
               </td>
             </tr>
           )}

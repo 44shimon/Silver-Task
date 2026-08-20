@@ -4,9 +4,9 @@ A production-oriented, spreadsheet-style task management application. Projects c
 in an editable, sortable, filterable grid (rows = tasks, columns = fields, including project-defined
 custom fields), backed by a real REST API and a relational database.
 
-> **Status:** Phases 1–8 complete (architecture, database schema, authentication & users, projects &
-> members, tasks REST API, spreadsheet UI, inline editing, dropdown columns). Filter/sort/search and custom
-> fields are not implemented yet — see [Development phases](#development-phases).
+> **Status:** Phases 1–9 complete (architecture, database schema, authentication & users, projects &
+> members, tasks REST API, spreadsheet UI, inline editing, dropdown columns, filtering/sorting/search).
+> Custom fields are not implemented yet — see [Development phases](#development-phases).
 
 ## Technology stack
 
@@ -221,6 +221,34 @@ Notes:
   with server-side membership state (e.g. two tabs open, one removing a member while the other still shows
   the stale option list).
 
+### Filtering, sorting & search
+
+- **Fully client-side** (`useTaskFilters.ts`): the project task list has no pagination yet (Phase 14), so
+  there's nothing to gain from round-tripping to the server on every keystroke or filter change — search,
+  filters, and sort all run as `useMemo` array operations over the already-loaded task list.
+- **Search** matches title or description, case-insensitive substring (custom text fields will join this
+  once Phase 10 exists).
+- **Filters** (`TaskFilterPanel`) are AND-combined, per the spec's example (Status = In Progress AND
+  Assigned To = Shimon AND Priority = High): Status, Priority, Assigned To (including an explicit
+  "Unassigned" option), and Due Date before a given date. Deliberately a fixed set of fields rather than a
+  generic field/operator filter-builder — covers every example in the spec without the extra complexity of
+  dynamic operator/value-type switching; can be generalized later if custom fields need it.
+- **Sort** covers all 7 fields the spec lists — Task, Assigned To, Status, Priority, Due Date, Created
+  Date, Updated Date — via the toolbar's Sort menu (`TaskSortMenu`). Created/Updated Date aren't rendered
+  grid columns, so the Sort menu is the only way to sort by them. The five sortable columns also have
+  clickable headers (`SortableColumnHeader`) as a convenience shortcut that drives the exact same sort
+  state, not a second competing mechanism — clicking a header and picking the same field in the Sort menu
+  are interchangeable. Clicking the active column's header again (or re-picking its field) toggles
+  ascending/descending, matching common spreadsheet behavior.
+- Status/Priority sort by a fixed severity rank (`NotStarted < InProgress < ... `, `Low < Medium < High <
+  Urgent`), not alphabetically — alphabetical would put "Blocked" before "Complete", which isn't a
+  meaningful ordering for a status.
+- Date fields (`DateOnly` and ISO timestamp strings) sort correctly via plain string comparison — both
+  formats are zero-padded and big-endian, so lexicographic order already matches chronological order; no
+  `Date` parsing needed. `dueDate` nulls sort last regardless of direction.
+- The empty state distinguishes "no tasks yet" from "no tasks match your search/filters" so an aggressive
+  filter doesn't look like the project has no tasks at all.
+
 ## Requirements
 
 - [.NET SDK 10.0+](https://dotnet.microsoft.com/download)
@@ -352,6 +380,10 @@ This project is being built incrementally. Completed phases:
 - [x] **Phase 8** — Dropdown columns: Status/Priority as badge-styled `<select>` editors that commit on
       selection, and Assigned To populated from project members with an Unassigned option (see
       [Dropdown columns](#dropdown-columns)). All spreadsheet columns are now editable in place.
+- [x] **Phase 9** — Filtering, sorting & search: client-side search (title/description), AND-combined
+      filters (Status/Priority/Assigned To/Due-before), and sort across all 7 spec-listed fields via both
+      a toolbar Sort menu and clickable column headers driving the same state (see
+      [Filtering, sorting & search](#filtering-sorting--search)).
 
-Upcoming: filtering/sorting/search, custom fields, task detail panel, comments & activity history,
-attachments, performance work, testing, and production hardening.
+Upcoming: custom fields, task detail panel, comments & activity history, attachments, performance work,
+testing, and production hardening.

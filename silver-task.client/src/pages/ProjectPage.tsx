@@ -9,10 +9,14 @@ import {
   useUpdateProject,
 } from '@/hooks/useProjects';
 import { useDeleteTask, useDuplicateTask, useTasks } from '@/hooks/useTasks';
+import { useTaskFilters } from '@/hooks/useTaskFilters';
 import { ApiError } from '@/api/httpClient';
 import { ProjectViewTabs } from '@/components/project/ProjectViewTabs';
 import { NewTaskButton } from '@/components/spreadsheet/NewTaskButton';
 import { TaskTable } from '@/components/spreadsheet/TaskTable';
+import { TaskSearchInput } from '@/components/spreadsheet/TaskSearchInput';
+import { TaskFilterPanel } from '@/components/spreadsheet/TaskFilterPanel';
+import { TaskSortMenu } from '@/components/spreadsheet/TaskSortMenu';
 import './ProjectPage.css';
 
 export function ProjectPage() {
@@ -25,6 +29,21 @@ export function ProjectPage() {
   const removeMember = useRemoveProjectMember(projectId ?? '');
   const duplicateTask = useDuplicateTask(projectId ?? '');
   const deleteTask = useDeleteTask(projectId ?? '');
+  const memberUsers = members?.map((m) => m.user) ?? [];
+  const {
+    filteredTasks,
+    isFiltered,
+    searchQuery,
+    setSearchQuery,
+    filters,
+    setFilters,
+    clearFilters,
+    activeFilterCount,
+    sortField,
+    sortDirection,
+    setSortField,
+    setSortDirection,
+  } = useTaskFilters(tasks ?? []);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
@@ -130,7 +149,23 @@ export function ProjectPage() {
 
       <div className="project-toolbar">
         <ProjectViewTabs active="table" />
-        <NewTaskButton projectId={project.id} />
+        <div className="project-toolbar__actions">
+          <TaskSearchInput value={searchQuery} onChange={setSearchQuery} />
+          <TaskFilterPanel
+            filters={filters}
+            onChange={setFilters}
+            onClear={clearFilters}
+            activeCount={activeFilterCount}
+            members={memberUsers}
+          />
+          <TaskSortMenu
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onFieldChange={setSortField}
+            onDirectionChange={setSortDirection}
+          />
+          <NewTaskButton projectId={project.id} />
+        </div>
       </div>
 
       {tasksLoading ? (
@@ -138,8 +173,12 @@ export function ProjectPage() {
       ) : (
         <TaskTable
           projectId={project.id}
-          tasks={tasks ?? []}
-          members={members?.map((m) => m.user) ?? []}
+          tasks={filteredTasks}
+          members={memberUsers}
+          isFiltered={isFiltered}
+          sortField={sortField}
+          sortDirection={sortDirection}
+          onSortFieldClick={setSortField}
           onDuplicate={(taskId) => duplicateTask.mutate(taskId)}
           onDelete={(taskId) => deleteTask.mutate(taskId)}
         />

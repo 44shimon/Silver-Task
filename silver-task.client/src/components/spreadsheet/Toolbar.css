@@ -1,0 +1,154 @@
+.project-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Search */
+
+.task-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  min-width: 200px;
+}
+
+.task-search:focus-within {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.task-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.task-search__clear {
+  display: flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Shared popover trigger + panel (Filter, Sort) */
+
+.toolbar-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.toolbar-button::-webkit-details-marker {
+  display: none;
+}
+
+.toolbar-button:hover {
+  background: var(--bg-subtle);
+}
+
+.toolbar-popover {
+  position: relative;
+}
+
+.toolbar-popover[open] > .toolbar-button {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.toolbar-popover__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 220px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.toolbar-popover__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.toolbar-popover__field select,
+.toolbar-popover__field input {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-h);
+}
+
+.toolbar-popover__field select:focus,
+.toolbar-popover__field input:focus {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.toolbar-popover__clear {
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toolbar-popover__direction {
+  display: flex;
+  gap: 6px;
+}
+
+.toolbar-popover__direction-btn {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toolbar-popover__direction-btn--active {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+}

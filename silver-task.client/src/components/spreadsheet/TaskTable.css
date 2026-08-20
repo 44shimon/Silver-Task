@@ -33,6 +33,24 @@
   text-overflow: ellipsis;
 }
 
+.task-table__sort-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.task-table__sort-header:hover {
+  color: var(--accent);
+}
+
 .task-table td {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
