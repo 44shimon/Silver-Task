@@ -90,6 +90,7 @@ builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<ICustomFieldService, CustomFieldService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
+builder.Services.AddScoped<IAttachmentService, AttachmentService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

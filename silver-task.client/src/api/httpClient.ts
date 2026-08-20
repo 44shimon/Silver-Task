@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+export const API_BASE = '/api';
 
 export class ApiError extends Error {
   status: number;
@@ -15,13 +15,16 @@ interface ApiErrorBody {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  // A FormData body (file upload) must NOT get a manual Content-Type — the browser sets
+  // its own multipart boundary automatically, which we'd otherwise clobber.
+  const isFormData = options.body instanceof FormData;
+
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers: isFormData
+      ? { ...options.headers }
+      : { 'Content-Type': 'application/json', ...options.headers },
   });
 
   if (!response.ok) {
@@ -51,4 +54,5 @@ export const httpClient = {
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PUT', body: body !== undefined ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  upload: <T>(path: string, formData: FormData) => request<T>(path, { method: 'POST', body: formData }),
 };

@@ -27,3 +27,6 @@ npm-debug.log*
 .env.*
 !.env.example
 appsettings.*.local.json
+
+## Uploaded attachment storage (local disk, Phase 13) — user content, not source
+Silver-Task.Server/App_Data/

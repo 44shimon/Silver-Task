@@ -40,6 +40,14 @@ function describeActivity(activity: TaskActivity): string {
       : `${actor} unassigned this task`;
   }
 
+  if (activity.action === 'AttachmentAdded') {
+    return `${actor} attached ${activity.newValue ?? 'a file'}`;
+  }
+
+  if (activity.action === 'AttachmentRemoved') {
+    return `${actor} removed attachment ${activity.oldValue ?? ''}`.trim();
+  }
+
   const field = activity.fieldName ?? 'a field';
   const oldDisplay = formatActivityValue(activity.fieldName, activity.oldValue);
   const newDisplay = formatActivityValue(activity.fieldName, activity.newValue);

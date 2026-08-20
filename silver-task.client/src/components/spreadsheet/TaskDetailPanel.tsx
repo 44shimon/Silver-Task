@@ -11,6 +11,7 @@ import { EditableDateCell } from './EditableDateCell';
 import { CustomFieldCell } from './CustomFieldCell';
 import { CommentsSection } from './CommentsSection';
 import { ActivityHistorySection } from './ActivityHistorySection';
+import { AttachmentsSection } from './AttachmentsSection';
 import './TaskDetailPanel.css';
 
 interface TaskDetailPanelProps {
@@ -22,8 +23,6 @@ interface TaskDetailPanelProps {
   onClose: () => void;
 }
 
-// Attachments (also listed in the spec for this panel) are Phase 13 — there's no data or
-// API for them yet, so this deliberately doesn't render an empty placeholder section for it.
 export function TaskDetailPanel({ task, projectId, members, customFields, currentUserId, onClose }: TaskDetailPanelProps) {
   useEffect(() => {
     function handleKeyDown(event: globalThis.KeyboardEvent) {
@@ -90,6 +89,7 @@ export function TaskDetailPanel({ task, projectId, members, customFields, curren
             </div>
           )}
 
+          <AttachmentsSection taskId={task.id} />
           <CommentsSection taskId={task.id} currentUserId={currentUserId} />
           <ActivityHistorySection taskId={task.id} />
         </div>

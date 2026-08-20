@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Silver_Task.Server.Common;
+using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Models.DTOs.Activities;
+using Silver_Task.Server.Models.DTOs.Attachments;
 using Silver_Task.Server.Models.DTOs.Comments;
 using Silver_Task.Server.Models.DTOs.Tasks;
 using Silver_Task.Server.Services;
@@ -9,10 +11,11 @@ namespace Silver_Task.Server.Controllers
 {
     [ApiController]
     [Route("api/tasks")]
-    public class TasksController(ITaskService taskService, ICommentService commentService) : ControllerBase
+    public class TasksController(ITaskService taskService, ICommentService commentService, IAttachmentService attachmentService) : ControllerBase
     {
         private readonly ITaskService _taskService = taskService;
         private readonly ICommentService _commentService = commentService;
+        private readonly IAttachmentService _attachmentService = attachmentService;
 
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<TaskDto>> GetById(Guid id)
@@ -68,6 +71,28 @@ namespace Silver_Task.Server.Controllers
         {
             var comment = await _commentService.CreateAsync(id, request.Text, User.GetUserId(), User.GetRole());
             return CreatedAtAction(nameof(GetComments), new { id }, comment.ToDto());
+        }
+
+        [HttpGet("{id:guid}/attachments")]
+        public async Task<ActionResult<IReadOnlyList<TaskAttachmentDto>>> GetAttachments(Guid id)
+        {
+            var attachments = await _attachmentService.GetAllForTaskAsync(id, User.GetUserId(), User.GetRole());
+            return Ok(attachments.Select(a => a.ToDto()));
+        }
+
+        // Comfortably above AttachmentService's 25 MB app-level cap, so an oversized upload gets
+        // AttachmentService's clean JSON error instead of a raw framework-level rejection.
+        [HttpPost("{id:guid}/attachments")]
+        [RequestSizeLimit(30 * 1024 * 1024)]
+        public async Task<ActionResult<TaskAttachmentDto>> UploadAttachment(Guid id, IFormFile? file)
+        {
+            if (file is null)
+            {
+                throw new ValidationException("No file was provided.");
+            }
+
+            var attachment = await _attachmentService.UploadAsync(id, file, User.GetUserId(), User.GetRole());
+            return CreatedAtAction(nameof(GetAttachments), new { id }, attachment.ToDto());
         }
     }
 }

@@ -4,10 +4,11 @@ A production-oriented, spreadsheet-style task management application. Projects c
 in an editable, sortable, filterable grid (rows = tasks, columns = fields, including project-defined
 custom fields), backed by a real REST API and a relational database.
 
-> **Status:** Phases 1–12 complete (architecture, database schema, authentication & users, projects &
+> **Status:** Phases 1–13 complete (architecture, database schema, authentication & users, projects &
 > members, tasks REST API, spreadsheet UI, inline editing, dropdown columns, filtering/sorting/search,
-> custom fields, task detail panel, comments & activity history). Attachments are not implemented yet —
-> see [Development phases](#development-phases).
+> custom fields, task detail panel, comments & activity history, attachments). Performance work (real
+> scale/virtualization), automated testing, and production hardening are not done yet — see
+> [Development phases](#development-phases).
 
 ## Technology stack
 
@@ -53,7 +54,7 @@ Silver-Task/
 │     ├─ components/layout/   App shell (topbar, sidebar)
 │     ├─ components/auth/      Route guard (RequireAuth)
 │     ├─ components/project/   View tabs (Table/Kanban/Calendar/Timeline/Gantt stub)
-│     ├─ components/spreadsheet/ TaskTable (TanStack Table) + cell editors + TaskDetailPanel + comments/activity
+│     ├─ components/spreadsheet/ TaskTable (TanStack Table) + cell editors + TaskDetailPanel + comments/activity/attachments
 │     ├─ hooks/                React Query hooks (incl. auth)
 │     ├─ pages/                Route-level views (Dashboard, Login, Project)
 │     ├─ providers/            App-wide providers (React Query, etc.)
@@ -353,6 +354,42 @@ custom fields — this phase is API + service layer + UI on top of an already-de
   a brief pending state on posting a comment is normal, expected UX, so the added complexity of an
   optimistic rollback path wasn't justified here.
 
+### Attachments
+
+The spec is explicit here: "design support for task attachments... do not implement complicated object
+storage yet." `TaskAttachments` was built in Phase 2; this phase adds a real (but simple) storage
+mechanism plus the API/UI on top of it — not a stub, but not S3/Azure Blob either.
+
+- **Storage is local disk** (`AttachmentService`), under a configurable root (`Attachments:StorageRoot`,
+  default `App_Data/attachments`, resolved relative to the content root) that sits **outside `wwwroot`** —
+  files are never directly web-accessible by URL; every read goes through `GET /api/attachments/{id}/download`,
+  which runs the same project-participation authorization check as everything else. Swapping this service
+  for a cloud-storage-backed implementation later is a contained change (one class behind `IAttachmentService`),
+  which is the point of scoping it this way now.
+- **Filenames on disk are never client-controlled.** Each file is stored as `{taskId}/{newGuid}{extension}`;
+  the original filename is kept only in the database, for display and for the `Content-Disposition` header
+  on download. This avoids path traversal and collisions without needing to sanitize an arbitrary
+  client-supplied filename into something safe to use as a real path.
+- **Validation:** a 25 MB size cap (generous enough for phone photos and scanned PDFs — this app's actual
+  domain of permits/inspections — raised from an initial 10 MB after real use showed that was too tight)
+  and a small blocklist of dangerous executable extensions (`.exe`, `.dll`,
+  `.bat`, `.cmd`, `.sh`, `.ps1`, `.msi`, `.com`, `.scr`) — enough to stop the obvious "someone uploads
+  malware and a teammate downloads and runs it" risk without building a full content-scanning pipeline,
+  which the spec doesn't ask for.
+- **Delete authorization sits between comments' strict "author only" and tasks' "manage tier":** the
+  uploader can always remove their own attachment (self-correction, same idea as comments), and
+  Administrators/owners/manager-members can remove any attachment on the project (consistent with them
+  managing everything else) — but a random Member can't delete a teammate's upload. The spec doesn't specify
+  this explicitly, so this was a judgment call between the two authorization patterns already established
+  elsewhere in the app, verified live: a Member with neither role gets a 403.
+- Upload/delete are logged into the Phase 12 activity feed too (`"AttachmentAdded"`/`"AttachmentRemoved"`),
+  reusing that infrastructure directly rather than building a separate history mechanism.
+- **Frontend upload needs `FormData`, which `httpClient`'s JSON-only wrapper didn't support** — rather than
+  add a parallel request function, `request()` now detects a `FormData` body and skips setting
+  `Content-Type` itself, letting the browser set its own multipart boundary. Download is a plain `<a href>`
+  to the download endpoint rather than a `fetch`+blob dance — cookie auth means the browser handles it like
+  any other authenticated same-origin navigation.
+
 ## Requirements
 
 - [.NET SDK 10.0+](https://dotnet.microsoft.com/download)
@@ -453,6 +490,7 @@ none.
   (except `.env.example`) and `appsettings.*.local.json`.
 - Build output (`bin/`, `obj/`, `node_modules/`, `dist/`) and IDE files (`.vs/`, `*.user`, `*.suo`) are
   already ignored.
+- Uploaded attachments (`Silver-Task.Server/App_Data/`) are user content, not source — also ignored.
 
 ## Development phases
 
@@ -502,5 +540,9 @@ This project is being built incrementally. Completed phases:
       spec), and an activity feed built by diffing old vs. new values on every task/custom-field mutation,
       with a special-cased "assigned to" phrasing matching the spec's examples (see
       [Comments & activity history](#comments--activity-history)). Attachments remain Phase 13.
+- [x] **Phase 13** — Attachments: local-disk storage architecture (deliberately not "complicated object
+      storage," per spec) behind `IAttachmentService`, GUID-based filenames on disk with authorized-only
+      download, a 25 MB size cap + blocked-extension validation, and upload/delete logged into the Phase 12
+      activity feed (see [Attachments](#attachments)).
 
-Upcoming: attachments, performance work, testing, and production hardening.
+Upcoming: performance work (real-scale/virtualization), automated testing, and production hardening.
