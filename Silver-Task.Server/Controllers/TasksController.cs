@@ -38,5 +38,12 @@ namespace Silver_Task.Server.Controllers
             var copy = await _taskService.DuplicateAsync(id, User.GetUserId(), User.GetRole());
             return CreatedAtAction(nameof(GetById), new { id = copy.Id }, copy.ToDto());
         }
+
+        [HttpPut("{id:guid}/custom-values/{customFieldId:guid}")]
+        public async Task<ActionResult<TaskDto>> SetCustomValue(Guid id, Guid customFieldId, [FromBody] SetTaskCustomValueRequest request)
+        {
+            var task = await _taskService.SetCustomValueAsync(id, customFieldId, request.Value, User.GetUserId(), User.GetRole());
+            return Ok(task.ToDto());
+        }
     }
 }

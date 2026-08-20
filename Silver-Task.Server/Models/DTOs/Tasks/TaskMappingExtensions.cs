@@ -18,6 +18,9 @@ namespace Silver_Task.Server.Models.DTOs.Tasks
             DueDate = task.DueDate,
             CompletedAt = task.CompletedAt,
             SortOrder = task.SortOrder,
+            CustomValues = task.CustomValues
+                .Select(v => new TaskCustomValueDto { CustomFieldId = v.CustomFieldId, Value = v.Value })
+                .ToList(),
             CreatedAt = task.CreatedAt,
             UpdatedAt = task.UpdatedAt
         };

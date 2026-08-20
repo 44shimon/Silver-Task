@@ -4,9 +4,10 @@ A production-oriented, spreadsheet-style task management application. Projects c
 in an editable, sortable, filterable grid (rows = tasks, columns = fields, including project-defined
 custom fields), backed by a real REST API and a relational database.
 
-> **Status:** Phases 1–9 complete (architecture, database schema, authentication & users, projects &
-> members, tasks REST API, spreadsheet UI, inline editing, dropdown columns, filtering/sorting/search).
-> Custom fields are not implemented yet — see [Development phases](#development-phases).
+> **Status:** Phases 1–10 complete (architecture, database schema, authentication & users, projects &
+> members, tasks REST API, spreadsheet UI, inline editing, dropdown columns, filtering/sorting/search,
+> custom fields). The task detail panel, comments/activity history, and attachments are not implemented
+> yet — see [Development phases](#development-phases).
 
 ## Technology stack
 
@@ -38,7 +39,7 @@ presentational components.
 Silver-Task/
 ├─ Silver-Task.Server/        ASP.NET Core Web API
 │  ├─ Controllers/            HTTP endpoints (thin; no business logic)
-│  ├─ Services/                Business logic (auth, users, projects, tasks, JWT issuance), one interface + impl per file
+│  ├─ Services/                Business logic (auth, users, projects, tasks, custom fields, JWT issuance), one interface + impl per file
 │  ├─ Models/Entities/        EF Core entities + enums (Status, Priority, Role, CustomFieldType)
 │  ├─ Models/DTOs/             Request/response shapes exposed by the API (never raw entities)
 │  ├─ Data/                   AppDbContext, Fluent API configurations, EF Core migrations
@@ -226,8 +227,8 @@ Notes:
 - **Fully client-side** (`useTaskFilters.ts`): the project task list has no pagination yet (Phase 14), so
   there's nothing to gain from round-tripping to the server on every keystroke or filter change — search,
   filters, and sort all run as `useMemo` array operations over the already-loaded task list.
-- **Search** matches title or description, case-insensitive substring (custom text fields will join this
-  once Phase 10 exists).
+- **Search** matches title, description, or any Text/LongText custom field value, case-insensitive
+  substring (per spec).
 - **Filters** (`TaskFilterPanel`) are AND-combined, per the spec's example (Status = In Progress AND
   Assigned To = Shimon AND Priority = High): Status, Priority, Assigned To (including an explicit
   "Unassigned" option), and Due Date before a given date. Deliberately a fixed set of fields rather than a
@@ -248,6 +249,42 @@ Notes:
   `Date` parsing needed. `dueDate` nulls sort last regardless of direction.
 - The empty state distinguishes "no tasks yet" from "no tasks match your search/filters" so an aggressive
   filter doesn't look like the project has no tasks at all.
+
+### Custom fields
+
+The `CustomFields`/`CustomFieldOptions`/`TaskCustomValues` tables (EAV pattern) were built in Phase 2
+specifically for this — no migration was needed for this phase, only the API and UI on top of them.
+
+- **Authorization:** managing field *definitions* (create/rename/delete a field, manage its options) uses
+  the same manage tier as renaming a project or deleting a task (Administrator, project owner, or a Manager
+  who's a member); *setting a value* on a task uses the participate tier, same as every other task edit —
+  any project member can fill in a custom field, matching how they can already edit Title/Status/etc.
+- **`FieldType` is immutable after creation.** Changing Number to Date after values exist would leave those
+  values impossible to interpret; renaming and reordering (`SortOrder`) are the only things `PUT
+  /api/custom-fields/{id}` allows.
+- **Value storage & validation:** every value is stored as text in `TaskCustomValues.Value` and
+  validated/normalized per `FieldType` in `TaskService.ValidateAndNormalizeCustomValueAsync` — Number/
+  Currency must parse as `decimal`, Date/DateTime must parse, Checkbox must be exactly `"true"`/`"false"`,
+  Dropdown must match one of the field's option ids, MultiSelect must be a JSON array of valid option ids,
+  and User must be an existing **project member** (same rule as task assignment). Dropdown/MultiSelect
+  store option **ids**, not raw text, so renaming an option doesn't orphan existing task values.
+- **Deleting an option cleans up after itself:** any `TaskCustomValues` referencing a deleted option
+  (Dropdown exact match, or MultiSelect's JSON array containing it) are removed rather than left pointing
+  at something that no longer exists. Deleting a field cascades to its options and all task values at the
+  database level (Phase 2).
+- **Duplicating a task copies its custom values** too, consistent with "duplicate" copying everything else
+  about a task (Phase 5).
+- **Frontend cell editors** (`components/spreadsheet/*CustomValueCell.tsx`) reuse the interaction patterns
+  from Phases 7–8 rather than inventing new ones: `TextCustomValueCell` (Text/LongText/Number/Currency) and
+  `DateCustomValueCell` (Date/DateTime) are click-to-edit like `EditableTitleCell`; `SelectCustomValueCell`
+  (Dropdown/User) is an always-rendered `<select>` like `StatusDropdownCell`; `CheckboxCustomValueCell` is a
+  live checkbox; `MultiSelectCustomValueCell` is the one genuinely new pattern — a `<details>`-based
+  checklist popover, since none of the existing editors support multiple selections. All six go through
+  `useSetTaskCustomValue`, the same optimistic-update/rollback shape as `useUpdateTask`.
+- **`CustomFieldsPanel`** (toolbar) is where fields get created and managed: name + type + (for Dropdown/
+  MultiSelect) an initial option list on creation, plus inline rename/add/remove for each existing field's
+  options. Deliberately no drag-to-reorder UI for fields or options in this phase, consistent with skipping
+  full column drag-reorder in Phase 6 — `SortOrder` is there and settable via the API if that's added later.
 
 ## Requirements
 
@@ -384,6 +421,10 @@ This project is being built incrementally. Completed phases:
       filters (Status/Priority/Assigned To/Due-before), and sort across all 7 spec-listed fields via both
       a toolbar Sort menu and clickable column headers driving the same state (see
       [Filtering, sorting & search](#filtering-sorting--search)).
+- [x] **Phase 10** — Custom fields: full CRUD for project-defined fields of all 10 spec-listed types
+      (Text/Number/Currency/Date/DateTime/Checkbox/Dropdown/MultiSelect/User/LongText) on the Phase-2 EAV
+      schema, per-type value validation, dynamic grid columns with type-appropriate editors, and search
+      extended to custom text fields (see [Custom fields](#custom-fields)).
 
-Upcoming: custom fields, task detail panel, comments & activity history, attachments, performance work,
-testing, and production hardening.
+Upcoming: task detail panel, comments & activity history, attachments, performance work, testing, and
+production hardening.

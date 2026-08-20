@@ -8,4 +8,6 @@ export const tasksApi = {
   update: (taskId: string, request: UpdateTaskRequest) => httpClient.put<Task>(`/tasks/${taskId}`, request),
   remove: (taskId: string) => httpClient.delete<void>(`/tasks/${taskId}`),
   duplicate: (taskId: string) => httpClient.post<Task>(`/tasks/${taskId}/duplicate`),
+  setCustomValue: (taskId: string, customFieldId: string, value: string | null) =>
+    httpClient.put<Task>(`/tasks/${taskId}/custom-values/${customFieldId}`, { value }),
 };

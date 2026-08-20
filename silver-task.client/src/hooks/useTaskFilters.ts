@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Task, TaskPriority, TaskStatus } from '@/types/task';
+import type { CustomField } from '@/types/customField';
 
 export type TaskSortField = 'title' | 'assignedTo' | 'status' | 'priority' | 'dueDate' | 'createdAt' | 'updatedAt';
 
@@ -50,11 +51,18 @@ const PRIORITY_RANK: Record<TaskPriority, number> = { Low: 0, Medium: 1, High: 2
 /** Client-side search + filter + sort over an already-loaded task list. The project
  * task list has no pagination yet (Phase 14), so there's nothing to gain from
  * round-tripping to the server for every keystroke or filter change. */
-export function useTaskFilters(tasks: Task[]) {
+export function useTaskFilters(tasks: Task[], customFields: CustomField[] = []) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS);
   const [sortField, setSortFieldState] = useState<TaskSortField>('title');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  // Custom text fields are searchable too, per spec — track which field ids are
+  // Text/LongText so the search pass below knows which custom values to check.
+  const textFieldIds = useMemo(
+    () => new Set(customFields.filter((f) => f.fieldType === 'Text' || f.fieldType === 'LongText').map((f) => f.id)),
+    [customFields],
+  );
 
   // Clicking a column header (or picking the same field in the Sort menu) toggles
   // direction instead of resetting to ascending, matching typical spreadsheet behavior.
@@ -76,9 +84,17 @@ export function useTaskFilters(tasks: Task[]) {
 
     const query = searchQuery.trim().toLowerCase();
     if (query) {
-      items = items.filter(
-        (task) => task.title.toLowerCase().includes(query) || (task.description ?? '').toLowerCase().includes(query),
-      );
+      items = items.filter((task) => {
+        if (task.title.toLowerCase().includes(query)) {
+          return true;
+        }
+        if ((task.description ?? '').toLowerCase().includes(query)) {
+          return true;
+        }
+        return task.customValues.some(
+          (v) => textFieldIds.has(v.customFieldId) && (v.value ?? '').toLowerCase().includes(query),
+        );
+      });
     }
 
     if (filters.status) {
@@ -100,7 +116,7 @@ export function useTaskFilters(tasks: Task[]) {
       const result = compareTasks(a, b, sortField);
       return sortDirection === 'asc' ? result : -result;
     });
-  }, [tasks, searchQuery, filters, sortField, sortDirection]);
+  }, [tasks, searchQuery, filters, sortField, sortDirection, textFieldIds]);
 
   return {
     filteredTasks,

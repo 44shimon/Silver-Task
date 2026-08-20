@@ -27,6 +27,8 @@ namespace Silver_Task.Server.Models.DTOs.Tasks
 
         public double SortOrder { get; set; }
 
+        public List<TaskCustomValueDto> CustomValues { get; set; } = [];
+
         public DateTime CreatedAt { get; set; }
 
         public DateTime UpdatedAt { get; set; }

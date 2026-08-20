@@ -10,6 +10,7 @@ import {
 } from '@/hooks/useProjects';
 import { useDeleteTask, useDuplicateTask, useTasks } from '@/hooks/useTasks';
 import { useTaskFilters } from '@/hooks/useTaskFilters';
+import { useCustomFields } from '@/hooks/useCustomFields';
 import { ApiError } from '@/api/httpClient';
 import { ProjectViewTabs } from '@/components/project/ProjectViewTabs';
 import { NewTaskButton } from '@/components/spreadsheet/NewTaskButton';
@@ -17,6 +18,7 @@ import { TaskTable } from '@/components/spreadsheet/TaskTable';
 import { TaskSearchInput } from '@/components/spreadsheet/TaskSearchInput';
 import { TaskFilterPanel } from '@/components/spreadsheet/TaskFilterPanel';
 import { TaskSortMenu } from '@/components/spreadsheet/TaskSortMenu';
+import { CustomFieldsPanel } from '@/components/spreadsheet/CustomFieldsPanel';
 import './ProjectPage.css';
 
 export function ProjectPage() {
@@ -24,6 +26,7 @@ export function ProjectPage() {
   const { data: project, isLoading, isError } = useProject(projectId);
   const { data: members } = useProjectMembers(projectId);
   const { data: tasks, isLoading: tasksLoading } = useTasks(projectId);
+  const { data: customFields } = useCustomFields(projectId);
   const updateProject = useUpdateProject(projectId ?? '');
   const addMember = useAddProjectMember(projectId ?? '');
   const removeMember = useRemoveProjectMember(projectId ?? '');
@@ -43,7 +46,7 @@ export function ProjectPage() {
     sortDirection,
     setSortField,
     setSortDirection,
-  } = useTaskFilters(tasks ?? []);
+  } = useTaskFilters(tasks ?? [], customFields ?? []);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
@@ -164,6 +167,7 @@ export function ProjectPage() {
             onFieldChange={setSortField}
             onDirectionChange={setSortDirection}
           />
+          <CustomFieldsPanel projectId={project.id} />
           <NewTaskButton projectId={project.id} />
         </div>
       </div>
@@ -175,6 +179,7 @@ export function ProjectPage() {
           projectId={project.id}
           tasks={filteredTasks}
           members={memberUsers}
+          customFields={customFields ?? []}
           isFiltered={isFiltered}
           sortField={sortField}
           sortDirection={sortDirection}

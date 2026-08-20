@@ -9,6 +9,7 @@ import { getCoreRowModel, legacyCreateColumnHelper, useLegacyTable, type LegacyC
 import { Copy, Trash2 } from 'lucide-react';
 import type { Task } from '@/types/task';
 import type { UserSummary } from '@/types/project';
+import type { CustomField } from '@/types/customField';
 import type { SortDirection, TaskSortField } from '@/hooks/useTaskFilters';
 import { EditableTitleCell } from './EditableTitleCell';
 import { EditableDateCell } from './EditableDateCell';
@@ -16,12 +17,14 @@ import { StatusDropdownCell } from './StatusDropdownCell';
 import { PriorityDropdownCell } from './PriorityDropdownCell';
 import { AssignedToDropdownCell } from './AssignedToDropdownCell';
 import { SortableColumnHeader } from './SortableColumnHeader';
+import { CustomFieldCell } from './CustomFieldCell';
 import './TaskTable.css';
 
 interface TaskTableProps {
   projectId: string;
   tasks: Task[];
   members: UserSummary[];
+  customFields: CustomField[];
   isFiltered: boolean;
   sortField: TaskSortField;
   sortDirection: SortDirection;
@@ -36,6 +39,7 @@ export function TaskTable({
   projectId,
   tasks,
   members,
+  customFields,
   isFiltered,
   sortField,
   sortDirection,
@@ -124,6 +128,17 @@ export function TaskTable({
         minSize: 100,
         cell: (info) => <EditableDateCell task={info.row.original} projectId={projectId} field="dueDate" />,
       }),
+      ...customFields.map((field) =>
+        columnHelper.display({
+          id: `custom-${field.id}`,
+          header: field.name,
+          size: 160,
+          minSize: 120,
+          cell: (info) => (
+            <CustomFieldCell task={info.row.original} field={field} projectId={projectId} members={members} />
+          ),
+        }),
+      ),
       columnHelper.display({
         id: 'actions',
         header: '',
@@ -152,7 +167,7 @@ export function TaskTable({
         ),
       }),
     ],
-    [projectId, members, sortField, sortDirection, onSortFieldClick, onDuplicate, onDelete],
+    [projectId, members, customFields, sortField, sortDirection, onSortFieldClick, onDuplicate, onDelete],
   );
 
   const table = useLegacyTable({

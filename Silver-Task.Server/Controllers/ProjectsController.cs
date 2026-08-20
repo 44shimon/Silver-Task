@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Silver_Task.Server.Common;
+using Silver_Task.Server.Models.DTOs.CustomFields;
 using Silver_Task.Server.Models.DTOs.Projects;
 using Silver_Task.Server.Models.DTOs.Tasks;
 using Silver_Task.Server.Services;
@@ -8,10 +9,11 @@ namespace Silver_Task.Server.Controllers
 {
     [ApiController]
     [Route("api/projects")]
-    public class ProjectsController(IProjectService projectService, ITaskService taskService) : ControllerBase
+    public class ProjectsController(IProjectService projectService, ITaskService taskService, ICustomFieldService customFieldService) : ControllerBase
     {
         private readonly IProjectService _projectService = projectService;
         private readonly ITaskService _taskService = taskService;
+        private readonly ICustomFieldService _customFieldService = customFieldService;
 
         [HttpGet]
         public async Task<ActionResult<IReadOnlyList<ProjectDto>>> GetAll()
@@ -82,6 +84,20 @@ namespace Silver_Task.Server.Controllers
         {
             var task = await _taskService.CreateAsync(id, request, User.GetUserId(), User.GetRole());
             return CreatedAtAction(nameof(TasksController.GetById), "Tasks", new { id = task.Id }, task.ToDto());
+        }
+
+        [HttpGet("{id:guid}/custom-fields")]
+        public async Task<ActionResult<IReadOnlyList<CustomFieldDto>>> GetCustomFields(Guid id)
+        {
+            var fields = await _customFieldService.GetAllForProjectAsync(id, User.GetUserId(), User.GetRole());
+            return Ok(fields.Select(f => f.ToDto()));
+        }
+
+        [HttpPost("{id:guid}/custom-fields")]
+        public async Task<ActionResult<CustomFieldDto>> CreateCustomField(Guid id, [FromBody] CreateCustomFieldRequest request)
+        {
+            var field = await _customFieldService.CreateAsync(id, request, User.GetUserId(), User.GetRole());
+            return CreatedAtAction(nameof(CustomFieldsController.GetById), "CustomFields", new { id = field.Id }, field.ToDto());
         }
     }
 }

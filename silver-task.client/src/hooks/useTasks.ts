@@ -128,3 +128,50 @@ export function useUpdateTask(projectId: string) {
     },
   });
 }
+
+interface SetCustomValueInput {
+  task: Task;
+  customFieldId: string;
+  value: string | null;
+}
+
+/** Same optimistic-update/rollback shape as useUpdateTask, but for the separate
+ * custom-value endpoint rather than the full-task PUT. */
+export function useSetTaskCustomValue(projectId: string) {
+  const queryClient = useQueryClient();
+  const queryKey = tasksKey(projectId);
+
+  return useMutation({
+    mutationFn: ({ task, customFieldId, value }: SetCustomValueInput) =>
+      tasksApi.setCustomValue(task.id, customFieldId, value),
+    onMutate: async ({ task, customFieldId, value }) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previousTasks = queryClient.getQueryData<Task[]>(queryKey);
+
+      queryClient.setQueryData<Task[]>(queryKey, (old) =>
+        old?.map((t) => {
+          if (t.id !== task.id) {
+            return t;
+          }
+          const otherValues = t.customValues.filter((v) => v.customFieldId !== customFieldId);
+          return {
+            ...t,
+            customValues: value === null ? otherValues : [...otherValues, { customFieldId, value }],
+          };
+        }),
+      );
+
+      return { previousTasks };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousTasks) {
+        queryClient.setQueryData(queryKey, context.previousTasks);
+      }
+    },
+    onSuccess: (updatedTask) => {
+      queryClient.setQueryData<Task[]>(queryKey, (old) =>
+        old?.map((t) => (t.id === updatedTask.id ? updatedTask : t)),
+      );
+    },
+  });
+}

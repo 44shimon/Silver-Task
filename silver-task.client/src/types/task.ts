@@ -17,6 +17,11 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
 
 export const PRIORITY_OPTIONS: TaskPriority[] = ['Low', 'Medium', 'High', 'Urgent'];
 
+export interface TaskCustomValue {
+  customFieldId: string;
+  value: string | null;
+}
+
 export interface Task {
   id: string;
   projectId: string;
@@ -29,6 +34,7 @@ export interface Task {
   dueDate: string | null;
   completedAt: string | null;
   sortOrder: number;
+  customValues: TaskCustomValue[];
   createdAt: string;
   updatedAt: string;
 }
