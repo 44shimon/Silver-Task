@@ -13,6 +13,10 @@
   --danger-bg: rgba(220, 38, 38, 0.1);
   --success: #16a34a;
   --success-bg: rgba(22, 163, 74, 0.1);
+  --info: #2563eb;
+  --info-bg: rgba(37, 99, 235, 0.1);
+  --warning: #d97706;
+  --warning-bg: rgba(217, 119, 6, 0.1);
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
@@ -47,6 +51,10 @@
     --danger-bg: rgba(248, 113, 113, 0.12);
     --success: #4ade80;
     --success-bg: rgba(74, 222, 128, 0.12);
+    --info: #60a5fa;
+    --info-bg: rgba(96, 165, 250, 0.15);
+    --warning: #fbbf24;
+    --warning-bg: rgba(251, 191, 36, 0.15);
     --shadow:
       rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
   }

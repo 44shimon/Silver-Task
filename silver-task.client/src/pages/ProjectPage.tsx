@@ -8,16 +8,23 @@ import {
   useRemoveProjectMember,
   useUpdateProject,
 } from '@/hooks/useProjects';
+import { useDeleteTask, useDuplicateTask, useTasks } from '@/hooks/useTasks';
 import { ApiError } from '@/api/httpClient';
+import { ProjectViewTabs } from '@/components/project/ProjectViewTabs';
+import { NewTaskButton } from '@/components/spreadsheet/NewTaskButton';
+import { TaskTable } from '@/components/spreadsheet/TaskTable';
 import './ProjectPage.css';
 
 export function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const { data: project, isLoading, isError } = useProject(projectId);
   const { data: members } = useProjectMembers(projectId);
+  const { data: tasks, isLoading: tasksLoading } = useTasks(projectId);
   const updateProject = useUpdateProject(projectId ?? '');
   const addMember = useAddProjectMember(projectId ?? '');
   const removeMember = useRemoveProjectMember(projectId ?? '');
+  const duplicateTask = useDuplicateTask(projectId ?? '');
+  const deleteTask = useDeleteTask(projectId ?? '');
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
@@ -119,15 +126,25 @@ export function ProjectPage() {
             {project.description || 'Add a description...'}
           </p>
         )}
-
-        <div className="project-page__meta">
-          <span>Owner: {project.owner.name}</span>
-          <span>Created {new Date(project.createdAt).toLocaleDateString()}</span>
-        </div>
       </div>
 
-      <div className="project-page__section">
-        <h2>Members</h2>
+      <div className="project-toolbar">
+        <ProjectViewTabs active="table" />
+        <NewTaskButton projectId={project.id} />
+      </div>
+
+      {tasksLoading ? (
+        <p>Loading tasks...</p>
+      ) : (
+        <TaskTable
+          tasks={tasks ?? []}
+          onDuplicate={(taskId) => duplicateTask.mutate(taskId)}
+          onDelete={(taskId) => deleteTask.mutate(taskId)}
+        />
+      )}
+
+      <details className="project-page__section">
+        <summary>Members ({members?.length ?? 0})</summary>
 
         <div className="member-list">
           {members?.map((member) => (
@@ -170,7 +187,7 @@ export function ProjectPage() {
             {addMember.error instanceof ApiError ? addMember.error.message : 'Could not add member.'}
           </p>
         )}
-      </div>
+      </details>
     </div>
   );
 }

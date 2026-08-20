@@ -1,0 +1,85 @@
+.task-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.task-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.task-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: 9px 12px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  color: var(--text-h);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.task-table__header-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-table tbody tr:hover {
+  background: var(--bg-subtle);
+}
+
+.task-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.task-table__resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 5px;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+}
+
+.task-table__resizer:hover,
+.task-table__resizer--active {
+  background: var(--accent);
+}
+
+.task-table__empty {
+  color: var(--text);
+  opacity: 0.5;
+}
+
+.task-table__empty-state {
+  text-align: center;
+  padding: 32px;
+  color: var(--text);
+  opacity: 0.7;
+  white-space: normal;
+}
+
+.task-table__actions {
+  display: flex;
+  gap: 4px;
+}

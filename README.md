@@ -4,8 +4,9 @@ A production-oriented, spreadsheet-style task management application. Projects c
 in an editable, sortable, filterable grid (rows = tasks, columns = fields, including project-defined
 custom fields), backed by a real REST API and a relational database.
 
-> **Status:** Phases 1–5 complete (architecture, database schema, authentication & users, projects &
-> members, tasks REST API). The spreadsheet UI is not implemented yet — see [Development phases](#development-phases).
+> **Status:** Phases 1–6 complete (architecture, database schema, authentication & users, projects &
+> members, tasks REST API, spreadsheet UI). Inline cell editing, dropdown editors, and filter/sort/search
+> are not implemented yet — see [Development phases](#development-phases).
 
 ## Technology stack
 
@@ -50,6 +51,8 @@ Silver-Task/
 │     ├─ api/                 Centralized API client (fetch wrapper + per-resource services)
 │     ├─ components/layout/   App shell (topbar, sidebar)
 │     ├─ components/auth/      Route guard (RequireAuth)
+│     ├─ components/project/   View tabs (Table/Kanban/Calendar/Timeline/Gantt stub)
+│     ├─ components/spreadsheet/ TaskTable (TanStack Table) + badges + row/creation controls
 │     ├─ hooks/                React Query hooks (incl. auth)
 │     ├─ pages/                Route-level views (Dashboard, Login, Project)
 │     ├─ providers/            App-wide providers (React Query, etc.)
@@ -151,6 +154,31 @@ Notes:
   implementing drag-to-reorder (Phase 7) — no server-side renumbering is needed.
 - Deleting a task is a hard delete (unlike Projects). Its comments/activity/attachments/custom values
   cascade-delete with it at the database level (configured in Phase 2).
+
+### Spreadsheet UI
+
+- Each project's Table view (`ProjectPage` → `TaskTable`) renders tasks with TanStack Table: sticky
+  header, horizontal scroll for wide column sets, and drag-to-resize columns (title/status/priority/
+  assigned-to/start-date/due-date + a row-actions column).
+- **TanStack Table version note:** the installed `@tanstack/react-table` (v9) replaced the familiar
+  `useReactTable` with a new modular `features`-based `useTable` API (opt-in feature slots, tree-shaking).
+  `TaskTable` deliberately uses `useLegacyTable` instead — the officially bundled v8-compatible layer
+  (`@tanstack/react-table/legacy`), which still includes column resizing (part of `StockFeatures`). This
+  is a considered choice, not a leftover from a migration: the classic API is far simpler and lower-risk
+  for a display grid that doesn't need v9-only capabilities. Revisit if a future phase needs something
+  only the new `features` system provides.
+- Status/Priority render as colored badges (`StatusBadge`/`PriorityBadge`); new `--info`/`--warning` CSS
+  tokens were added alongside the existing `--accent`/`--success`/`--danger` for this.
+- **View architecture:** `ProjectViewTabs` renders Table (active) plus Kanban/Calendar/Timeline/Gantt as
+  visibly-present-but-disabled tabs, satisfying the "design for additional views later" requirement without
+  building anything beyond Table yet.
+- "+ New Task" uses the same inline-form interaction as the sidebar's "+ New Project" (Phase 4) for
+  consistency; it intentionally stays open after a successful create so adding several tasks in a row
+  doesn't require reopening it.
+- Row actions (duplicate/delete) call the Phase 5 API directly; there's no inline cell editing yet — that's
+  Phase 7. Clicking a task's title/status/etc. does nothing yet.
+- Project member management (Phase 4) was moved into a collapsed `<details>` section below the grid so the
+  spreadsheet is the visually dominant element, per the app's intended layout.
 
 ## Requirements
 
@@ -272,7 +300,10 @@ This project is being built incrementally. Completed phases:
       rules, and a shared `ProjectAccessService` so task authorization can't drift from project
       authorization (see [Tasks](#tasks)). Backend-only by design — Phase 6 owns the spreadsheet UI that
       will consume this API.
+- [x] **Phase 6** — Spreadsheet UI: TanStack Table grid with sticky header, resizable columns, and
+      horizontal scroll; status/priority badges; the Table/Kanban/Calendar/Timeline/Gantt view-tab
+      architecture (Table only implemented); inline task creation and row duplicate/delete (see
+      [Spreadsheet UI](#spreadsheet-ui)). No inline cell editing yet — that's Phase 7.
 
-Upcoming: spreadsheet UI, inline editing, dropdown columns, filtering/sorting/search, custom fields, task
-detail panel, comments & activity history, attachments, performance work, testing, and production
-hardening.
+Upcoming: inline editing, dropdown columns, filtering/sorting/search, custom fields, task detail panel,
+comments & activity history, attachments, performance work, testing, and production hardening.

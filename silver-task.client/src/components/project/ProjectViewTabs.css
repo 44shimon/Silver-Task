@@ -1,0 +1,29 @@
+.view-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.view-tabs__item {
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.view-tabs__item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.view-tabs__item--active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.view-tabs__item:not(:disabled):not(.view-tabs__item--active):hover {
+  color: var(--text-h);
+}

@@ -1,0 +1,64 @@
+.status-badge,
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-badge--notstarted {
+  background: var(--bg-subtle);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.status-badge--inprogress {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.status-badge--waiting {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.status-badge--blocked {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.status-badge--complete {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.status-badge--cancelled {
+  background: var(--bg-subtle);
+  color: var(--text);
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+.priority-badge--low {
+  background: var(--bg-subtle);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.priority-badge--medium {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.priority-badge--high {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.priority-badge--urgent {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
