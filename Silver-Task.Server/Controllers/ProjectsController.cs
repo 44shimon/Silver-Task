@@ -1,15 +1,17 @@
 using Microsoft.AspNetCore.Mvc;
 using Silver_Task.Server.Common;
 using Silver_Task.Server.Models.DTOs.Projects;
+using Silver_Task.Server.Models.DTOs.Tasks;
 using Silver_Task.Server.Services;
 
 namespace Silver_Task.Server.Controllers
 {
     [ApiController]
     [Route("api/projects")]
-    public class ProjectsController(IProjectService projectService) : ControllerBase
+    public class ProjectsController(IProjectService projectService, ITaskService taskService) : ControllerBase
     {
         private readonly IProjectService _projectService = projectService;
+        private readonly ITaskService _taskService = taskService;
 
         [HttpGet]
         public async Task<ActionResult<IReadOnlyList<ProjectDto>>> GetAll()
@@ -66,6 +68,20 @@ namespace Silver_Task.Server.Controllers
         {
             await _projectService.RemoveMemberAsync(id, userId, User.GetUserId(), User.GetRole());
             return NoContent();
+        }
+
+        [HttpGet("{id:guid}/tasks")]
+        public async Task<ActionResult<IReadOnlyList<TaskDto>>> GetTasks(Guid id)
+        {
+            var tasks = await _taskService.GetAllForProjectAsync(id, User.GetUserId(), User.GetRole());
+            return Ok(tasks.Select(t => t.ToDto()));
+        }
+
+        [HttpPost("{id:guid}/tasks")]
+        public async Task<ActionResult<TaskDto>> CreateTask(Guid id, [FromBody] CreateTaskRequest request)
+        {
+            var task = await _taskService.CreateAsync(id, request, User.GetUserId(), User.GetRole());
+            return CreatedAtAction(nameof(TasksController.GetById), "Tasks", new { id = task.Id }, task.ToDto());
         }
     }
 }

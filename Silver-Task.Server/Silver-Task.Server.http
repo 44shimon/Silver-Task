@@ -97,3 +97,51 @@ DELETE {{Silver_Task.Server_HostAddress}}/api/projects/{projectId}/members/{user
 DELETE {{Silver_Task.Server_HostAddress}}/api/projects/{projectId}
 
 ###
+
+GET {{Silver_Task.Server_HostAddress}}/api/projects/{projectId}/tasks
+Accept: application/json
+
+###
+
+POST {{Silver_Task.Server_HostAddress}}/api/projects/{projectId}/tasks
+Content-Type: application/json
+
+{
+  "title": "Get permit",
+  "priority": "High",
+  "dueDate": "2026-08-25"
+}
+
+###
+
+# Replace {taskId} below with an id from the responses above.
+
+GET {{Silver_Task.Server_HostAddress}}/api/tasks/{taskId}
+Accept: application/json
+
+###
+
+# Full-resource replace (PUT): status/priority/assignee/dates/sortOrder all travel together.
+# Setting status to "Complete" auto-stamps completedAt; moving away from Complete clears it.
+PUT {{Silver_Task.Server_HostAddress}}/api/tasks/{taskId}
+Content-Type: application/json
+
+{
+  "title": "Get permit",
+  "status": "InProgress",
+  "priority": "High",
+  "assignedToUserId": null,
+  "dueDate": "2026-08-25",
+  "sortOrder": 1
+}
+
+###
+
+# Inserts the copy immediately after the original (fractional SortOrder), not at the end of the list.
+POST {{Silver_Task.Server_HostAddress}}/api/tasks/{taskId}/duplicate
+
+###
+
+DELETE {{Silver_Task.Server_HostAddress}}/api/tasks/{taskId}
+
+###

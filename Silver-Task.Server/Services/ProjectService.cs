@@ -26,9 +26,10 @@ namespace Silver_Task.Server.Services
         Task RemoveMemberAsync(Guid projectId, Guid targetUserId, Guid callerId, UserRole callerRole);
     }
 
-    public class ProjectService(AppDbContext db) : IProjectService
+    public class ProjectService(AppDbContext db, IProjectAccessService projectAccess) : IProjectService
     {
         private readonly AppDbContext _db = db;
+        private readonly IProjectAccessService _projectAccess = projectAccess;
 
         public async Task<IReadOnlyList<Project>> GetAllForUserAsync(Guid callerId, UserRole callerRole)
         {
@@ -45,7 +46,7 @@ namespace Silver_Task.Server.Services
         public async Task<Project> GetByIdAsync(Guid projectId, Guid callerId, UserRole callerRole)
         {
             var project = await LoadProjectAsync(projectId);
-            await EnsureCanViewAsync(project, callerId, callerRole);
+            await _projectAccess.EnsureCanParticipateAsync(project.Id, project.OwnerId, callerId, callerRole);
             return project;
         }
 
@@ -78,7 +79,7 @@ namespace Silver_Task.Server.Services
         public async Task<Project> UpdateAsync(Guid projectId, UpdateProjectRequest request, Guid callerId, UserRole callerRole)
         {
             var project = await LoadProjectAsync(projectId);
-            await EnsureCanManageAsync(project, callerId, callerRole);
+            await _projectAccess.EnsureCanManageAsync(project.Id, project.OwnerId, callerId, callerRole);
 
             project.Name = request.Name.Trim();
             project.Description = NormalizeDescription(request.Description);
@@ -91,7 +92,7 @@ namespace Silver_Task.Server.Services
         public async Task ArchiveAsync(Guid projectId, Guid callerId, UserRole callerRole)
         {
             var project = await LoadProjectAsync(projectId);
-            await EnsureCanManageAsync(project, callerId, callerRole);
+            await _projectAccess.EnsureCanManageAsync(project.Id, project.OwnerId, callerId, callerRole);
 
             if (project.IsArchived)
             {
@@ -108,7 +109,7 @@ namespace Silver_Task.Server.Services
         public async Task<IReadOnlyList<ProjectMember>> GetMembersAsync(Guid projectId, Guid callerId, UserRole callerRole)
         {
             var project = await LoadProjectAsync(projectId);
-            await EnsureCanViewAsync(project, callerId, callerRole);
+            await _projectAccess.EnsureCanParticipateAsync(project.Id, project.OwnerId, callerId, callerRole);
 
             return await _db.ProjectMembers
                 .Include(m => m.User)
@@ -120,7 +121,7 @@ namespace Silver_Task.Server.Services
         public async Task<ProjectMember> AddMemberAsync(Guid projectId, string email, Guid callerId, UserRole callerRole)
         {
             var project = await LoadProjectAsync(projectId);
-            await EnsureCanManageAsync(project, callerId, callerRole);
+            await _projectAccess.EnsureCanManageAsync(project.Id, project.OwnerId, callerId, callerRole);
 
             var normalizedEmail = email.Trim().ToLowerInvariant();
             var user = await _db.Users.SingleOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail)
@@ -148,7 +149,7 @@ namespace Silver_Task.Server.Services
         public async Task RemoveMemberAsync(Guid projectId, Guid targetUserId, Guid callerId, UserRole callerRole)
         {
             var project = await LoadProjectAsync(projectId);
-            await EnsureCanManageAsync(project, callerId, callerRole);
+            await _projectAccess.EnsureCanManageAsync(project.Id, project.OwnerId, callerId, callerRole);
 
             if (targetUserId == project.OwnerId)
             {
@@ -166,44 +167,6 @@ namespace Silver_Task.Server.Services
         {
             var project = await _db.Projects.Include(p => p.Owner).FirstOrDefaultAsync(p => p.Id == projectId);
             return project ?? throw new NotFoundException($"Project '{projectId}' was not found.");
-        }
-
-        private async Task<bool> IsMemberAsync(Guid projectId, Guid userId) =>
-            await _db.ProjectMembers.AnyAsync(m => m.ProjectId == projectId && m.UserId == userId);
-
-        /// <summary>Administrators, the owner, or any member can view a project.</summary>
-        private async Task EnsureCanViewAsync(Project project, Guid callerId, UserRole callerRole)
-        {
-            if (callerRole == UserRole.Administrator || project.OwnerId == callerId)
-            {
-                return;
-            }
-
-            if (await IsMemberAsync(project.Id, callerId))
-            {
-                return;
-            }
-
-            throw new ForbiddenException("You do not have access to this project.");
-        }
-
-        /// <summary>
-        /// Administrators and the owner can always manage a project. A Manager can manage it
-        /// only while they're a member of it — plain Members never can.
-        /// </summary>
-        private async Task EnsureCanManageAsync(Project project, Guid callerId, UserRole callerRole)
-        {
-            if (callerRole == UserRole.Administrator || project.OwnerId == callerId)
-            {
-                return;
-            }
-
-            if (callerRole == UserRole.Manager && await IsMemberAsync(project.Id, callerId))
-            {
-                return;
-            }
-
-            throw new ForbiddenException("You do not have permission to manage this project.");
         }
 
         private static string? NormalizeDescription(string? description) =>

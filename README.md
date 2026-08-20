@@ -4,8 +4,8 @@ A production-oriented, spreadsheet-style task management application. Projects c
 in an editable, sortable, filterable grid (rows = tasks, columns = fields, including project-defined
 custom fields), backed by a real REST API and a relational database.
 
-> **Status:** Phases 1–4 complete (architecture, database schema, authentication & users, projects &
-> members). Tasks and the spreadsheet UI are not implemented yet — see [Development phases](#development-phases).
+> **Status:** Phases 1–5 complete (architecture, database schema, authentication & users, projects &
+> members, tasks REST API). The spreadsheet UI is not implemented yet — see [Development phases](#development-phases).
 
 ## Technology stack
 
@@ -37,7 +37,7 @@ presentational components.
 Silver-Task/
 ├─ Silver-Task.Server/        ASP.NET Core Web API
 │  ├─ Controllers/            HTTP endpoints (thin; no business logic)
-│  ├─ Services/                Business logic (auth, users, projects, JWT issuance), one interface + impl per file
+│  ├─ Services/                Business logic (auth, users, projects, tasks, JWT issuance), one interface + impl per file
 │  ├─ Models/Entities/        EF Core entities + enums (Status, Priority, Role, CustomFieldType)
 │  ├─ Models/DTOs/             Request/response shapes exposed by the API (never raw entities)
 │  ├─ Data/                   AppDbContext, Fluent API configurations, EF Core migrations
@@ -116,11 +116,12 @@ Notes:
   as a `ProjectMember` too (so "is a project member" checks and member listings both just work for them).
 - **View access** (`GET /api/projects/{id}`, its members): Administrators, the project owner, or any
   project member.
-- **Manage access** (rename, add/remove members, archive): Administrators, the project owner, or a
-  `Manager` who is a member of that specific project. Plain `Member`s can never manage a project, and a
-  `Manager` who isn't a member of a given project can't see or touch it either. This is enforced in
-  `ProjectService` (`EnsureCanViewAsync`/`EnsureCanManageAsync`), not just at the controller/attribute
-  level, since it depends on runtime membership, not just role.
+- **Manage access** (rename, add/remove members, archive, delete tasks): Administrators, the project
+  owner, or a `Manager` who is a member of that specific project. Plain `Member`s can never manage a
+  project, and a `Manager` who isn't a member of a given project can't see or touch it (or its tasks)
+  either. This is enforced in `ProjectAccessService` (`EnsureCanParticipateAsync`/`EnsureCanManageAsync`),
+  shared by both `ProjectService` and `TaskService` so the two can't drift out of sync — not just at the
+  controller/attribute level, since it depends on runtime membership, not just role.
 - The owner can never be removed via the members endpoint (`ConflictException` → 409) — ownership
   transfer isn't implemented yet.
 - `DELETE /api/projects/{id}` archives (`IsArchived`/`ArchivedAt`) rather than deleting the row. Archived
@@ -129,6 +130,27 @@ Notes:
   looks the user up server-side. This is deliberate: `GET /api/users` is Administrator-only, so a
   non-admin project owner/manager still needs a way to add teammates without needing that broader
   permission.
+
+### Tasks
+
+- `GET/POST /api/projects/{id}/tasks` and `GET/PUT/DELETE /api/tasks/{id}` (plus `POST /api/tasks/{id}/duplicate`).
+  `PUT` is a full-resource replace (title/description/status/priority/assignee/dates/`sortOrder` all travel
+  together), matching the pattern used for Projects/Users.
+- **Authorization tier reuses the project model:** viewing, creating, and editing tasks only requires being
+  a project participant (Administrator, owner, or any member — including plain `Member`s, matching "Members
+  can create/edit tasks"). **Deleting** a task requires the stricter manage tier (Administrator, owner, or a
+  `Manager` who is a member — matching "Managers can manage tasks"), so a plain Member can add and edit
+  tasks but not delete them.
+- Assigning a task validates that `assignedToUserId` is actually a project member (400 `ValidationException`
+  if not) — keeps the assignee dropdown's data honest without needing a DB-level constraint.
+- `CompletedAt` is managed automatically: transitioning `Status` to `Complete` stamps it with the current
+  time; transitioning away from `Complete` clears it. Callers never set it directly.
+- `SortOrder` is a fractional index (`double`). New tasks append at `max(SortOrder) + 1`; duplicating a task
+  inserts it immediately after the original via the midpoint between it and the next task, rather than
+  always landing at the bottom of the list. The client is expected to compute similar midpoints when
+  implementing drag-to-reorder (Phase 7) — no server-side renumbering is needed.
+- Deleting a task is a hard delete (unlike Projects). Its comments/activity/attachments/custom values
+  cascade-delete with it at the database level (configured in Phase 2).
 
 ## Requirements
 
@@ -246,7 +268,11 @@ This project is being built incrementally. Completed phases:
       `/api/projects/{id}/members` (list/add-by-email/remove) with membership-aware authorization, a real
       project list + creation form in the sidebar, and a project page for renaming and managing members
       (see [Projects & authorization model](#projects--authorization-model)).
+- [x] **Phase 5** — Tasks REST API: full task CRUD + duplicate, assignee/completion/sort-order business
+      rules, and a shared `ProjectAccessService` so task authorization can't drift from project
+      authorization (see [Tasks](#tasks)). Backend-only by design — Phase 6 owns the spreadsheet UI that
+      will consume this API.
 
-Upcoming: tasks REST API, spreadsheet UI, inline editing, dropdown columns, filtering/sorting/search,
-custom fields, task detail panel, comments & activity history, attachments, performance work, testing,
-and production hardening.
+Upcoming: spreadsheet UI, inline editing, dropdown columns, filtering/sorting/search, custom fields, task
+detail panel, comments & activity history, attachments, performance work, testing, and production
+hardening.

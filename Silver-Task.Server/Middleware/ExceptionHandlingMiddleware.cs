@@ -33,6 +33,7 @@ namespace Silver_Task.Server.Middleware
                     NotFoundException => (HttpStatusCode.NotFound, ex.Message, false),
                     ConflictException => (HttpStatusCode.Conflict, ex.Message, false),
                     ForbiddenException => (HttpStatusCode.Forbidden, ex.Message, false),
+                    ValidationException => (HttpStatusCode.BadRequest, ex.Message, false),
                     _ => (HttpStatusCode.InternalServerError, "An unexpected error occurred. Please try again later.", true)
                 };
 
