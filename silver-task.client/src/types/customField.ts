@@ -8,7 +8,13 @@ export type CustomFieldType =
   | 'Dropdown'
   | 'MultiSelect'
   | 'User'
-  | 'LongText';
+  | 'LongText'
+  | 'Link';
+
+export interface LinkValue {
+  label: string;
+  url: string;
+}
 
 export interface CustomFieldOption {
   id: string;
@@ -49,6 +55,7 @@ export const CUSTOM_FIELD_TYPE_OPTIONS: CustomFieldType[] = [
   'Dropdown',
   'MultiSelect',
   'User',
+  'Link',
 ];
 
 export const CUSTOM_FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
@@ -62,6 +69,7 @@ export const CUSTOM_FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
   Dropdown: 'Dropdown',
   MultiSelect: 'Multi-select',
   User: 'User',
+  Link: 'Link',
 };
 
 export function customFieldTypeHasOptions(type: CustomFieldType): boolean {

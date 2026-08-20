@@ -15,6 +15,9 @@ namespace Silver_Task.Server.Models.Entities.Enums
         Dropdown,
         MultiSelect,
         User,
-        LongText
+        LongText,
+
+        /// <summary>A label + URL pair, e.g. a permit portal link or a site's homepage. Rendered as a clickable button.</summary>
+        Link
     }
 }

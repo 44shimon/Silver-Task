@@ -1,0 +1,128 @@
+.link-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 18px;
+}
+
+.link-cell__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.link-cell__button:hover {
+  filter: brightness(0.95);
+}
+
+.link-cell__add-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.link-cell__add-button:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.link-cell__edit-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.link-cell__edit-trigger:hover {
+  opacity: 1;
+  background: var(--bg-subtle);
+}
+
+.link-cell--error .link-cell__button,
+.link-cell--error .link-cell__add-button {
+  outline: 2px solid var(--danger);
+  outline-offset: -1px;
+}
+
+.link-cell-editor {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 220px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.link-cell-editor input {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.link-cell-editor input:focus {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.link-cell-editor__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.link-cell-editor__actions button {
+  flex: 1;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.link-cell-editor__save {
+  background: var(--accent);
+  color: white;
+}
+
+.link-cell-editor__cancel {
+  background: var(--bg-subtle);
+  color: var(--text);
+}

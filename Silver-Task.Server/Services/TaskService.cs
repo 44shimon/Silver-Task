@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
@@ -333,9 +334,59 @@ namespace Silver_Task.Server.Services
                     }
                     return value;
 
+                case CustomFieldType.Link:
+                    return NormalizeLinkValue(value, field.Name);
+
                 default:
                     throw new ValidationException($"Unsupported field type for '{field.Name}'.");
             }
+        }
+
+        private static string NormalizeLinkValue(string value, string fieldName)
+        {
+            LinkValue? parsed;
+            try
+            {
+                parsed = JsonSerializer.Deserialize<LinkValue>(value);
+            }
+            catch (JsonException)
+            {
+                throw new ValidationException($"'{value}' is not a valid link value for field '{fieldName}'.");
+            }
+
+            if (parsed is null || string.IsNullOrWhiteSpace(parsed.Url))
+            {
+                throw new ValidationException($"A URL is required for link field '{fieldName}'.");
+            }
+
+            var originalUrl = parsed.Url.Trim();
+            var url = originalUrl;
+
+            // Users naturally type "google.com" without a scheme — treat that like a
+            // browser address bar would, rather than rejecting it.
+            if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                url = "https://" + url;
+            }
+
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) ||
+                string.IsNullOrEmpty(uri.Host))
+            {
+                throw new ValidationException($"'{originalUrl}' is not a valid URL for field '{fieldName}'.");
+            }
+
+            return JsonSerializer.Serialize(new LinkValue { Label = parsed.Label?.Trim() ?? string.Empty, Url = url });
+        }
+
+        private class LinkValue
+        {
+            [JsonPropertyName("label")]
+            public string? Label { get; set; }
+
+            [JsonPropertyName("url")]
+            public string Url { get; set; } = string.Empty;
         }
 
         private static List<Guid> ParseMultiSelectValue(string value, string fieldName)

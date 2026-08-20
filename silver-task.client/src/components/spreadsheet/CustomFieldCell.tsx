@@ -6,6 +6,7 @@ import { DateCustomValueCell } from './DateCustomValueCell';
 import { CheckboxCustomValueCell } from './CheckboxCustomValueCell';
 import { SelectCustomValueCell } from './SelectCustomValueCell';
 import { MultiSelectCustomValueCell } from './MultiSelectCustomValueCell';
+import { LinkCustomValueCell } from './LinkCustomValueCell';
 
 interface CustomFieldCellProps {
   task: Task;
@@ -55,6 +56,9 @@ export function CustomFieldCell({ task, field, projectId, members }: CustomField
           options={members.map((m) => ({ id: m.id, label: m.name }))}
         />
       );
+
+    case 'Link':
+      return <LinkCustomValueCell task={task} field={field} projectId={projectId} value={value} />;
 
     default:
       return null;

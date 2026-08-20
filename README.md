@@ -266,8 +266,11 @@ specifically for this — no migration was needed for this phase, only the API a
   validated/normalized per `FieldType` in `TaskService.ValidateAndNormalizeCustomValueAsync` — Number/
   Currency must parse as `decimal`, Date/DateTime must parse, Checkbox must be exactly `"true"`/`"false"`,
   Dropdown must match one of the field's option ids, MultiSelect must be a JSON array of valid option ids,
-  and User must be an existing **project member** (same rule as task assignment). Dropdown/MultiSelect
-  store option **ids**, not raw text, so renaming an option doesn't orphan existing task values.
+  User must be an existing **project member** (same rule as task assignment), and Link must be JSON
+  `{"label":"...","url":"..."}` with an absolute `http`/`https` URL — other schemes (e.g. `javascript:`)
+  are rejected, which also closes off a potential XSS vector via a malicious link value. Dropdown/
+  MultiSelect store option **ids**, not raw text, so renaming an option doesn't orphan existing task
+  values.
 - **Deleting an option cleans up after itself:** any `TaskCustomValues` referencing a deleted option
   (Dropdown exact match, or MultiSelect's JSON array containing it) are removed rather than left pointing
   at something that no longer exists. Deleting a field cascades to its options and all task values at the
@@ -278,9 +281,15 @@ specifically for this — no migration was needed for this phase, only the API a
   from Phases 7–8 rather than inventing new ones: `TextCustomValueCell` (Text/LongText/Number/Currency) and
   `DateCustomValueCell` (Date/DateTime) are click-to-edit like `EditableTitleCell`; `SelectCustomValueCell`
   (Dropdown/User) is an always-rendered `<select>` like `StatusDropdownCell`; `CheckboxCustomValueCell` is a
-  live checkbox; `MultiSelectCustomValueCell` is the one genuinely new pattern — a `<details>`-based
-  checklist popover, since none of the existing editors support multiple selections. All six go through
-  `useSetTaskCustomValue`, the same optimistic-update/rollback shape as `useUpdateTask`.
+  live checkbox; `MultiSelectCustomValueCell` is a `<details>`-based checklist popover, since none of the
+  existing editors support multiple selections. All go through `useSetTaskCustomValue`, the same
+  optimistic-update/rollback shape as `useUpdateTask`.
+- **Link** (added after the initial Phase 10 pass, per feedback) stores a label + URL pair as JSON in the
+  same value column — no schema change needed, since `FieldType` is a plain string column specifically so
+  new types wouldn't require a migration (Phase 2 design decision, paid off here for real). Displays as a
+  clickable button (external-link icon + label, or the hostname if no label was given); editing opens a
+  small two-field popover (`LinkCustomValueCell`) rather than an inline single input, since a single
+  click-to-edit text field can't cleanly hold two independent values.
 - **`CustomFieldsPanel`** (toolbar) is where fields get created and managed: name + type + (for Dropdown/
   MultiSelect) an initial option list on creation, plus inline rename/add/remove for each existing field's
   options. Deliberately no drag-to-reorder UI for fields or options in this phase, consistent with skipping
@@ -422,9 +431,10 @@ This project is being built incrementally. Completed phases:
       a toolbar Sort menu and clickable column headers driving the same state (see
       [Filtering, sorting & search](#filtering-sorting--search)).
 - [x] **Phase 10** — Custom fields: full CRUD for project-defined fields of all 10 spec-listed types
-      (Text/Number/Currency/Date/DateTime/Checkbox/Dropdown/MultiSelect/User/LongText) on the Phase-2 EAV
-      schema, per-type value validation, dynamic grid columns with type-appropriate editors, and search
-      extended to custom text fields (see [Custom fields](#custom-fields)).
+      (Text/Number/Currency/Date/DateTime/Checkbox/Dropdown/MultiSelect/User/LongText) plus a Link type
+      added afterward on request, all on the Phase-2 EAV schema (Link needed no migration), per-type value
+      validation, dynamic grid columns with type-appropriate editors, and search extended to custom text
+      fields (see [Custom fields](#custom-fields)).
 
 Upcoming: task detail panel, comments & activity history, attachments, performance work, testing, and
 production hardening.
