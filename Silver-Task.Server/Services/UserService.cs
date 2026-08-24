@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
+using Silver_Task.Server.Models.DTOs.Settings;
 using Silver_Task.Server.Models.DTOs.Users;
 using Silver_Task.Server.Models.Entities;
 using Silver_Task.Server.Models.Entities.Enums;
@@ -27,6 +28,16 @@ namespace Silver_Task.Server.Services
         /// <summary>Admin-only password reset — the existing IPasswordHasher is reused, so this
         /// stores a hash exactly like a normal signup/login rehash, never the plaintext.</summary>
         Task ResetPasswordAsync(Guid id, string newPassword);
+
+        /// <summary>Self-service profile edit — Name/Email only. Unlike UpdateAsync (the
+        /// Administrator-only full edit), there is no Role/IsActive parameter at all here, so
+        /// there is nothing for a caller to elevate even if this method is reachable by every
+        /// authenticated user regardless of role.</summary>
+        Task<User> UpdateProfileAsync(Guid id, UpdateProfileRequest request);
+
+        /// <summary>Self-service password change — unlike the admin reset, this requires proving
+        /// knowledge of the current password first.</summary>
+        Task ChangePasswordAsync(Guid id, ChangePasswordRequest request);
     }
 
     public class UserService(AppDbContext db, IPasswordHasher<User> passwordHasher) : IUserService
@@ -101,6 +112,47 @@ namespace Silver_Task.Server.Services
         {
             var user = await GetByIdAsync(id);
             user.PasswordHash = _passwordHasher.HashPassword(user, newPassword);
+            user.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
+
+        public async Task<User> UpdateProfileAsync(Guid id, UpdateProfileRequest request)
+        {
+            var user = await GetByIdAsync(id);
+
+            var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+            if (normalizedEmail != user.Email)
+            {
+                var emailTaken = await _db.Users.AnyAsync(u => u.Id != id && u.Email.ToLower() == normalizedEmail);
+                if (emailTaken)
+                {
+                    throw new ConflictException($"A user with email '{request.Email}' already exists.");
+                }
+            }
+
+            user.Name = request.Name.Trim();
+            user.Email = normalizedEmail;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync();
+            return user;
+        }
+
+        public async Task ChangePasswordAsync(Guid id, ChangePasswordRequest request)
+        {
+            if (request.NewPassword != request.ConfirmNewPassword)
+            {
+                throw new ValidationException("New password and confirmation do not match.");
+            }
+
+            var user = await GetByIdAsync(id);
+            var verification = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.CurrentPassword);
+            if (verification == PasswordVerificationResult.Failed)
+            {
+                throw new ValidationException("Current password is incorrect.");
+            }
+
+            user.PasswordHash = _passwordHasher.HashPassword(user, request.NewPassword);
             user.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
         }

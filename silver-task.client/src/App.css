@@ -69,18 +69,6 @@
   border-color: var(--border);
 }
 
-.topbar__user {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  background: var(--bg-subtle);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-h);
-}
-
 .auth-loading {
   display: flex;
   align-items: center;

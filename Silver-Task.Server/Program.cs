@@ -92,6 +92,8 @@ builder.Services.AddScoped<ICustomFieldService, CustomFieldService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 builder.Services.AddScoped<IAttachmentService, AttachmentService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IUserPreferencesService, UserPreferencesService>();
+builder.Services.AddScoped<IUserNotificationSettingsService, UserNotificationSettingsService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

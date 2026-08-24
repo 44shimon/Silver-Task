@@ -9,6 +9,11 @@ import { AdminLayout } from '@/pages/admin/AdminLayout';
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
 import { AdminProjectsPage } from '@/pages/admin/AdminProjectsPage';
+import { SettingsLayout } from '@/pages/settings/SettingsLayout';
+import { ProfileSettingsPage } from '@/pages/settings/ProfileSettingsPage';
+import { PreferencesSettingsPage } from '@/pages/settings/PreferencesSettingsPage';
+import { NotificationSettingsPage } from '@/pages/settings/NotificationSettingsPage';
+import { SecuritySettingsPage } from '@/pages/settings/SecuritySettingsPage';
 
 export function AppRoutes() {
   return (
@@ -22,6 +27,12 @@ export function AppRoutes() {
               <Routes>
                 <Route path="/" element={<MyTasksPage />} />
                 <Route path="/projects/:projectId" element={<ProjectPage />} />
+                <Route path="/settings" element={<SettingsLayout />}>
+                  <Route index element={<ProfileSettingsPage />} />
+                  <Route path="preferences" element={<PreferencesSettingsPage />} />
+                  <Route path="notifications" element={<NotificationSettingsPage />} />
+                  <Route path="security" element={<SecuritySettingsPage />} />
+                </Route>
                 <Route
                   path="/admin"
                   element={

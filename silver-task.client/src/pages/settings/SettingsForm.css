@@ -1,0 +1,148 @@
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 420px;
+}
+
+.settings-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-form__field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.settings-form__field input,
+.settings-form__field select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.settings-form__field input:focus,
+.settings-form__field select:focus {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.settings-form__field--row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-form__readonly {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-form__readonly-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.settings-form__readonly-value {
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.settings-form__save {
+  align-self: flex-start;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-form__save:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.settings-form__success {
+  margin: 0;
+  font-size: 12px;
+  color: var(--success);
+}
+
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.settings-toggle-row__label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-toggle-row__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.settings-toggle-row__description {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.75;
+}
+
+.settings-toggle {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--border);
+  cursor: pointer;
+}
+
+.settings-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  transition: left 0.15s ease;
+}
+
+.settings-toggle--on {
+  background: var(--accent);
+}
+
+.settings-toggle--on::after {
+  left: 18px;
+}
+
+.settings-toggle:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

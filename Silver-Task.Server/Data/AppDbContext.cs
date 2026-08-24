@@ -25,6 +25,10 @@ namespace Silver_Task.Server.Data
 
         public DbSet<TaskCustomValue> TaskCustomValues => Set<TaskCustomValue>();
 
+        public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
+
+        public DbSet<UserNotificationSetting> UserNotificationSettings => Set<UserNotificationSetting>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

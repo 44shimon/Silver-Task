@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { useUserPreferences } from '@/hooks/useUserSettings';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
@@ -7,6 +8,20 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
+  const { data: preferences } = useUserPreferences();
+
+  // System (the default) leaves the attribute unset entirely, so index.css's
+  // prefers-color-scheme media query keeps governing — Light/Dark force an explicit override
+  // regardless of OS preference. Applied here (not per-page) so it's in effect everywhere
+  // immediately after login, not just once Preferences has been visited.
+  useEffect(() => {
+    if (preferences?.theme === 'Light' || preferences?.theme === 'Dark') {
+      document.documentElement.dataset.theme = preferences.theme.toLowerCase();
+    } else {
+      delete document.documentElement.dataset.theme;
+    }
+  }, [preferences?.theme]);
+
   return (
     <div className="app-shell">
       <Topbar />

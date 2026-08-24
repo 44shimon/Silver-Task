@@ -6,6 +6,7 @@ import { useDeleteTask, useDuplicateTask, useTasks } from '@/hooks/useTasks';
 import { useTaskFilters, SORT_FIELDS, SORT_FIELD_LABELS } from '@/hooks/useTaskFilters';
 import { useCustomFields } from '@/hooks/useCustomFields';
 import { useCurrentUser } from '@/hooks/useAuth';
+import { useUserPreferences } from '@/hooks/useUserSettings';
 import { ProjectViewTabs, type ViewId } from '@/components/project/ProjectViewTabs';
 import { AddMemberSection } from '@/components/project/AddMemberSection';
 import { NewTaskButton } from '@/components/spreadsheet/NewTaskButton';
@@ -34,6 +35,7 @@ export function ProjectPage() {
   const { data: tasks, isLoading: tasksLoading } = useTasks(projectId);
   const { data: customFields } = useCustomFields(projectId);
   const { data: currentUser } = useCurrentUser();
+  const { data: preferences } = useUserPreferences();
   const updateProject = useUpdateProject(projectId ?? '');
   const removeMember = useRemoveProjectMember(projectId ?? '');
   const duplicateTask = useDuplicateTask(projectId ?? '');
@@ -65,8 +67,10 @@ export function ProjectPage() {
   const selectedTask = tasks?.find((t) => t.id === selectedTaskId) ?? null;
 
   // URL-driven like the task detail panel's `?task=` param — makes the current view linkable
-  // and back-button-navigable. Omitted from the URL entirely when it's the default ("table").
-  const view = (searchParams.get(VIEW_QUERY_PARAM) as ViewId | null) ?? 'table';
+  // and back-button-navigable. Omitted from the URL entirely when it's the default. Falls back
+  // to the user's saved "Default task view" preference (Settings → Preferences) when the URL
+  // doesn't already specify one, then to "table" if they haven't set a preference either.
+  const view = (searchParams.get(VIEW_QUERY_PARAM) as ViewId | null) ?? (preferences?.defaultTaskView as ViewId | null) ?? 'table';
 
   function setView(next: ViewId) {
     setSearchParams((prev) => {
