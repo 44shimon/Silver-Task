@@ -4,6 +4,9 @@
 }
 
 .view-tabs__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 14px;
   border: none;
   background: transparent;
@@ -14,16 +17,12 @@
   border-bottom: 2px solid transparent;
 }
 
-.view-tabs__item:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
 .view-tabs__item--active {
   color: var(--accent);
   border-bottom-color: var(--accent);
 }
 
-.view-tabs__item:not(:disabled):not(.view-tabs__item--active):hover {
+.view-tabs__item:not(.view-tabs__item--active):hover {
   color: var(--text-h);
+  background: var(--bg-subtle);
 }
