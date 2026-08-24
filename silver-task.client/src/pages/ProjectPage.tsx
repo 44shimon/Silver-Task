@@ -1,19 +1,13 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
-import {
-  useAddProjectMember,
-  useProject,
-  useProjectMembers,
-  useRemoveProjectMember,
-  useUpdateProject,
-} from '@/hooks/useProjects';
+import { useProject, useProjectMembers, useRemoveProjectMember, useUpdateProject } from '@/hooks/useProjects';
 import { useDeleteTask, useDuplicateTask, useTasks } from '@/hooks/useTasks';
 import { useTaskFilters, SORT_FIELDS, SORT_FIELD_LABELS } from '@/hooks/useTaskFilters';
 import { useCustomFields } from '@/hooks/useCustomFields';
 import { useCurrentUser } from '@/hooks/useAuth';
-import { ApiError } from '@/api/httpClient';
 import { ProjectViewTabs, type ViewId } from '@/components/project/ProjectViewTabs';
+import { AddMemberSection } from '@/components/project/AddMemberSection';
 import { NewTaskButton } from '@/components/spreadsheet/NewTaskButton';
 import { TaskTable } from '@/components/spreadsheet/TaskTable';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
@@ -41,7 +35,6 @@ export function ProjectPage() {
   const { data: customFields } = useCustomFields(projectId);
   const { data: currentUser } = useCurrentUser();
   const updateProject = useUpdateProject(projectId ?? '');
-  const addMember = useAddProjectMember(projectId ?? '');
   const removeMember = useRemoveProjectMember(projectId ?? '');
   const duplicateTask = useDuplicateTask(projectId ?? '');
   const deleteTask = useDeleteTask(projectId ?? '');
@@ -67,7 +60,6 @@ export function ProjectPage() {
   const [nameDraft, setNameDraft] = useState('');
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
-  const [memberEmail, setMemberEmail] = useState('');
 
   const selectedTaskId = searchParams.get(TASK_QUERY_PARAM);
   const selectedTask = tasks?.find((t) => t.id === selectedTaskId) ?? null;
@@ -136,21 +128,6 @@ export function ProjectPage() {
       updateProject.mutate({ name: project!.name, description: trimmed || undefined });
     }
     setIsEditingDescription(false);
-  }
-
-  function handleAddMember(event: FormEvent) {
-    event.preventDefault();
-    const trimmed = memberEmail.trim();
-    if (!trimmed) {
-      return;
-    }
-
-    addMember.mutate(
-      { email: trimmed },
-      {
-        onSuccess: () => setMemberEmail(''),
-      },
-    );
   }
 
   return (
@@ -291,23 +268,7 @@ export function ProjectPage() {
           ))}
         </div>
 
-        <form className="add-member-form" onSubmit={handleAddMember}>
-          <input
-            type="email"
-            placeholder="Add member by email"
-            value={memberEmail}
-            onChange={(e) => setMemberEmail(e.target.value)}
-            disabled={addMember.isPending}
-          />
-          <button type="submit" disabled={addMember.isPending}>
-            Add
-          </button>
-        </form>
-        {addMember.isError && (
-          <p className="form-error">
-            {addMember.error instanceof ApiError ? addMember.error.message : 'Could not add member.'}
-          </p>
-        )}
+        <AddMemberSection projectId={project.id} isAdmin={currentUser?.role === 'Administrator'} />
       </details>
     </div>
   );

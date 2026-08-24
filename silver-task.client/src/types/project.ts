@@ -38,3 +38,11 @@ export interface UpdateProjectRequest {
 export interface AddProjectMemberRequest {
   email: string;
 }
+
+/** Fallback for when AddProjectMemberRequest 404s because no account exists yet — creates one
+ * (always Member role) and adds them in one step. Administrator-only. */
+export interface InviteMemberRequest {
+  name: string;
+  email: string;
+  password: string;
+}

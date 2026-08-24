@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.DTOs.Projects;
+using Silver_Task.Server.Models.DTOs.Users;
 using Silver_Task.Server.Models.Entities;
 using Silver_Task.Server.Models.Entities.Enums;
 
@@ -30,13 +31,22 @@ namespace Silver_Task.Server.Services
 
         Task<ProjectMember> AddMemberAsync(Guid projectId, string email, Guid callerId, UserRole callerRole);
 
+        /// <summary>Creates a brand-new user (always Member) and adds them to the project in one
+        /// step — the fallback when AddMemberAsync 404s because no account exists for that email
+        /// yet. Administrator-only, checked explicitly here since manage-tier alone (which a
+        /// non-Administrator Manager/owner already has for AddMemberAsync) isn't enough to create
+        /// user accounts — that stays a strictly Administrator capability, same as
+        /// UsersController.Create.</summary>
+        Task<ProjectMember> InviteMemberAsync(Guid projectId, InviteMemberRequest request, Guid callerId, UserRole callerRole);
+
         Task RemoveMemberAsync(Guid projectId, Guid targetUserId, Guid callerId, UserRole callerRole);
     }
 
-    public class ProjectService(AppDbContext db, IProjectAccessService projectAccess) : IProjectService
+    public class ProjectService(AppDbContext db, IProjectAccessService projectAccess, IUserService userService) : IProjectService
     {
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
+        private readonly IUserService _userService = userService;
 
         public async Task<IReadOnlyList<Project>> GetAllForUserAsync(Guid callerId, UserRole callerRole, bool includeArchived = false)
         {
@@ -173,6 +183,36 @@ namespace Silver_Task.Server.Services
             {
                 throw new ConflictException($"'{user.Email}' is already a member of this project.");
             }
+
+            var member = new ProjectMember
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = projectId,
+                UserId = user.Id
+            };
+            _db.ProjectMembers.Add(member);
+            await _db.SaveChangesAsync();
+
+            member.User = user;
+            return member;
+        }
+
+        public async Task<ProjectMember> InviteMemberAsync(Guid projectId, InviteMemberRequest request, Guid callerId, UserRole callerRole)
+        {
+            var project = await LoadProjectAsync(projectId);
+            await _projectAccess.EnsureCanManageAsync(project.Id, project.OwnerId, callerId, callerRole);
+
+            if (callerRole != UserRole.Administrator)
+            {
+                throw new ForbiddenException("Only an Administrator can create a new account to invite to a project.");
+            }
+
+            // Reuses UserService.CreateAsync (email-uniqueness check, password hashing) rather
+            // than duplicating user-creation logic here — Role is hardcoded to Member regardless
+            // of anything on the request, since InviteMemberRequest deliberately has no Role field.
+            var user = await _userService.CreateAsync(
+                new CreateUserRequest { Name = request.Name, Email = request.Email, Password = request.Password, Role = UserRole.Member },
+                isBootstrap: false);
 
             var member = new ProjectMember
             {
