@@ -13,9 +13,10 @@ import { useTaskFilters } from '@/hooks/useTaskFilters';
 import { useCustomFields } from '@/hooks/useCustomFields';
 import { useCurrentUser } from '@/hooks/useAuth';
 import { ApiError } from '@/api/httpClient';
-import { ProjectViewTabs } from '@/components/project/ProjectViewTabs';
+import { ProjectViewTabs, type ViewId } from '@/components/project/ProjectViewTabs';
 import { NewTaskButton } from '@/components/spreadsheet/NewTaskButton';
 import { TaskTable } from '@/components/spreadsheet/TaskTable';
+import { KanbanBoard } from '@/components/kanban/KanbanBoard';
 import { TaskSearchInput } from '@/components/spreadsheet/TaskSearchInput';
 import { TaskFilterPanel } from '@/components/spreadsheet/TaskFilterPanel';
 import { TaskSortMenu } from '@/components/spreadsheet/TaskSortMenu';
@@ -25,6 +26,7 @@ import { initials } from '@/utils/initials';
 import './ProjectPage.css';
 
 const TASK_QUERY_PARAM = 'task';
+const VIEW_QUERY_PARAM = 'view';
 
 export function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -63,6 +65,22 @@ export function ProjectPage() {
 
   const selectedTaskId = searchParams.get(TASK_QUERY_PARAM);
   const selectedTask = tasks?.find((t) => t.id === selectedTaskId) ?? null;
+
+  // URL-driven like the task detail panel's `?task=` param — makes the current view linkable
+  // and back-button-navigable. Omitted from the URL entirely when it's the default ("table").
+  const view = (searchParams.get(VIEW_QUERY_PARAM) as ViewId | null) ?? 'table';
+
+  function setView(next: ViewId) {
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      if (next === 'table') {
+        params.delete(VIEW_QUERY_PARAM);
+      } else {
+        params.set(VIEW_QUERY_PARAM, next);
+      }
+      return params;
+    });
+  }
 
   function openTaskDetail(taskId: string) {
     setSearchParams((prev) => {
@@ -177,7 +195,7 @@ export function ProjectPage() {
       </div>
 
       <div className="project-toolbar">
-        <ProjectViewTabs active="table" />
+        <ProjectViewTabs active={view} onChange={setView} />
         <div className="project-toolbar__actions">
           <TaskSearchInput value={searchQuery} onChange={setSearchQuery} />
           <TaskFilterPanel
@@ -200,6 +218,8 @@ export function ProjectPage() {
 
       {tasksLoading ? (
         <p>Loading tasks...</p>
+      ) : view === 'kanban' ? (
+        <KanbanBoard projectId={project.id} tasks={filteredTasks} onOpenDetail={openTaskDetail} />
       ) : (
         <TaskTable
           projectId={project.id}
