@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutGrid, ListChecks, Plus } from 'lucide-react';
+import { LayoutGrid, ListChecks, Plus, ShieldCheck } from 'lucide-react';
 import { useCreateProject, useProjects } from '@/hooks/useProjects';
+import { useCurrentUser } from '@/hooks/useAuth';
 import { ApiError } from '@/api/httpClient';
 
 export function Sidebar() {
   const { data: projects, isLoading } = useProjects();
+  const { data: currentUser } = useCurrentUser();
   const createProject = useCreateProject();
   const [isCreating, setIsCreating] = useState(false);
   const [name, setName] = useState('');
@@ -45,6 +47,15 @@ export function Sidebar() {
           <ListChecks size={16} />
           <span>My Tasks</span>
         </NavLink>
+        {currentUser?.role === 'Administrator' && (
+          <NavLink
+            to="/admin"
+            className={({ isActive }) => `sidebar__nav-item${isActive ? ' sidebar__nav-item--active' : ''}`}
+          >
+            <ShieldCheck size={16} />
+            <span>Admin</span>
+          </NavLink>
+        )}
       </nav>
 
       <div className="sidebar__header">

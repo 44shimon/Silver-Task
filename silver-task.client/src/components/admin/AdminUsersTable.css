@@ -1,0 +1,43 @@
+.admin-table__readonly-text {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.admin-role-badge--administrator {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.admin-role-badge--manager {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.admin-role-badge--member {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.admin-active-toggle {
+  padding: 3px 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-active-toggle:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.admin-active-toggle--active {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.admin-active-toggle--inactive {
+  background: var(--danger-bg);
+  color: var(--danger);
+}

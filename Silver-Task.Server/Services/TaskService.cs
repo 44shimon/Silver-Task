@@ -14,6 +14,10 @@ namespace Silver_Task.Server.Services
     {
         Task<IReadOnlyList<TaskItem>> GetAllForProjectAsync(Guid projectId, Guid callerId, UserRole callerRole);
 
+        /// <summary>Task count per project, for the Admin Projects list — a single grouped
+        /// aggregate query rather than one count query per project.</summary>
+        Task<Dictionary<Guid, int>> GetTaskCountsByProjectAsync(IEnumerable<Guid> projectIds);
+
         /// <summary>Every task assigned to the caller across all of their (non-archived) projects —
         /// backs the "My Tasks" dashboard. A single indexed query, not one call per project.</summary>
         Task<IReadOnlyList<TaskItem>> GetAssignedToUserAsync(Guid callerId, UserRole callerRole);
@@ -49,6 +53,16 @@ namespace Silver_Task.Server.Services
                 .Where(t => t.ProjectId == projectId)
                 .OrderBy(t => t.SortOrder)
                 .ToListAsync();
+        }
+
+        public async Task<Dictionary<Guid, int>> GetTaskCountsByProjectAsync(IEnumerable<Guid> projectIds)
+        {
+            var ids = projectIds.ToList();
+            return await _db.Tasks
+                .Where(t => ids.Contains(t.ProjectId))
+                .GroupBy(t => t.ProjectId)
+                .Select(g => new { g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Key, x => x.Count);
         }
 
         public async Task<IReadOnlyList<TaskItem>> GetAssignedToUserAsync(Guid callerId, UserRole callerRole)

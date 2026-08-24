@@ -9,7 +9,7 @@ namespace Silver_Task.Server.Services
 {
     public interface IProjectService
     {
-        Task<IReadOnlyList<Project>> GetAllForUserAsync(Guid callerId, UserRole callerRole);
+        Task<IReadOnlyList<Project>> GetAllForUserAsync(Guid callerId, UserRole callerRole, bool includeArchived = false);
 
         Task<Project> GetByIdAsync(Guid projectId, Guid callerId, UserRole callerRole);
 
@@ -18,6 +18,13 @@ namespace Silver_Task.Server.Services
         Task<Project> UpdateAsync(Guid projectId, UpdateProjectRequest request, Guid callerId, UserRole callerRole);
 
         Task ArchiveAsync(Guid projectId, Guid callerId, UserRole callerRole);
+
+        Task<Project> RestoreAsync(Guid projectId, Guid callerId, UserRole callerRole);
+
+        /// <summary>Permanent delete — unlike ArchiveAsync (soft delete), this is only ever
+        /// reachable from the Administrator-gated AdminController, so it takes no caller/role
+        /// params and trusts the controller-level [Authorize(Roles = Administrator)] instead.</summary>
+        Task DeleteAsync(Guid projectId);
 
         Task<IReadOnlyList<ProjectMember>> GetMembersAsync(Guid projectId, Guid callerId, UserRole callerRole);
 
@@ -31,9 +38,14 @@ namespace Silver_Task.Server.Services
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
 
-        public async Task<IReadOnlyList<Project>> GetAllForUserAsync(Guid callerId, UserRole callerRole)
+        public async Task<IReadOnlyList<Project>> GetAllForUserAsync(Guid callerId, UserRole callerRole, bool includeArchived = false)
         {
-            var query = _db.Projects.Include(p => p.Owner).Where(p => !p.IsArchived);
+            var query = _db.Projects.Include(p => p.Owner).Include(p => p.Members).AsQueryable();
+
+            if (!includeArchived)
+            {
+                query = query.Where(p => !p.IsArchived);
+            }
 
             if (callerRole != UserRole.Administrator)
             {
@@ -62,13 +74,17 @@ namespace Silver_Task.Server.Services
             _db.Projects.Add(project);
 
             // The owner is always implicitly a member, so they show up in member lists
-            // and pass the "is a project member" checks like anyone else.
-            _db.ProjectMembers.Add(new ProjectMember
+            // and pass the "is a project member" checks like anyone else. Also appended to
+            // project.Members directly (not just _db.ProjectMembers) so the in-memory MemberCount
+            // on the DTO returned from this call is correct without a re-query.
+            var ownerMembership = new ProjectMember
             {
                 Id = Guid.NewGuid(),
                 ProjectId = project.Id,
                 UserId = ownerId
-            });
+            };
+            _db.ProjectMembers.Add(ownerMembership);
+            project.Members.Add(ownerMembership);
 
             await _db.SaveChangesAsync();
 
@@ -103,6 +119,31 @@ namespace Silver_Task.Server.Services
             project.ArchivedAt = DateTime.UtcNow;
             project.UpdatedAt = DateTime.UtcNow;
 
+            await _db.SaveChangesAsync();
+        }
+
+        public async Task<Project> RestoreAsync(Guid projectId, Guid callerId, UserRole callerRole)
+        {
+            var project = await LoadProjectAsync(projectId);
+            await _projectAccess.EnsureCanManageAsync(project.Id, project.OwnerId, callerId, callerRole);
+
+            if (!project.IsArchived)
+            {
+                return project;
+            }
+
+            project.IsArchived = false;
+            project.ArchivedAt = null;
+            project.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync();
+            return project;
+        }
+
+        public async Task DeleteAsync(Guid projectId)
+        {
+            var project = await LoadProjectAsync(projectId);
+            _db.Projects.Remove(project);
             await _db.SaveChangesAsync();
         }
 
@@ -165,7 +206,7 @@ namespace Silver_Task.Server.Services
 
         private async Task<Project> LoadProjectAsync(Guid projectId)
         {
-            var project = await _db.Projects.Include(p => p.Owner).FirstOrDefaultAsync(p => p.Id == projectId);
+            var project = await _db.Projects.Include(p => p.Owner).Include(p => p.Members).FirstOrDefaultAsync(p => p.Id == projectId);
             return project ?? throw new NotFoundException($"Project '{projectId}' was not found.");
         }
 

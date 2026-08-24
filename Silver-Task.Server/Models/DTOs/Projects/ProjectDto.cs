@@ -12,6 +12,13 @@ namespace Silver_Task.Server.Models.DTOs.Projects
 
         public required UserSummaryDto Owner { get; set; }
 
+        public int MemberCount { get; set; }
+
+        /// <summary>Only populated by the endpoints that bother computing it (the project list,
+        /// for the Admin Projects page) — null elsewhere rather than paying for an extra query
+        /// every time a single project is created/renamed/archived.</summary>
+        public int? TaskCount { get; set; }
+
         public bool IsArchived { get; set; }
 
         public DateTime? ArchivedAt { get; set; }

@@ -9,6 +9,9 @@ export interface Project {
   name: string;
   description: string | null;
   owner: UserSummary;
+  memberCount: number;
+  /** Only populated by the endpoints that bother computing it (the Admin Projects list) — null elsewhere. */
+  taskCount: number | null;
   isArchived: boolean;
   archivedAt: string | null;
   createdAt: string;

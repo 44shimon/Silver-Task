@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Silver_Task.Server.Common;
 using Silver_Task.Server.Models.DTOs.Users;
 using Silver_Task.Server.Models.Entities.Enums;
 using Silver_Task.Server.Services;
@@ -57,8 +58,15 @@ namespace Silver_Task.Server.Controllers
         [HttpPut("{id:guid}")]
         public async Task<ActionResult<UserDto>> Update(Guid id, [FromBody] UpdateUserRequest request)
         {
-            var user = await _userService.UpdateAsync(id, request);
+            var user = await _userService.UpdateAsync(id, request, User.GetUserId());
             return Ok(user.ToDto());
+        }
+
+        [HttpPost("{id:guid}/reset-password")]
+        public async Task<IActionResult> ResetPassword(Guid id, [FromBody] ResetPasswordRequest request)
+        {
+            await _userService.ResetPasswordAsync(id, request.NewPassword);
+            return NoContent();
         }
     }
 }

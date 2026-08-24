@@ -1,0 +1,42 @@
+.admin-table__readonly-text {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.admin-projects-table__link {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.admin-projects-table__link:hover {
+  text-decoration: underline;
+}
+
+.admin-projects-table__delete:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--danger-bg);
+}
+
+.admin-project-status {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-project-status--active {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.admin-project-status--archived {
+  background: var(--bg-subtle);
+  color: var(--text);
+}

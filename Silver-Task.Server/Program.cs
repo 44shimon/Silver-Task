@@ -91,6 +91,7 @@ builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<ICustomFieldService, CustomFieldService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 builder.Services.AddScoped<IAttachmentService, AttachmentService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

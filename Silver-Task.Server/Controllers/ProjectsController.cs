@@ -16,10 +16,11 @@ namespace Silver_Task.Server.Controllers
         private readonly ICustomFieldService _customFieldService = customFieldService;
 
         [HttpGet]
-        public async Task<ActionResult<IReadOnlyList<ProjectDto>>> GetAll()
+        public async Task<ActionResult<IReadOnlyList<ProjectDto>>> GetAll([FromQuery] bool includeArchived = false)
         {
-            var projects = await _projectService.GetAllForUserAsync(User.GetUserId(), User.GetRole());
-            return Ok(projects.Select(p => p.ToDto()));
+            var projects = await _projectService.GetAllForUserAsync(User.GetUserId(), User.GetRole(), includeArchived);
+            var taskCounts = await _taskService.GetTaskCountsByProjectAsync(projects.Select(p => p.Id));
+            return Ok(projects.Select(p => p.ToDto(taskCounts.GetValueOrDefault(p.Id))));
         }
 
         [HttpPost]
@@ -49,6 +50,13 @@ namespace Silver_Task.Server.Controllers
         {
             await _projectService.ArchiveAsync(id, User.GetUserId(), User.GetRole());
             return NoContent();
+        }
+
+        [HttpPost("{id:guid}/restore")]
+        public async Task<ActionResult<ProjectDto>> Restore(Guid id)
+        {
+            var project = await _projectService.RestoreAsync(id, User.GetUserId(), User.GetRole());
+            return Ok(project.ToDto());
         }
 
         [HttpGet("{id:guid}/members")]

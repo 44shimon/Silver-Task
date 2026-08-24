@@ -1,0 +1,10 @@
+.admin-users-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-users-page__toolbar {
+  display: flex;
+  justify-content: flex-end;
+}

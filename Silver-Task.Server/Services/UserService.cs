@@ -22,7 +22,11 @@ namespace Silver_Task.Server.Services
         /// </param>
         Task<User> CreateAsync(CreateUserRequest request, bool isBootstrap);
 
-        Task<User> UpdateAsync(Guid id, UpdateUserRequest request);
+        Task<User> UpdateAsync(Guid id, UpdateUserRequest request, Guid callerId);
+
+        /// <summary>Admin-only password reset — the existing IPasswordHasher is reused, so this
+        /// stores a hash exactly like a normal signup/login rehash, never the plaintext.</summary>
+        Task ResetPasswordAsync(Guid id, string newPassword);
     }
 
     public class UserService(AppDbContext db, IPasswordHasher<User> passwordHasher) : IUserService
@@ -64,9 +68,25 @@ namespace Silver_Task.Server.Services
             return user;
         }
 
-        public async Task<User> UpdateAsync(Guid id, UpdateUserRequest request)
+        public async Task<User> UpdateAsync(Guid id, UpdateUserRequest request, Guid callerId)
         {
             var user = await GetByIdAsync(id);
+
+            // An admin editing their own account can't disable themselves or drop their own
+            // Administrator role — either would lock them out immediately, with no one left in
+            // the request to undo it (same "can't cut off your own access" reasoning as the
+            // project owner being unremovable from ProjectService.RemoveMemberAsync).
+            if (id == callerId)
+            {
+                if (!request.IsActive)
+                {
+                    throw new ConflictException("You cannot disable your own account.");
+                }
+                if (user.Role == UserRole.Administrator && request.Role != UserRole.Administrator)
+                {
+                    throw new ConflictException("You cannot remove your own Administrator role.");
+                }
+            }
 
             user.Name = request.Name.Trim();
             user.Role = request.Role;
@@ -75,6 +95,14 @@ namespace Silver_Task.Server.Services
 
             await _db.SaveChangesAsync();
             return user;
+        }
+
+        public async Task ResetPasswordAsync(Guid id, string newPassword)
+        {
+            var user = await GetByIdAsync(id);
+            user.PasswordHash = _passwordHasher.HashPassword(user, newPassword);
+            user.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
         }
     }
 }
