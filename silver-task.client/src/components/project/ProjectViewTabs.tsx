@@ -7,14 +7,14 @@ interface ProjectViewTabsProps {
   onChange: (view: ViewId) => void;
 }
 
-// Table/Kanban/Calendar are implemented; Timeline/Gantt stay visible-but-disabled until their
-// phases land — the view system is designed so new views can be added without reworking this
+// Table/Kanban/Calendar/Timeline are implemented; Gantt stays visible-but-disabled until its
+// phase lands — the view system is designed so new views can be added without reworking this
 // component or the page around it, per the project's view architecture.
 const VIEWS: { id: ViewId; label: string; enabled: boolean }[] = [
   { id: 'table', label: 'Table', enabled: true },
   { id: 'kanban', label: 'Kanban', enabled: true },
   { id: 'calendar', label: 'Calendar', enabled: true },
-  { id: 'timeline', label: 'Timeline', enabled: false },
+  { id: 'timeline', label: 'Timeline', enabled: true },
   { id: 'gantt', label: 'Gantt', enabled: false },
 ];
 

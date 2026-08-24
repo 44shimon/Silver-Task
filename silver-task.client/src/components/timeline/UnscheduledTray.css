@@ -1,0 +1,31 @@
+.unscheduled-tray {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--bg);
+}
+
+.unscheduled-tray summary {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.unscheduled-tray__body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.unscheduled-tray__body .calendar-chip--compact {
+  max-width: 220px;
+}
+
+.unscheduled-tray__empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.7;
+}

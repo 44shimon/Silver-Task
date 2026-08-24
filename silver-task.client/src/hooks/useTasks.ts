@@ -54,6 +54,13 @@ export const taskFieldChange = {
     optimistic: { assignedTo: member },
     request: { assignedToUserId: member?.id ?? null },
   }),
+  /** Sets both dates atomically — used by the Timeline view's drag-to-move (both dates shift by
+   * the same delta) and drag-to-resize (one edge changes, the other is passed through
+   * unchanged) gestures, which touch startDate/dueDate together in one PUT rather than two. */
+  dateRange: (startDate: string | null, dueDate: string | null): TaskFieldChange => ({
+    optimistic: { startDate, dueDate },
+    request: { startDate, dueDate },
+  }),
 };
 
 export function useTasks(projectId: string | undefined) {

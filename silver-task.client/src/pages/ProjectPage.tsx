@@ -18,6 +18,7 @@ import { NewTaskButton } from '@/components/spreadsheet/NewTaskButton';
 import { TaskTable } from '@/components/spreadsheet/TaskTable';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
 import { CalendarView } from '@/components/calendar/CalendarView';
+import { TimelineView } from '@/components/timeline/TimelineView';
 import { TaskSearchInput } from '@/components/spreadsheet/TaskSearchInput';
 import { TaskFilterPanel } from '@/components/spreadsheet/TaskFilterPanel';
 import { TaskSortMenu } from '@/components/spreadsheet/TaskSortMenu';
@@ -223,6 +224,8 @@ export function ProjectPage() {
         <KanbanBoard projectId={project.id} tasks={filteredTasks} onOpenDetail={openTaskDetail} />
       ) : view === 'calendar' ? (
         <CalendarView projectId={project.id} tasks={filteredTasks} onOpenDetail={openTaskDetail} />
+      ) : view === 'timeline' ? (
+        <TimelineView projectId={project.id} tasks={filteredTasks} onOpenDetail={openTaskDetail} />
       ) : (
         <TaskTable
           projectId={project.id}

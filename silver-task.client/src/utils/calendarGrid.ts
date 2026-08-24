@@ -31,7 +31,9 @@ export function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-function startOfWeek(date: Date): Date {
+/** Exported for reuse by the Timeline view's week-scale tick alignment, not just this file's
+ * own month/week grid builders. */
+export function startOfWeek(date: Date): Date {
   const start = new Date(date);
   start.setDate(start.getDate() - start.getDay());
   return start;
