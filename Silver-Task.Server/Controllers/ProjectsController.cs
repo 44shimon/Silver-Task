@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Silver_Task.Server.Common;
+using Silver_Task.Server.Models.Common;
 using Silver_Task.Server.Models.DTOs.CustomFields;
 using Silver_Task.Server.Models.DTOs.Projects;
 using Silver_Task.Server.Models.DTOs.Tasks;
@@ -70,6 +71,19 @@ namespace Silver_Task.Server.Controllers
         public async Task<ActionResult<ProjectMemberDto>> AddMember(Guid id, [FromBody] AddProjectMemberRequest request)
         {
             var member = await _projectService.AddMemberAsync(id, request.Email, User.GetUserId(), User.GetRole());
+            if (member is null)
+            {
+                // A plain 404 return, not a thrown/caught NotFoundException — typing an email
+                // with no account yet is routine user input here, not an application error, so
+                // this shouldn't behave like (or debug-break like) the "real" not-found cases
+                // elsewhere in the app (a stale project/task id, a tampered request, etc.).
+                return NotFound(new ApiErrorResponse
+                {
+                    Message = $"No user found with email '{request.Email}'.",
+                    TraceId = HttpContext.TraceIdentifier
+                });
+            }
+
             return CreatedAtAction(nameof(GetMembers), new { id }, member.ToDto());
         }
 

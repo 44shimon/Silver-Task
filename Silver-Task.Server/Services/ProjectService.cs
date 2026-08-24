@@ -28,7 +28,12 @@ namespace Silver_Task.Server.Services
 
         Task<IReadOnlyList<ProjectMember>> GetMembersAsync(Guid projectId, Guid callerId, UserRole callerRole);
 
-        Task<ProjectMember> AddMemberAsync(Guid projectId, string email, Guid callerId, UserRole callerRole);
+        /// <summary>Null means no user has that email — a routine, expected outcome of typing an
+        /// email that hasn't signed up yet (the caller/UI is responsible for explaining that),
+        /// not an application error. Deliberately doesn't throw NotFoundException the way every
+        /// other "not found" case in this app does, since this one is normal user input rather
+        /// than a bug/bad-state signal (a stale id, a tampered request, etc.).</summary>
+        Task<ProjectMember?> AddMemberAsync(Guid projectId, string email, Guid callerId, UserRole callerRole);
 
         Task RemoveMemberAsync(Guid projectId, Guid targetUserId, Guid callerId, UserRole callerRole);
     }
@@ -159,14 +164,17 @@ namespace Silver_Task.Server.Services
                 .ToListAsync();
         }
 
-        public async Task<ProjectMember> AddMemberAsync(Guid projectId, string email, Guid callerId, UserRole callerRole)
+        public async Task<ProjectMember?> AddMemberAsync(Guid projectId, string email, Guid callerId, UserRole callerRole)
         {
             var project = await LoadProjectAsync(projectId);
             await _projectAccess.EnsureCanManageAsync(project.Id, project.OwnerId, callerId, callerRole);
 
             var normalizedEmail = email.Trim().ToLowerInvariant();
-            var user = await _db.Users.SingleOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail)
-                ?? throw new NotFoundException($"No user found with email '{email}'.");
+            var user = await _db.Users.SingleOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail);
+            if (user is null)
+            {
+                return null;
+            }
 
             var alreadyMember = await _db.ProjectMembers.AnyAsync(m => m.ProjectId == projectId && m.UserId == user.Id);
             if (alreadyMember)
