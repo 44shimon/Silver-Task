@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Task, TaskPriority, TaskStatus } from '@/types/task';
 import type { SortDirection } from '@/hooks/useTaskFilters';
 import { daysFromTodayDateOnly, todayDateOnly } from '@/utils/dateOnly';
+import { taskMatchesQuery } from '@/utils/taskSearch';
 
 export type MyTaskSortField = 'title' | 'project' | 'status' | 'priority' | 'dueDate' | 'createdAt' | 'updatedAt';
 
@@ -90,15 +91,9 @@ export function useMyTasksFilters(tasks: Task[]) {
   const filteredTasks = useMemo(() => {
     let items = tasks;
 
-    const query = searchQuery.trim().toLowerCase();
-    if (query) {
-      items = items.filter(
-        (task) =>
-          task.title.toLowerCase().includes(query) ||
-          (task.description ?? '').toLowerCase().includes(query) ||
-          (task.projectName ?? '').toLowerCase().includes(query),
-      );
-    }
+    // Same shared matcher as useTaskFilters — title/description/project/assigned-user (no
+    // custom-field pass here, since My Tasks spans projects with different field schemas).
+    items = items.filter((task) => taskMatchesQuery(task, searchQuery));
 
     switch (quickFilter) {
       case 'open':

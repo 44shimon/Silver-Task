@@ -18,6 +18,13 @@ namespace Silver_Task.Server.Services
         /// aggregate query rather than one count query per project.</summary>
         Task<Dictionary<Guid, int>> GetTaskCountsByProjectAsync(IEnumerable<Guid> projectIds);
 
+        /// <summary>Global search across every project the caller can access — backs the
+        /// Topbar search. Runs entirely in PostgreSQL (case-insensitive ILIKE across title,
+        /// description, project name, assignee name, and Text/LongText custom values) and
+        /// returns at most <paramref name="limit"/> rows, so this never pulls a whole task
+        /// table's worth of data to the browser just to filter it client-side.</summary>
+        Task<IReadOnlyList<TaskItem>> SearchAsync(string query, Guid callerId, UserRole callerRole, int limit = 25);
+
         /// <summary>Every task assigned to the caller across all of their (non-archived) projects —
         /// backs the "My Tasks" dashboard. A single indexed query, not one call per project.</summary>
         Task<IReadOnlyList<TaskItem>> GetAssignedToUserAsync(Guid callerId, UserRole callerRole);
@@ -63,6 +70,44 @@ namespace Silver_Task.Server.Services
                 .GroupBy(t => t.ProjectId)
                 .Select(g => new { g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.Key, x => x.Count);
+        }
+
+        public async Task<IReadOnlyList<TaskItem>> SearchAsync(string query, Guid callerId, UserRole callerRole, int limit = 25)
+        {
+            var trimmed = query.Trim();
+            if (trimmed.Length == 0)
+            {
+                return [];
+            }
+
+            var pattern = $"%{trimmed}%";
+
+            var tasksQuery = _db.Tasks
+                .Include(t => t.AssignedTo)
+                .Include(t => t.Project)
+                .Where(t =>
+                    EF.Functions.ILike(t.Title, pattern) ||
+                    (t.Description != null && EF.Functions.ILike(t.Description, pattern)) ||
+                    EF.Functions.ILike(t.Project!.Name, pattern) ||
+                    (t.AssignedTo != null && EF.Functions.ILike(t.AssignedTo.Name, pattern)) ||
+                    t.CustomValues.Any(v =>
+                        v.Value != null &&
+                        (v.CustomField!.FieldType == CustomFieldType.Text || v.CustomField.FieldType == CustomFieldType.LongText) &&
+                        EF.Functions.ILike(v.Value, pattern)));
+
+            // Same "Administrator sees everything, everyone else only their own
+            // owned/member projects" scoping as GetAssignedToUserAsync/ProjectService — a
+            // global search still can't leak tasks from projects the caller can't see.
+            if (callerRole != UserRole.Administrator)
+            {
+                tasksQuery = tasksQuery.Where(t =>
+                    t.Project!.OwnerId == callerId || t.Project.Members.Any(m => m.UserId == callerId));
+            }
+
+            return await tasksQuery
+                .OrderByDescending(t => t.UpdatedAt)
+                .Take(limit)
+                .ToListAsync();
         }
 
         public async Task<IReadOnlyList<TaskItem>> GetAssignedToUserAsync(Guid callerId, UserRole callerRole)

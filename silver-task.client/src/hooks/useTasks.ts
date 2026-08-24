@@ -74,6 +74,18 @@ export function useMyTasks() {
   });
 }
 
+/** Backs the Topbar global search — runs server-side (see TaskService.SearchAsync) and is
+ * capped there, so this never fetches more than a small results page. Callers should pass an
+ * already-debounced query (see useDebouncedValue) to avoid firing on every keystroke. */
+export function useTaskSearch(query: string) {
+  const trimmed = query.trim();
+  return useQuery({
+    queryKey: ['tasks', 'search', trimmed],
+    queryFn: () => tasksApi.search(trimmed),
+    enabled: trimmed.length > 0,
+  });
+}
+
 export function useCreateTask(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({

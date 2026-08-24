@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Task, TaskPriority, TaskStatus } from '@/types/task';
 import type { CustomField } from '@/types/customField';
+import { taskMatchesQuery } from '@/utils/taskSearch';
 
 export type TaskSortField = 'title' | 'assignedTo' | 'status' | 'priority' | 'dueDate' | 'createdAt' | 'updatedAt';
 
@@ -82,20 +83,9 @@ export function useTaskFilters(tasks: Task[], customFields: CustomField[] = []) 
   const filteredTasks = useMemo(() => {
     let items = tasks;
 
-    const query = searchQuery.trim().toLowerCase();
-    if (query) {
-      items = items.filter((task) => {
-        if (task.title.toLowerCase().includes(query)) {
-          return true;
-        }
-        if ((task.description ?? '').toLowerCase().includes(query)) {
-          return true;
-        }
-        return task.customValues.some(
-          (v) => textFieldIds.has(v.customFieldId) && (v.value ?? '').toLowerCase().includes(query),
-        );
-      });
-    }
+    // Matches title/description/project/assigned-user/Text-LongText-custom-fields — shared
+    // with useMyTasksFilters (and any future view) via taskMatchesQuery, not reimplemented here.
+    items = items.filter((task) => taskMatchesQuery(task, searchQuery, textFieldIds));
 
     if (filters.status) {
       items = items.filter((task) => task.status === filters.status);

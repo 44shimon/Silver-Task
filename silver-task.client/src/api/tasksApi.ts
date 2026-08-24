@@ -6,6 +6,8 @@ export const tasksApi = {
   list: (projectId: string) => httpClient.get<Task[]>(`/projects/${projectId}/tasks`),
   /** Every task assigned to the current user across all their projects — backs My Tasks. */
   myTasks: () => httpClient.get<Task[]>('/tasks/my'),
+  /** Global search (Topbar) — server-scoped and capped, never the whole task table. */
+  search: (query: string) => httpClient.get<Task[]>(`/tasks/search?q=${encodeURIComponent(query)}`),
   create: (projectId: string, request: CreateTaskRequest) =>
     httpClient.post<Task>(`/projects/${projectId}/tasks`, request),
   update: (taskId: string, request: UpdateTaskRequest) => httpClient.put<Task>(`/tasks/${taskId}`, request),

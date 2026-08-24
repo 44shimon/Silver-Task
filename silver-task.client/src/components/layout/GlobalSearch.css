@@ -1,0 +1,81 @@
+.global-search {
+  position: relative;
+  flex: 1;
+  max-width: 420px;
+}
+
+/* .topbar__search's own flex/max-width (App.css) target being a direct flex child of .topbar
+   — now that it's nested one level deeper inside .global-search, it just needs to fill it. */
+.global-search .topbar__search {
+  width: 100%;
+  max-width: none;
+}
+
+.global-search__clear {
+  display: flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+}
+
+.global-search__dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.global-search__status {
+  padding: 12px;
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.global-search__result {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.global-search__result:last-child {
+  border-bottom: none;
+}
+
+.global-search__result:hover,
+.global-search__result:focus {
+  background: var(--bg-subtle);
+  outline: none;
+}
+
+.global-search__result-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-search__result-meta {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.75;
+}
