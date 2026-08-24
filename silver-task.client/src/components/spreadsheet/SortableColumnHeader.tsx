@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp } from 'lucide-react';
-import type { SortDirection } from '@/hooks/useTaskFilters';
+import type { SortDirection } from '@/utils/taskFilters';
 
 // Generic over the sort-field union so both TaskTable (TaskSortField) and MyTasksTable
 // (MyTaskSortField) can share this without either type depending on the other.

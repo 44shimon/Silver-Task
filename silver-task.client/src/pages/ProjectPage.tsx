@@ -9,7 +9,7 @@ import {
   useUpdateProject,
 } from '@/hooks/useProjects';
 import { useDeleteTask, useDuplicateTask, useTasks } from '@/hooks/useTasks';
-import { useTaskFilters } from '@/hooks/useTaskFilters';
+import { useTaskFilters, SORT_FIELDS, SORT_FIELD_LABELS } from '@/hooks/useTaskFilters';
 import { useCustomFields } from '@/hooks/useCustomFields';
 import { useCurrentUser } from '@/hooks/useAuth';
 import { ApiError } from '@/api/httpClient';
@@ -22,7 +22,8 @@ import { TimelineView } from '@/components/timeline/TimelineView';
 import { GanttView } from '@/components/gantt/GanttView';
 import { TaskSearchInput } from '@/components/spreadsheet/TaskSearchInput';
 import { TaskFilterPanel } from '@/components/spreadsheet/TaskFilterPanel';
-import { TaskSortMenu } from '@/components/spreadsheet/TaskSortMenu';
+import { SortMenu } from '@/components/filters/SortMenu';
+import { QuickFilterChips } from '@/components/filters/QuickFilterChips';
 import { CustomFieldsPanel } from '@/components/spreadsheet/CustomFieldsPanel';
 import { TaskDetailPanel } from '@/components/spreadsheet/TaskDetailPanel';
 import { initials } from '@/utils/initials';
@@ -50,6 +51,8 @@ export function ProjectPage() {
     isFiltered,
     searchQuery,
     setSearchQuery,
+    quickFilter,
+    setQuickFilter,
     filters,
     setFilters,
     clearFilters,
@@ -198,25 +201,30 @@ export function ProjectPage() {
       </div>
 
       <div className="project-toolbar">
-        <ProjectViewTabs active={view} onChange={setView} />
-        <div className="project-toolbar__actions">
-          <TaskSearchInput value={searchQuery} onChange={setSearchQuery} />
-          <TaskFilterPanel
-            filters={filters}
-            onChange={setFilters}
-            onClear={clearFilters}
-            activeCount={activeFilterCount}
-            members={memberUsers}
-          />
-          <TaskSortMenu
-            sortField={sortField}
-            sortDirection={sortDirection}
-            onFieldChange={setSortField}
-            onDirectionChange={setSortDirection}
-          />
-          <CustomFieldsPanel projectId={project.id} />
-          <NewTaskButton projectId={project.id} />
+        <div className="project-toolbar__row">
+          <ProjectViewTabs active={view} onChange={setView} />
+          <div className="project-toolbar__actions">
+            <TaskSearchInput value={searchQuery} onChange={setSearchQuery} />
+            <TaskFilterPanel
+              filters={filters}
+              onChange={setFilters}
+              onClear={clearFilters}
+              activeCount={activeFilterCount}
+              members={memberUsers}
+            />
+            <SortMenu
+              sortField={sortField}
+              sortDirection={sortDirection}
+              fields={SORT_FIELDS}
+              labels={SORT_FIELD_LABELS}
+              onFieldChange={setSortField}
+              onDirectionChange={setSortDirection}
+            />
+            <CustomFieldsPanel projectId={project.id} />
+            <NewTaskButton projectId={project.id} />
+          </div>
         </div>
+        <QuickFilterChips value={quickFilter} onChange={setQuickFilter} />
       </div>
 
       {tasksLoading ? (

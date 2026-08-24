@@ -51,10 +51,17 @@
 
 .project-toolbar {
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.project-toolbar__row {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid var(--border);
 }
 
 .project-page__section {

@@ -1,28 +1,40 @@
 import { ArrowUpDown } from 'lucide-react';
-import { SORT_FIELDS, SORT_FIELD_LABELS, type SortDirection, type TaskSortField } from '@/hooks/useTaskFilters';
-import './Toolbar.css';
+import type { SortDirection } from '@/utils/taskFilters';
+import '@/components/spreadsheet/Toolbar.css';
 
-interface TaskSortMenuProps {
-  sortField: TaskSortField;
+interface SortMenuProps<TField extends string> {
+  sortField: TField;
   sortDirection: SortDirection;
-  onFieldChange: (field: TaskSortField) => void;
+  fields: TField[];
+  labels: Record<TField, string>;
+  onFieldChange: (field: TField) => void;
   onDirectionChange: (direction: SortDirection) => void;
 }
 
-export function TaskSortMenu({ sortField, sortDirection, onFieldChange, onDirectionChange }: TaskSortMenuProps) {
+// Generic over the sort-field union (same "share the shell, vary the field type" approach as
+// SortableColumnHeader) so the Project views and My Tasks — which sort by different field sets
+// (Assigned To vs. Project) — use one sort menu implementation instead of two near-identical ones.
+export function SortMenu<TField extends string>({
+  sortField,
+  sortDirection,
+  fields,
+  labels,
+  onFieldChange,
+  onDirectionChange,
+}: SortMenuProps<TField>) {
   return (
     <details className="toolbar-popover">
       <summary className="toolbar-button">
         <ArrowUpDown size={14} />
-        <span>Sort: {SORT_FIELD_LABELS[sortField]}</span>
+        <span>Sort: {labels[sortField]}</span>
       </summary>
       <div className="toolbar-popover__panel">
         <label className="toolbar-popover__field">
           <span>Sort by</span>
-          <select value={sortField} onChange={(e) => onFieldChange(e.target.value as TaskSortField)}>
-            {SORT_FIELDS.map((field) => (
+          <select value={sortField} onChange={(e) => onFieldChange(e.target.value as TField)}>
+            {fields.map((field) => (
               <option key={field} value={field}>
-                {SORT_FIELD_LABELS[field]}
+                {labels[field]}
               </option>
             ))}
           </select>

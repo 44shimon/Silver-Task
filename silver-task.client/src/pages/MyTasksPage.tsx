@@ -1,13 +1,13 @@
 import { useSearchParams } from 'react-router-dom';
 import { useMyTasks } from '@/hooks/useTasks';
-import { useMyTasksFilters } from '@/hooks/useMyTasksFilters';
+import { useMyTasksFilters, MY_TASK_SORT_FIELDS, MY_TASK_SORT_FIELD_LABELS } from '@/hooks/useMyTasksFilters';
 import { useProjects, useProjectMembers } from '@/hooks/useProjects';
 import { useCustomFields } from '@/hooks/useCustomFields';
 import { useCurrentUser } from '@/hooks/useAuth';
 import { MyTasksSummary } from '@/components/dashboard/MyTasksSummary';
-import { MyTasksQuickFilters } from '@/components/dashboard/MyTasksQuickFilters';
+import { QuickFilterChips } from '@/components/filters/QuickFilterChips';
 import { MyTasksFilterPanel } from '@/components/dashboard/MyTasksFilterPanel';
-import { MyTasksSortMenu } from '@/components/dashboard/MyTasksSortMenu';
+import { SortMenu } from '@/components/filters/SortMenu';
 import { MyTasksTable } from '@/components/dashboard/MyTasksTable';
 import { TaskSearchInput } from '@/components/spreadsheet/TaskSearchInput';
 import { TaskDetailPanel } from '@/components/spreadsheet/TaskDetailPanel';
@@ -73,7 +73,7 @@ export function MyTasksPage() {
       <MyTasksSummary summary={summary} quickFilter={quickFilter} onQuickFilterChange={setQuickFilter} />
 
       <div className="my-tasks-toolbar">
-        <MyTasksQuickFilters value={quickFilter} onChange={setQuickFilter} />
+        <QuickFilterChips value={quickFilter} onChange={setQuickFilter} />
         <div className="my-tasks-toolbar__actions">
           <TaskSearchInput value={searchQuery} onChange={setSearchQuery} />
           <MyTasksFilterPanel
@@ -83,9 +83,11 @@ export function MyTasksPage() {
             activeCount={activeFilterCount}
             projects={projects ?? []}
           />
-          <MyTasksSortMenu
+          <SortMenu
             sortField={sortField}
             sortDirection={sortDirection}
+            fields={MY_TASK_SORT_FIELDS}
+            labels={MY_TASK_SORT_FIELD_LABELS}
             onFieldChange={setSortField}
             onDirectionChange={setSortDirection}
           />

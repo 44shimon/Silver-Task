@@ -1,4 +1,4 @@
-import type { QuickFilter } from '@/hooks/useMyTasksFilters';
+import type { QuickFilter } from '@/utils/taskFilters';
 import './MyTasksSummary.css';
 
 interface MyTasksSummaryProps {
