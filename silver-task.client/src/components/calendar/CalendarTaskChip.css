@@ -1,0 +1,137 @@
+.calendar-chip {
+  cursor: grab;
+  border-radius: 6px;
+}
+
+.calendar-chip:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-bg);
+}
+
+.calendar-chip--dragging {
+  opacity: 0.4;
+}
+
+/* Compact — Month/Week grid cells */
+
+.calendar-chip--compact {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  border-left: 3px solid var(--border);
+  background: var(--bg-subtle);
+  font-size: 11px;
+}
+
+.calendar-chip--compact:hover {
+  background: var(--accent-bg);
+}
+
+.calendar-chip--priority-low {
+  border-left-color: var(--text);
+}
+
+.calendar-chip--priority-medium {
+  border-left-color: var(--info);
+}
+
+.calendar-chip--priority-high {
+  border-left-color: var(--warning);
+}
+
+.calendar-chip--priority-urgent {
+  border-left-color: var(--danger);
+}
+
+.calendar-chip--error {
+  outline: 1px solid var(--danger);
+}
+
+.calendar-chip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text);
+}
+
+.calendar-chip__dot--notstarted {
+  background: var(--text);
+  opacity: 0.5;
+}
+
+.calendar-chip__dot--inprogress {
+  background: var(--info);
+}
+
+.calendar-chip__dot--waiting {
+  background: var(--warning);
+}
+
+.calendar-chip__dot--blocked {
+  background: var(--danger);
+}
+
+.calendar-chip__dot--complete {
+  background: var(--success);
+}
+
+.calendar-chip__dot--cancelled {
+  background: var(--text);
+  opacity: 0.3;
+}
+
+.calendar-chip--compact .calendar-chip__title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-h);
+}
+
+.calendar-chip__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 8px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Expanded — Day view agenda */
+
+.calendar-chip--expanded {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.calendar-chip--expanded:hover {
+  border-color: var(--accent-border);
+}
+
+.calendar-chip--expanded .calendar-chip__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.calendar-chip__expanded-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.calendar-chip__assignee-name {
+  font-size: 12px;
+  color: var(--text);
+}

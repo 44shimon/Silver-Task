@@ -1,0 +1,59 @@
+.calendar-day-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 90px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.calendar-day-cell--outside {
+  background: var(--bg-subtle);
+  opacity: 0.55;
+}
+
+.calendar-day-cell--drag-over {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.calendar-day-cell__date {
+  align-self: flex-start;
+  padding: 1px 6px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-h);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.calendar-day-cell__date:hover {
+  background: var(--bg-subtle);
+}
+
+.calendar-day-cell__date--today {
+  background: var(--accent);
+  color: white;
+}
+
+.calendar-day-cell__tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.calendar-day-cell__more {
+  align-self: flex-start;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}

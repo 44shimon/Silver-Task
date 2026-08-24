@@ -17,6 +17,7 @@ import { ProjectViewTabs, type ViewId } from '@/components/project/ProjectViewTa
 import { NewTaskButton } from '@/components/spreadsheet/NewTaskButton';
 import { TaskTable } from '@/components/spreadsheet/TaskTable';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
+import { CalendarView } from '@/components/calendar/CalendarView';
 import { TaskSearchInput } from '@/components/spreadsheet/TaskSearchInput';
 import { TaskFilterPanel } from '@/components/spreadsheet/TaskFilterPanel';
 import { TaskSortMenu } from '@/components/spreadsheet/TaskSortMenu';
@@ -220,6 +221,8 @@ export function ProjectPage() {
         <p>Loading tasks...</p>
       ) : view === 'kanban' ? (
         <KanbanBoard projectId={project.id} tasks={filteredTasks} onOpenDetail={openTaskDetail} />
+      ) : view === 'calendar' ? (
+        <CalendarView projectId={project.id} tasks={filteredTasks} onOpenDetail={openTaskDetail} />
       ) : (
         <TaskTable
           projectId={project.id}
