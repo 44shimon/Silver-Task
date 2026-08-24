@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { AdminUser } from '@/types/admin';
 import { useResetUserPassword } from '@/hooks/useAdminUsers';
 import { ApiError } from '@/api/httpClient';
+import { Modal } from '@/components/shared/Modal';
 import './ResetPasswordDialog.css';
 
 interface ResetPasswordDialogProps {
@@ -9,9 +10,6 @@ interface ResetPasswordDialogProps {
   onClose: () => void;
 }
 
-// Rendered at the page level (a sibling of the table, not nested inside a clipped table cell)
-// as a centered modal — same fixed-backdrop technique as TaskDetailPanel's side drawer, just
-// centered instead of docked, since this is a single focused action rather than a whole record.
 export function ResetPasswordDialog({ user, onClose }: ResetPasswordDialogProps) {
   const resetPassword = useResetUserPassword();
   const [newPassword, setNewPassword] = useState('');
@@ -22,8 +20,8 @@ export function ResetPasswordDialog({ user, onClose }: ResetPasswordDialogProps)
   }
 
   return (
-    <div className="reset-password-backdrop" onClick={onClose}>
-      <form className="reset-password-dialog" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
+    <Modal onClose={onClose}>
+      <form onSubmit={handleSubmit}>
         <h2>Reset password</h2>
         <p className="reset-password-dialog__subtitle">Set a new password for {user.name}.</p>
 
@@ -55,6 +53,6 @@ export function ResetPasswordDialog({ user, onClose }: ResetPasswordDialogProps)
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }

@@ -1,0 +1,35 @@
+.user-not-found-dialog__message {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.user-not-found-dialog__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.user-not-found-dialog__link {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.user-not-found-dialog__link:hover {
+  text-decoration: underline;
+}
+
+.user-not-found-dialog__close {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}

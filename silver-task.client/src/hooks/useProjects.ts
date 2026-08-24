@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { projectsApi } from '@/api/projectsApi';
 import { adminApi } from '@/api/adminApi';
-import type { AddProjectMemberRequest, CreateProjectRequest, InviteMemberRequest, UpdateProjectRequest } from '@/types/project';
+import type { AddProjectMemberRequest, CreateProjectRequest, UpdateProjectRequest } from '@/types/project';
 
 const projectsKey = ['projects'] as const;
 const allProjectsKey = ['projects', 'all'] as const;
@@ -99,18 +99,6 @@ export function useAddProjectMember(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (request: AddProjectMemberRequest) => projectsApi.addMember(id, request),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: membersKey(id) });
-    },
-  });
-}
-
-/** Fallback for when useAddProjectMember 404s (no account exists yet) — creates the account and
- * adds them in one step. Administrator-only on the backend. */
-export function useInviteProjectMember(id: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (request: InviteMemberRequest) => projectsApi.inviteMember(id, request),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: membersKey(id) });
     },

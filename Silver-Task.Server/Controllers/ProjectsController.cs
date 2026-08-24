@@ -73,16 +73,6 @@ namespace Silver_Task.Server.Controllers
             return CreatedAtAction(nameof(GetMembers), new { id }, member.ToDto());
         }
 
-        /// <summary>Fallback for when AddMember 404s because no account exists for that email —
-        /// creates one (always Member role) and adds them in one step. Administrator-only,
-        /// enforced inside ProjectService.InviteMemberAsync.</summary>
-        [HttpPost("{id:guid}/members/invite")]
-        public async Task<ActionResult<ProjectMemberDto>> InviteMember(Guid id, [FromBody] InviteMemberRequest request)
-        {
-            var member = await _projectService.InviteMemberAsync(id, request, User.GetUserId(), User.GetRole());
-            return CreatedAtAction(nameof(GetMembers), new { id }, member.ToDto());
-        }
-
         [HttpDelete("{id:guid}/members/{userId:guid}")]
         public async Task<IActionResult> RemoveMember(Guid id, Guid userId)
         {

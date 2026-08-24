@@ -2,7 +2,6 @@ import { httpClient } from './httpClient';
 import type {
   AddProjectMemberRequest,
   CreateProjectRequest,
-  InviteMemberRequest,
   Project,
   ProjectMember,
   UpdateProjectRequest,
@@ -19,7 +18,5 @@ export const projectsApi = {
   listMembers: (id: string) => httpClient.get<ProjectMember[]>(`/projects/${id}/members`),
   addMember: (id: string, request: AddProjectMemberRequest) =>
     httpClient.post<ProjectMember>(`/projects/${id}/members`, request),
-  inviteMember: (id: string, request: InviteMemberRequest) =>
-    httpClient.post<ProjectMember>(`/projects/${id}/members/invite`, request),
   removeMember: (id: string, userId: string) => httpClient.delete<void>(`/projects/${id}/members/${userId}`),
 };
