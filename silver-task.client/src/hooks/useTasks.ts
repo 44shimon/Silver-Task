@@ -4,6 +4,7 @@ import type { CreateTaskRequest, Task, TaskPriority, TaskStatus, UpdateTaskReque
 import type { UserSummary } from '@/types/project';
 
 const tasksKey = (projectId: string) => ['projects', projectId, 'tasks'] as const;
+const myTasksKey = ['tasks', 'my'] as const;
 
 /** The backend PUT is a full-resource replace, so a single-field edit still has to carry
  * every other current value along with it. */
@@ -63,12 +64,24 @@ export function useTasks(projectId: string | undefined) {
   });
 }
 
+/** Every task assigned to the current user across all their projects — powers the My Tasks
+ * dashboard. Scoped server-side (indexed on AssignedToUserId), not filtered client-side from
+ * the full task table, so this stays cheap regardless of how large the org's task count is. */
+export function useMyTasks() {
+  return useQuery({
+    queryKey: myTasksKey,
+    queryFn: tasksApi.myTasks,
+  });
+}
+
 export function useCreateTask(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (request: CreateTaskRequest) => tasksApi.create(projectId, request),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: tasksKey(projectId) });
+      // The new task may have been created pre-assigned to the caller.
+      queryClient.invalidateQueries({ queryKey: myTasksKey });
     },
   });
 }
@@ -79,6 +92,7 @@ export function useDeleteTask(projectId: string) {
     mutationFn: (taskId: string) => tasksApi.remove(taskId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: tasksKey(projectId) });
+      queryClient.invalidateQueries({ queryKey: myTasksKey });
     },
   });
 }
@@ -89,6 +103,7 @@ export function useDuplicateTask(projectId: string) {
     mutationFn: (taskId: string) => tasksApi.duplicate(taskId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: tasksKey(projectId) });
+      queryClient.invalidateQueries({ queryKey: myTasksKey });
     },
   });
 }
@@ -103,6 +118,14 @@ interface UpdateTaskFieldInput {
  * fails, roll the cache back to its pre-edit snapshot so the cell reverts and the
  * caller can show an error (via this mutation's own isError state).
  */
+/**
+ * Tasks are also visible in the cross-project My Tasks list (`useMyTasks`), which is a
+ * separate query cache from the per-project one keyed by `tasksKey`. An edit made from either
+ * place — the project table or the My Tasks grid — needs to show up consistently in both, so
+ * every patch/rollback/reconcile step below touches both caches by id. Membership in the
+ * My Tasks list itself (e.g. reassigning a task away from the caller) can't be resolved
+ * optimistically from here, so `onSettled` also invalidates it to reconcile in the background.
+ */
 export function useUpdateTask(projectId: string) {
   const queryClient = useQueryClient();
   const queryKey = tasksKey(projectId);
@@ -112,23 +135,33 @@ export function useUpdateTask(projectId: string) {
       tasksApi.update(task.id, { ...buildBaseRequest(task), ...change.request }),
     onMutate: async ({ task, change }) => {
       await queryClient.cancelQueries({ queryKey });
+      await queryClient.cancelQueries({ queryKey: myTasksKey });
       const previousTasks = queryClient.getQueryData<Task[]>(queryKey);
+      const previousMyTasks = queryClient.getQueryData<Task[]>(myTasksKey);
 
-      queryClient.setQueryData<Task[]>(queryKey, (old) =>
-        old?.map((t) => (t.id === task.id ? { ...t, ...change.optimistic } : t)),
-      );
+      const patch = (old: Task[] | undefined) =>
+        old?.map((t) => (t.id === task.id ? { ...t, ...change.optimistic } : t));
+      queryClient.setQueryData<Task[]>(queryKey, patch);
+      queryClient.setQueryData<Task[]>(myTasksKey, patch);
 
-      return { previousTasks };
+      return { previousTasks, previousMyTasks };
     },
     onError: (_error, _variables, context) => {
       if (context?.previousTasks) {
         queryClient.setQueryData(queryKey, context.previousTasks);
       }
+      if (context?.previousMyTasks) {
+        queryClient.setQueryData(myTasksKey, context.previousMyTasks);
+      }
     },
     onSuccess: (updatedTask) => {
-      queryClient.setQueryData<Task[]>(queryKey, (old) =>
-        old?.map((t) => (t.id === updatedTask.id ? updatedTask : t)),
-      );
+      const reconcile = (old: Task[] | undefined) =>
+        old?.map((t) => (t.id === updatedTask.id ? updatedTask : t));
+      queryClient.setQueryData<Task[]>(queryKey, reconcile);
+      queryClient.setQueryData<Task[]>(myTasksKey, reconcile);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: myTasksKey });
     },
   });
 }

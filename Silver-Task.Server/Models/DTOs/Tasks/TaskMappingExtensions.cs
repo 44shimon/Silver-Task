@@ -9,6 +9,7 @@ namespace Silver_Task.Server.Models.DTOs.Tasks
         {
             Id = task.Id,
             ProjectId = task.ProjectId,
+            ProjectName = task.Project?.Name,
             Title = task.Title,
             Description = task.Description,
             Status = task.Status,

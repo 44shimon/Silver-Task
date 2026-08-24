@@ -170,6 +170,12 @@
   margin-top: 4px;
 }
 
+.sidebar__nav--top {
+  margin: 0 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
 .sidebar__nav-item {
   display: flex;
   align-items: center;
@@ -203,46 +209,4 @@
   min-width: 0;
   overflow: auto;
   padding: 24px;
-}
-
-/* Dashboard placeholder */
-
-.dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: 640px;
-}
-
-.dashboard p {
-  color: var(--text);
-}
-
-.status-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 16px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-subtle);
-  font-size: 13px;
-}
-
-.status-card__label {
-  font-weight: 600;
-  color: var(--text-h);
-}
-
-.status-card__value--pending {
-  color: var(--text);
-}
-
-.status-card__value--ok {
-  color: var(--success);
-}
-
-.status-card__value--error {
-  color: var(--danger);
 }

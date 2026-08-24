@@ -1,0 +1,49 @@
+.my-tasks-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.my-tasks-summary__card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  text-align: left;
+  cursor: pointer;
+}
+
+.my-tasks-summary__card:hover {
+  border-color: var(--accent-border);
+}
+
+.my-tasks-summary__card--active {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.my-tasks-summary__card--active .my-tasks-summary__value,
+.my-tasks-summary__card--active .my-tasks-summary__label {
+  color: var(--accent);
+}
+
+.my-tasks-summary__value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.my-tasks-summary__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+@media (max-width: 860px) {
+  .my-tasks-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

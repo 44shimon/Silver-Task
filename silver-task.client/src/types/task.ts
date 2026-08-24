@@ -25,6 +25,8 @@ export interface TaskCustomValue {
 export interface Task {
   id: string;
   projectId: string;
+  /** Only populated by cross-project endpoints (e.g. My Tasks) — null from the per-project list. */
+  projectName: string | null;
   title: string;
   description: string | null;
   status: TaskStatus;

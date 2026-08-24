@@ -9,6 +9,11 @@ namespace Silver_Task.Server.Models.DTOs.Tasks
 
         public Guid ProjectId { get; set; }
 
+        /// <summary>Only populated when the task was loaded with its Project included (e.g. the
+        /// cross-project "my tasks" endpoint) — null for the per-project task list, which already
+        /// knows its own project name from context.</summary>
+        public string? ProjectName { get; set; }
+
         public required string Title { get; set; }
 
         public string? Description { get; set; }

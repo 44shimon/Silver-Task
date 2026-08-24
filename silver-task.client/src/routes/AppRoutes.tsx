@@ -1,7 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/auth/RequireAuth';
-import { DashboardPage } from '@/pages/DashboardPage';
+import { MyTasksPage } from '@/pages/MyTasksPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ProjectPage } from '@/pages/ProjectPage';
 
@@ -15,7 +15,7 @@ export function AppRoutes() {
           <RequireAuth>
             <AppShell>
               <Routes>
-                <Route path="/" element={<DashboardPage />} />
+                <Route path="/" element={<MyTasksPage />} />
                 <Route path="/projects/:projectId" element={<ProjectPage />} />
               </Routes>
             </AppShell>

@@ -14,6 +14,10 @@ namespace Silver_Task.Server.Services
     {
         Task<IReadOnlyList<TaskItem>> GetAllForProjectAsync(Guid projectId, Guid callerId, UserRole callerRole);
 
+        /// <summary>Every task assigned to the caller across all of their (non-archived) projects —
+        /// backs the "My Tasks" dashboard. A single indexed query, not one call per project.</summary>
+        Task<IReadOnlyList<TaskItem>> GetAssignedToUserAsync(Guid callerId, UserRole callerRole);
+
         Task<TaskItem> GetByIdAsync(Guid taskId, Guid callerId, UserRole callerRole);
 
         Task<TaskItem> CreateAsync(Guid projectId, CreateTaskRequest request, Guid callerId, UserRole callerRole);
@@ -44,6 +48,32 @@ namespace Silver_Task.Server.Services
                 .Include(t => t.CustomValues)
                 .Where(t => t.ProjectId == projectId)
                 .OrderBy(t => t.SortOrder)
+                .ToListAsync();
+        }
+
+        public async Task<IReadOnlyList<TaskItem>> GetAssignedToUserAsync(Guid callerId, UserRole callerRole)
+        {
+            // AssignedToUserId is already indexed (TaskItemConfiguration), and this stays a single
+            // query translated to one SQL join — no per-project round trips.
+            var query = _db.Tasks
+                .Include(t => t.AssignedTo)
+                .Include(t => t.Project)
+                .Include(t => t.CustomValues)
+                .Where(t => t.AssignedToUserId == callerId && !t.Project!.IsArchived);
+
+            // Mirrors ProjectService.GetAllForUserAsync: an Administrator sees everything, everyone
+            // else only sees assignments in projects they still own or are a member of — a task
+            // assigned to the caller in a project they've since been removed from shouldn't leak in.
+            if (callerRole != UserRole.Administrator)
+            {
+                query = query.Where(t =>
+                    t.Project!.OwnerId == callerId || t.Project.Members.Any(m => m.UserId == callerId));
+            }
+
+            return await query
+                .OrderBy(t => t.DueDate == null)
+                .ThenBy(t => t.DueDate)
+                .ThenBy(t => t.Title)
                 .ToListAsync();
         }
 

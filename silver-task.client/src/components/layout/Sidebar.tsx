@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutGrid, Plus } from 'lucide-react';
+import { LayoutGrid, ListChecks, Plus } from 'lucide-react';
 import { useCreateProject, useProjects } from '@/hooks/useProjects';
 import { ApiError } from '@/api/httpClient';
 
@@ -36,6 +36,17 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
+      <nav className="sidebar__nav sidebar__nav--top">
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) => `sidebar__nav-item${isActive ? ' sidebar__nav-item--active' : ''}`}
+        >
+          <ListChecks size={16} />
+          <span>My Tasks</span>
+        </NavLink>
+      </nav>
+
       <div className="sidebar__header">
         <span className="sidebar__section-title">Projects</span>
         <button

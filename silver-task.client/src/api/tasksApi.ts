@@ -4,6 +4,8 @@ import type { TaskActivity } from '@/types/activity';
 
 export const tasksApi = {
   list: (projectId: string) => httpClient.get<Task[]>(`/projects/${projectId}/tasks`),
+  /** Every task assigned to the current user across all their projects — backs My Tasks. */
+  myTasks: () => httpClient.get<Task[]>('/tasks/my'),
   create: (projectId: string, request: CreateTaskRequest) =>
     httpClient.post<Task>(`/projects/${projectId}/tasks`, request),
   update: (taskId: string, request: UpdateTaskRequest) => httpClient.put<Task>(`/tasks/${taskId}`, request),

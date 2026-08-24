@@ -17,6 +17,16 @@ namespace Silver_Task.Server.Controllers
         private readonly ICommentService _commentService = commentService;
         private readonly IAttachmentService _attachmentService = attachmentService;
 
+        /// <summary>Backs the "My Tasks" dashboard — every task assigned to the caller across all
+        /// their projects. The literal "my" segment never collides with {id:guid} below, since a
+        /// route with a guid constraint can't match a non-guid literal.</summary>
+        [HttpGet("my")]
+        public async Task<ActionResult<IReadOnlyList<TaskDto>>> GetMyTasks()
+        {
+            var tasks = await _taskService.GetAssignedToUserAsync(User.GetUserId(), User.GetRole());
+            return Ok(tasks.Select(t => t.ToDto()));
+        }
+
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<TaskDto>> GetById(Guid id)
         {
