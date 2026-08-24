@@ -13,11 +13,12 @@ import './AdminUsersTable.css';
 interface AdminUsersTableProps {
   users: AdminUser[];
   currentUserId: string | undefined;
+  onResetPassword: (user: AdminUser) => void;
 }
 
 const columnHelper = legacyCreateColumnHelper<AdminUser>();
 
-export function AdminUsersTable({ users, currentUserId }: AdminUsersTableProps) {
+export function AdminUsersTable({ users, currentUserId, onResetPassword }: AdminUsersTableProps) {
   const columns = useMemo<LegacyColumnDef<AdminUser, any>[]>(
     () => [
       columnHelper.accessor('name', {
@@ -69,10 +70,12 @@ export function AdminUsersTable({ users, currentUserId }: AdminUsersTableProps) 
         size: 60,
         minSize: 60,
         enableResizing: false,
-        cell: (info) => <ResetPasswordButton userId={info.row.original.id} userName={info.row.original.name} />,
+        cell: (info) => (
+          <ResetPasswordButton userName={info.row.original.name} onClick={() => onResetPassword(info.row.original)} />
+        ),
       }),
     ],
-    [currentUserId],
+    [currentUserId, onResetPassword],
   );
 
   const table = useLegacyTable({
