@@ -3,6 +3,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/auth/RequireAuth';
 import { RequireAdmin } from '@/components/auth/RequireAdmin';
 import { MyTasksPage } from '@/pages/MyTasksPage';
+import { NotificationsPage } from '@/pages/NotificationsPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ProjectPage } from '@/pages/ProjectPage';
 import { AdminLayout } from '@/pages/admin/AdminLayout';
@@ -28,6 +29,7 @@ export function AppRoutes() {
             <AppShell>
               <Routes>
                 <Route path="/" element={<MyTasksPage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/projects/:projectId" element={<ProjectPage />} />
                 <Route path="/settings" element={<SettingsLayout />}>
                   <Route index element={<ProfileSettingsPage />} />

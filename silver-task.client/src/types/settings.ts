@@ -25,16 +25,8 @@ export interface ChangePasswordRequest {
   confirmNewPassword: string;
 }
 
-/** The set of types is driven entirely by what the backend returns (NotificationTypes.All) —
- * this union exists only for the display-label lookup below, not as a source of truth. */
-export type NotificationType =
-  | 'TaskAssigned'
-  | 'TaskStatusChanged'
-  | 'TaskDueSoon'
-  | 'TaskOverdue'
-  | 'CommentAdded'
-  | 'MentionedInComment';
-
+/** The full type union now lives in @/types/notification (Phase 28) — the notification
+ * *preference* rows here just carry whichever type string the backend returns. */
 export interface NotificationSetting {
   notificationType: string;
   isEnabled: boolean;

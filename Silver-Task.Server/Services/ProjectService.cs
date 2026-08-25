@@ -39,11 +39,16 @@ namespace Silver_Task.Server.Services
         Task RemoveMemberAsync(Guid projectId, Guid targetUserId, Guid callerId, UserRole callerRole);
     }
 
-    public class ProjectService(AppDbContext db, IProjectAccessService projectAccess, ISystemSettingsService systemSettings) : IProjectService
+    public class ProjectService(
+        AppDbContext db,
+        IProjectAccessService projectAccess,
+        ISystemSettingsService systemSettings,
+        INotificationService notificationService) : IProjectService
     {
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
         private readonly ISystemSettingsService _systemSettings = systemSettings;
+        private readonly INotificationService _notificationService = notificationService;
 
         public async Task<IReadOnlyList<Project>> GetAllForUserAsync(Guid callerId, UserRole callerRole, bool includeArchived = false)
         {
@@ -200,6 +205,11 @@ namespace Silver_Task.Server.Services
                 UserId = user.Id
             };
             _db.ProjectMembers.Add(member);
+
+            await _notificationService.NotifyAsync(
+                user.Id, callerId, NotificationTypes.UserAddedToProject, "Added to project",
+                $"You were added to \"{project.Name}\".", null, project.Id);
+
             await _db.SaveChangesAsync();
 
             member.User = user;
@@ -220,6 +230,11 @@ namespace Silver_Task.Server.Services
                 ?? throw new NotFoundException("That user is not a member of this project.");
 
             _db.ProjectMembers.Remove(member);
+
+            await _notificationService.NotifyAsync(
+                targetUserId, callerId, NotificationTypes.UserRemovedFromProject, "Removed from project",
+                $"You were removed from \"{project.Name}\".", null, project.Id);
+
             await _db.SaveChangesAsync();
         }
 

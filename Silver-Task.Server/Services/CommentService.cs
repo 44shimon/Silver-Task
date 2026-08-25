@@ -19,11 +19,16 @@ namespace Silver_Task.Server.Services
         Task DeleteAsync(Guid commentId, Guid callerId);
     }
 
-    public class CommentService(AppDbContext db, IProjectAccessService projectAccess, ISystemSettingsService systemSettings) : ICommentService
+    public class CommentService(
+        AppDbContext db,
+        IProjectAccessService projectAccess,
+        ISystemSettingsService systemSettings,
+        INotificationService notificationService) : ICommentService
     {
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
         private readonly ISystemSettingsService _systemSettings = systemSettings;
+        private readonly INotificationService _notificationService = notificationService;
 
         public async Task<IReadOnlyList<TaskComment>> GetAllForTaskAsync(Guid taskId, Guid callerId, UserRole callerRole)
         {
@@ -51,18 +56,53 @@ namespace Silver_Task.Server.Services
                 throw new ForbiddenException("Comments are currently disabled by an Administrator.");
             }
 
+            var trimmedText = text.Trim();
             var comment = new TaskComment
             {
                 Id = Guid.NewGuid(),
                 TaskId = taskId,
                 UserId = callerId,
-                Text = text.Trim()
+                Text = trimmedText
             };
             _db.TaskComments.Add(comment);
+
+            var actor = await _db.Users.FindAsync(callerId);
+            await CreateCommentNotificationsAsync(task, trimmedText, callerId, actor?.Name ?? "Someone");
+
             await _db.SaveChangesAsync();
 
-            comment.User = await _db.Users.FindAsync(callerId);
+            comment.User = actor;
             return comment;
+        }
+
+        /// <summary>Notifies the task's assignee (never the comment's own author) and anyone
+        /// @mentioned by name in the comment text — see Common.MentionParser for the plain-text
+        /// mention convention, since the comment system has no existing mention/autocomplete
+        /// support to integrate with.</summary>
+        private async Task CreateCommentNotificationsAsync(TaskItem task, string commentText, Guid authorId, string authorName)
+        {
+            if (task.AssignedToUserId is Guid assigneeId)
+            {
+                await _notificationService.NotifyAsync(
+                    assigneeId, authorId, NotificationTypes.CommentAdded, "New comment on your task",
+                    $"{authorName} commented on \"{task.Title}\".", task.Id, task.ProjectId);
+            }
+
+            var members = await _db.ProjectMembers
+                .Where(m => m.ProjectId == task.ProjectId)
+                .Include(m => m.User)
+                .Select(m => new { m.UserId, Name = m.User!.Name })
+                .ToListAsync();
+
+            var mentionedUserIds = MentionParser.FindMentionedUserIds(
+                commentText, members.Select(m => (m.UserId, m.Name)));
+
+            foreach (var mentionedUserId in mentionedUserIds)
+            {
+                await _notificationService.NotifyAsync(
+                    mentionedUserId, authorId, NotificationTypes.MentionedInComment, "You were mentioned in a comment",
+                    $"{authorName} mentioned you in a comment on \"{task.Title}\".", task.Id, task.ProjectId);
+            }
         }
 
         public async Task<TaskComment> UpdateAsync(Guid commentId, string text, Guid callerId)

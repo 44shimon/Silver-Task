@@ -45,11 +45,16 @@ namespace Silver_Task.Server.Services
         Task<IReadOnlyList<TaskActivity>> GetActivitiesForTaskAsync(Guid taskId, Guid callerId, UserRole callerRole);
     }
 
-    public class TaskService(AppDbContext db, IProjectAccessService projectAccess, ISystemSettingsService systemSettings) : ITaskService
+    public class TaskService(
+        AppDbContext db,
+        IProjectAccessService projectAccess,
+        ISystemSettingsService systemSettings,
+        INotificationService notificationService) : ITaskService
     {
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
         private readonly ISystemSettingsService _systemSettings = systemSettings;
+        private readonly INotificationService _notificationService = notificationService;
 
         public async Task<IReadOnlyList<TaskItem>> GetAllForProjectAsync(Guid projectId, Guid callerId, UserRole callerRole)
         {
@@ -184,6 +189,16 @@ namespace Silver_Task.Server.Services
 
             _db.Tasks.Add(task);
             _db.TaskActivities.Add(BuildActivity(task.Id, callerId, "Created", null, null, null));
+
+            if (task.AssignedToUserId is Guid assignedOnCreateId)
+            {
+                await _notificationService.NotifyAsync(
+                    assignedOnCreateId, callerId, NotificationTypes.TaskAssigned,
+                    "Task assigned to you",
+                    $"\"{task.Title}\" was assigned to you in \"{project.Name}\".",
+                    task.Id, project.Id);
+            }
+
             await _db.SaveChangesAsync();
 
             task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
@@ -225,12 +240,59 @@ namespace Silver_Task.Server.Services
                 activities, taskId, callerId, "Due Date",
                 DateLabel(task.DueDate), DateLabel(request.DueDate));
 
-            if (task.AssignedToUserId != request.AssignedToUserId)
+            var previousAssigneeId = task.AssignedToUserId;
+            var previousStatus = task.Status;
+            var previousPriority = task.Priority;
+            var previousDueDate = task.DueDate;
+
+            if (previousAssigneeId != request.AssignedToUserId)
             {
                 var newAssigneeName = request.AssignedToUserId is Guid newAssigneeId
                     ? (await _db.Users.FindAsync(newAssigneeId))?.Name
                     : null;
                 activities.Add(BuildActivity(taskId, callerId, "Assigned", "Assigned To", task.AssignedTo?.Name, newAssigneeName));
+
+                // TaskAssigned when there was no previous assignee, TaskReassigned when there
+                // was a *different* one — unassigning (new value null) notifies no one.
+                if (request.AssignedToUserId is Guid newlyAssignedId)
+                {
+                    var (type, notifTitle) = previousAssigneeId is null
+                        ? (NotificationTypes.TaskAssigned, "Task assigned to you")
+                        : (NotificationTypes.TaskReassigned, "Task reassigned to you");
+                    await _notificationService.NotifyAsync(
+                        newlyAssignedId, callerId, type, notifTitle,
+                        $"\"{trimmedTitle}\" was assigned to you in \"{task.Project!.Name}\".",
+                        task.Id, task.ProjectId);
+                }
+            }
+
+            if (previousAssigneeId is Guid currentAssigneeId)
+            {
+                if (previousStatus != request.Status)
+                {
+                    await _notificationService.NotifyAsync(
+                        currentAssigneeId, callerId, NotificationTypes.TaskStatusChanged, "Task status changed",
+                        $"\"{trimmedTitle}\" status changed from {previousStatus} to {request.Status}.",
+                        task.Id, task.ProjectId);
+                }
+
+                if (previousPriority != request.Priority)
+                {
+                    await _notificationService.NotifyAsync(
+                        currentAssigneeId, callerId, NotificationTypes.TaskPriorityChanged, "Task priority changed",
+                        $"\"{trimmedTitle}\" priority changed from {previousPriority} to {request.Priority}.",
+                        task.Id, task.ProjectId);
+                }
+
+                if (previousDueDate != request.DueDate)
+                {
+                    var dueDateMessage = request.DueDate is DateOnly newDueDate
+                        ? $"\"{trimmedTitle}\" due date changed to {DateLabel(newDueDate)}."
+                        : $"\"{trimmedTitle}\" no longer has a due date.";
+                    await _notificationService.NotifyAsync(
+                        currentAssigneeId, callerId, NotificationTypes.TaskDueDateChanged, "Task due date changed",
+                        dueDateMessage, task.Id, task.ProjectId);
+                }
             }
 
             task.Title = trimmedTitle;
@@ -246,6 +308,11 @@ namespace Silver_Task.Server.Services
             if (willBeComplete && !wasComplete)
             {
                 task.CompletedAt = DateTime.UtcNow;
+
+                await _notificationService.NotifyAsync(
+                    task.Project!.OwnerId, callerId, NotificationTypes.ProjectTaskCompleted, "Task completed",
+                    $"\"{trimmedTitle}\" was marked complete in \"{task.Project.Name}\".",
+                    task.Id, task.ProjectId);
             }
             else if (!willBeComplete && wasComplete)
             {

@@ -8,11 +8,17 @@ import './SettingsForm.css';
 // backend knows about it; only its label would need adding.
 const LABELS: Record<string, { title: string; description: string }> = {
   TaskAssigned: { title: 'Task assigned to me', description: 'When someone assigns a task to you.' },
-  TaskStatusChanged: { title: 'Task status changed', description: 'When a task you’re involved in changes status.' },
+  TaskReassigned: { title: 'Task reassigned to me', description: 'When a task already assigned to someone else is reassigned to you.' },
+  TaskStatusChanged: { title: 'Task status changed', description: 'When a task assigned to you changes status.' },
+  TaskPriorityChanged: { title: 'Task priority changed', description: 'When a task assigned to you changes priority.' },
+  TaskDueDateChanged: { title: 'Task due date changed', description: 'When the due date on a task assigned to you changes.' },
   TaskDueSoon: { title: 'Task due soon', description: 'A reminder shortly before a task’s due date.' },
   TaskOverdue: { title: 'Task overdue', description: 'When a task assigned to you passes its due date.' },
   CommentAdded: { title: 'Comment added to my task', description: 'When someone comments on a task assigned to you.' },
   MentionedInComment: { title: 'Mentioned in a comment', description: 'When someone mentions you in a comment.' },
+  UserAddedToProject: { title: 'Added to a project', description: 'When an administrator or manager adds you to a project.' },
+  UserRemovedFromProject: { title: 'Removed from a project', description: 'When you are removed from a project.' },
+  ProjectTaskCompleted: { title: 'Task completed in my project', description: 'When a task is completed in a project you own.' },
 };
 
 export function NotificationSettingsPage() {

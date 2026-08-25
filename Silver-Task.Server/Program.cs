@@ -95,6 +95,8 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IUserPreferencesService, UserPreferencesService>();
 builder.Services.AddScoped<IUserNotificationSettingsService, UserNotificationSettingsService>();
 builder.Services.AddScoped<ISystemSettingsService, SystemSettingsService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddHostedService<DueDateNotificationBackgroundService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

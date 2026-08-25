@@ -31,6 +31,8 @@ namespace Silver_Task.Server.Data
 
         public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
 
+        public DbSet<Notification> Notifications => Set<Notification>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
