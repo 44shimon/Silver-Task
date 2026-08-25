@@ -20,7 +20,13 @@ export interface TaskFilters extends CommonTaskFilters {
   assigneeId: string | null;
 }
 
-const EMPTY_FILTERS: TaskFilters = { status: null, priority: null, assigneeId: null, dueBefore: null };
+const EMPTY_FILTERS: TaskFilters = {
+  status: null,
+  priority: null,
+  assigneeId: null,
+  dueBefore: null,
+  dependencyState: null,
+};
 
 export const SORT_FIELD_LABELS: Record<TaskSortField, string> = {
   title: 'Task',
@@ -73,9 +79,13 @@ export function useTaskFilters(tasks: Task[], customFields: CustomField[] = []) 
     }
   }
 
-  const activeFilterCount = [filters.status, filters.priority, filters.assigneeId, filters.dueBefore].filter(
-    (value) => value !== null,
-  ).length;
+  const activeFilterCount = [
+    filters.status,
+    filters.priority,
+    filters.assigneeId,
+    filters.dueBefore,
+    filters.dependencyState,
+  ].filter((value) => value !== null).length;
 
   const today = todayDateOnly();
   const weekEnd = daysFromTodayDateOnly(6);

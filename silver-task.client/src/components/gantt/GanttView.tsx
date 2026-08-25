@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { Task } from '@/types/task';
 import { taskFieldChange, useUpdateTask } from '@/hooks/useTasks';
+import { useProjectDependencyEdges } from '@/hooks/useTaskDependencies';
 import { addDays, toDateOnly } from '@/utils/calendarGrid';
 import {
   PIXELS_PER_DAY,
@@ -18,6 +19,7 @@ import { TimelineBar } from '@/components/timeline/TimelineBar';
 import { TimelineRuler } from '@/components/timeline/TimelineRuler';
 import { TimelineScaleToolbar } from '@/components/timeline/TimelineScaleToolbar';
 import { UnscheduledTray } from '@/components/timeline/UnscheduledTray';
+import { DependencyLines } from '@/components/timeline/DependencyLines';
 import '@/components/timeline/TimelineView.css';
 import './GanttView.css';
 
@@ -41,15 +43,13 @@ interface GanttViewProps {
  * instead of a flat list. A future cross-project Gantt would repeat this same group-header
  * pattern once per project rather than needing new chart logic.
  *
- * Dependencies (task A blocks task B) are intentionally not implemented — the current schema
- * has no dependency table/columns (TaskItem has no BlockedByTaskId or similar), and the spec is
- * explicit not to build a "complicated dependency system" the architecture doesn't already
- * support. The extension point, if that's added later, is here: a dependency line would be
- * drawn between two TimelineBar positions in `.gantt-view__rows`, keyed off whatever new field
- * a future migration adds to TaskItem.
+ * Dependencies (Phase 29): DependencyLines — the same component Timeline uses — draws a
+ * Finish-to-Start connector between two visible bars' positions in `.gantt-view__rows`, offset
+ * by the project-header row Timeline doesn't have (see rowOffsetPx below).
  */
 export function GanttView({ projectId, projectName, tasks, onOpenDetail }: GanttViewProps) {
   const updateTask = useUpdateTask(projectId);
+  const { data: dependencyEdges } = useProjectDependencyEdges(projectId);
   const [scale, setScale] = useState<TimelineScale>('week');
   const [isExpanded, setIsExpanded] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -164,6 +164,15 @@ export function GanttView({ projectId, projectName, tasks, onOpenDetail }: Gantt
 
             <div className="timeline-view__rows" style={{ height: (1 + visibleRows.length) * ROW_HEIGHT }}>
               {todayLeft !== null && <div className="timeline-view__today-line" style={{ left: todayLeft }} />}
+
+              <DependencyLines
+                rows={visibleRows}
+                edges={dependencyEdges ?? []}
+                rangeStart={rangeStart}
+                pixelsPerDay={pixelsPerDay}
+                rowHeight={ROW_HEIGHT}
+                rowOffsetPx={ROW_HEIGHT}
+              />
 
               {summaryRange && (
                 <div

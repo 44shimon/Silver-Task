@@ -12,6 +12,7 @@ import { CustomFieldCell } from './CustomFieldCell';
 import { CommentsSection } from './CommentsSection';
 import { ActivityHistorySection } from './ActivityHistorySection';
 import { AttachmentsSection } from './AttachmentsSection';
+import { DependenciesSection } from './DependenciesSection';
 import './TaskDetailPanel.css';
 
 interface TaskDetailPanelProps {
@@ -19,11 +20,17 @@ interface TaskDetailPanelProps {
   projectId: string;
   members: UserSummary[];
   customFields: CustomField[];
+  /** The full (unfiltered) project task list — passed through to DependenciesSection's Add
+   * Dependency selector so it doesn't need its own fetch. */
+  tasks: Task[];
   currentUserId: string | undefined;
   onClose: () => void;
+  /** Swaps which task this already-open panel shows (updates the `?task=` param) — reused by
+   * DependenciesSection so clicking a dependency opens it in the existing detail component. */
+  onOpenDetail: (taskId: string) => void;
 }
 
-export function TaskDetailPanel({ task, projectId, members, customFields, currentUserId, onClose }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, projectId, members, customFields, tasks, currentUserId, onClose, onOpenDetail }: TaskDetailPanelProps) {
   useEffect(() => {
     function handleKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === 'Escape') {
@@ -61,6 +68,14 @@ export function TaskDetailPanel({ task, projectId, members, customFields, curren
             </div>
           </div>
 
+          {/* Dependency-blocked is deliberately never written into Status itself (see
+              TaskDependencyService) — shown here as its own separate line instead. */}
+          {task.blockedByCount > 0 && (
+            <p className="task-detail-panel__blocked-banner">
+              Blocked by {task.blockedByCount} task{task.blockedByCount === 1 ? '' : 's'}
+            </p>
+          )}
+
           <div className="task-detail-panel__field">
             <span className="task-detail-panel__label">Assigned To</span>
             <AssignedToDropdownCell task={task} projectId={projectId} members={members} />
@@ -89,6 +104,7 @@ export function TaskDetailPanel({ task, projectId, members, customFields, curren
             </div>
           )}
 
+          <DependenciesSection task={task} projectId={projectId} tasks={tasks} onOpenDetail={onOpenDetail} />
           <AttachmentsSection taskId={task.id} />
           <CommentsSection taskId={task.id} currentUserId={currentUserId} />
           <ActivityHistorySection taskId={task.id} />

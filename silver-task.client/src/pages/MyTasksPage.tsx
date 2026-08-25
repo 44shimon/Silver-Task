@@ -1,5 +1,5 @@
-import { useSearchParams } from 'react-router-dom';
-import { useMyTasks } from '@/hooks/useTasks';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useMyTasks, useTasks } from '@/hooks/useTasks';
 import { useMyTasksFilters, MY_TASK_SORT_FIELDS, MY_TASK_SORT_FIELD_LABELS } from '@/hooks/useMyTasksFilters';
 import { useProjects, useProjectMembers } from '@/hooks/useProjects';
 import { useCustomFields } from '@/hooks/useCustomFields';
@@ -20,6 +20,7 @@ export function MyTasksPage() {
   const { data: projects } = useProjects();
   const { data: currentUser } = useCurrentUser();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const {
     filteredTasks,
@@ -42,10 +43,22 @@ export function MyTasksPage() {
   const selectedTaskId = searchParams.get(TASK_QUERY_PARAM);
   const selectedTask = tasks?.find((t) => t.id === selectedTaskId) ?? null;
 
-  // The detail panel needs the selected task's own project members/custom fields — fetched
-  // on demand for just that one project, not preloaded for every project on the dashboard.
+  // The detail panel needs the selected task's own project members/custom fields/task list —
+  // fetched on demand for just that one project, not preloaded for every project on the
+  // dashboard.
   const { data: selectedTaskMembers } = useProjectMembers(selectedTask?.projectId);
   const { data: selectedTaskCustomFields } = useCustomFields(selectedTask?.projectId);
+  const { data: selectedProjectTasks } = useTasks(selectedTask?.projectId);
+
+  // A dependency's counterpart task belongs to the same project (enforced server-side) but may
+  // not be assigned to the current user, so it might not exist in `tasks` (My Tasks is scoped to
+  // the caller's own assignments) — opening it inline here could silently do nothing. Navigating
+  // to the project page instead (same `?task=` convention GlobalSearch already uses) always works.
+  function openDependencyDetail(taskId: string) {
+    if (selectedTask) {
+      navigate(`/projects/${selectedTask.projectId}?task=${taskId}`);
+    }
+  }
 
   function openTaskDetail(taskId: string) {
     setSearchParams((prev) => {
@@ -114,8 +127,10 @@ export function MyTasksPage() {
           projectId={selectedTask.projectId}
           members={selectedTaskMembers?.map((m) => m.user) ?? []}
           customFields={selectedTaskCustomFields ?? []}
+          tasks={selectedProjectTasks ?? []}
           currentUserId={currentUser?.id}
           onClose={closeTaskDetail}
+          onOpenDetail={openDependencyDetail}
         />
       )}
     </div>

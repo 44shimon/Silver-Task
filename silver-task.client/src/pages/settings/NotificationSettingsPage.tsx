@@ -18,6 +18,10 @@ const LABELS: Record<string, { title: string; description: string }> = {
   MentionedInComment: { title: 'Mentioned in a comment', description: 'When someone mentions you in a comment.' },
   UserAddedToProject: { title: 'Added to a project', description: 'When an administrator or manager adds you to a project.' },
   UserRemovedFromProject: { title: 'Removed from a project', description: 'When you are removed from a project.' },
+  TaskDependencyCompleted: {
+    title: 'Task dependency completed',
+    description: 'When a task blocking one assigned to you is completed and yours is no longer blocked.',
+  },
   ProjectTaskCompleted: { title: 'Task completed in my project', description: 'When a task is completed in a project you own.' },
 };
 

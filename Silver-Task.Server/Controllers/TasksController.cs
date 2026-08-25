@@ -4,6 +4,7 @@ using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Models.DTOs.Activities;
 using Silver_Task.Server.Models.DTOs.Attachments;
 using Silver_Task.Server.Models.DTOs.Comments;
+using Silver_Task.Server.Models.DTOs.Dependencies;
 using Silver_Task.Server.Models.DTOs.Tasks;
 using Silver_Task.Server.Services;
 
@@ -11,11 +12,16 @@ namespace Silver_Task.Server.Controllers
 {
     [ApiController]
     [Route("api/tasks")]
-    public class TasksController(ITaskService taskService, ICommentService commentService, IAttachmentService attachmentService) : ControllerBase
+    public class TasksController(
+        ITaskService taskService,
+        ICommentService commentService,
+        IAttachmentService attachmentService,
+        ITaskDependencyService dependencyService) : ControllerBase
     {
         private readonly ITaskService _taskService = taskService;
         private readonly ICommentService _commentService = commentService;
         private readonly IAttachmentService _attachmentService = attachmentService;
+        private readonly ITaskDependencyService _dependencyService = dependencyService;
 
         /// <summary>Global task search (Topbar) — case-insensitive partial match across title,
         /// description, project name, assignee name, and Text/LongText custom fields, scoped to
@@ -114,6 +120,36 @@ namespace Silver_Task.Server.Controllers
 
             var attachment = await _attachmentService.UploadAsync(id, file, User.GetUserId(), User.GetRole());
             return CreatedAtAction(nameof(GetAttachments), new { id }, attachment.ToDto());
+        }
+
+        /// <summary>The "Depends On" list — prerequisites of this task.</summary>
+        [HttpGet("{id:guid}/dependencies")]
+        public async Task<ActionResult<IReadOnlyList<TaskDependencyDto>>> GetDependencies(Guid id)
+        {
+            var dependencies = await _dependencyService.GetDependenciesAsync(id, User.GetUserId(), User.GetRole());
+            return Ok(dependencies.Select(d => d.ToDependsOnDto()));
+        }
+
+        /// <summary>The "Blocking" list — tasks that depend on this one.</summary>
+        [HttpGet("{id:guid}/dependents")]
+        public async Task<ActionResult<IReadOnlyList<TaskDependencyDto>>> GetDependents(Guid id)
+        {
+            var dependents = await _dependencyService.GetDependentsAsync(id, User.GetUserId(), User.GetRole());
+            return Ok(dependents.Select(d => d.ToDependentDto()));
+        }
+
+        [HttpPost("{id:guid}/dependencies")]
+        public async Task<ActionResult<TaskDependencyDto>> CreateDependency(Guid id, [FromBody] CreateTaskDependencyRequest request)
+        {
+            var dependency = await _dependencyService.CreateAsync(id, request.DependsOnTaskId, User.GetUserId(), User.GetRole());
+            return CreatedAtAction(nameof(GetDependencies), new { id }, dependency.ToDependsOnDto());
+        }
+
+        [HttpDelete("{id:guid}/dependencies/{dependencyId:guid}")]
+        public async Task<IActionResult> DeleteDependency(Guid id, Guid dependencyId)
+        {
+            await _dependencyService.DeleteAsync(id, dependencyId, User.GetUserId(), User.GetRole());
+            return NoContent();
         }
     }
 }

@@ -19,6 +19,11 @@ namespace Silver_Task.Server.Common
         public const string UserRemovedFromProject = "UserRemovedFromProject";
         public const string ProjectTaskCompleted = "ProjectTaskCompleted";
 
+        /// <summary>Phase 29 — fires for a dependent task's assignee when its last remaining
+        /// incomplete prerequisite (Finish-to-Start) is completed, i.e. the moment the task
+        /// actually becomes unblocked, not on every prerequisite completion if others still block it.</summary>
+        public const string TaskDependencyCompleted = "TaskDependencyCompleted";
+
         public static readonly IReadOnlyList<string> All =
         [
             TaskAssigned,
@@ -32,7 +37,8 @@ namespace Silver_Task.Server.Common
             MentionedInComment,
             UserAddedToProject,
             UserRemovedFromProject,
-            ProjectTaskCompleted
+            ProjectTaskCompleted,
+            TaskDependencyCompleted
         ];
     }
 }

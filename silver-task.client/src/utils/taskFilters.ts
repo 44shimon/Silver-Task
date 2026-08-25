@@ -90,15 +90,28 @@ export function matchesQuickFilter(task: Task, quickFilter: QuickFilter, today: 
   }
 }
 
-/** The filter dimensions every view supports (Status/Priority/Due-before). Assignee (project
- * views only — meaningless in My Tasks, which is always "assigned to me") and Project (My Tasks
- * only — meaningless within a single project's own views) are each layered on top by whichever
- * hook actually needs that one extra dimension, rather than forced into one combined shape. */
+/** Dependency-state axis, layered into the same shared CommonTaskFilters/matchesCommonFilters
+ * every view already uses for Status/Priority/Due-before, rather than a parallel filter system. */
+export type DependencyStateFilter = 'blocked' | 'notBlocked' | 'hasDependencies' | 'hasDependents';
+
+export const DEPENDENCY_STATE_LABELS: Record<DependencyStateFilter, string> = {
+  blocked: 'Blocked',
+  notBlocked: 'Not blocked',
+  hasDependencies: 'Has dependencies',
+  hasDependents: 'Has dependents',
+};
+
+/** The filter dimensions every view supports (Status/Priority/Due-before/Dependency state).
+ * Assignee (project views only — meaningless in My Tasks, which is always "assigned to me") and
+ * Project (My Tasks only — meaningless within a single project's own views) are each layered on
+ * top by whichever hook actually needs that one extra dimension, rather than forced into one
+ * combined shape. */
 export interface CommonTaskFilters {
   status: TaskStatus | null;
   priority: TaskPriority | null;
   /** DateOnly ("YYYY-MM-DD"); matches tasks due strictly before this date. */
   dueBefore: string | null;
+  dependencyState: DependencyStateFilter | null;
 }
 
 export function matchesCommonFilters(task: Task, filters: CommonTaskFilters): boolean {
@@ -110,6 +123,20 @@ export function matchesCommonFilters(task: Task, filters: CommonTaskFilters): bo
   }
   if (filters.dueBefore && (task.dueDate === null || task.dueDate >= filters.dueBefore)) {
     return false;
+  }
+  switch (filters.dependencyState) {
+    case 'blocked':
+      if (task.blockedByCount === 0) return false;
+      break;
+    case 'notBlocked':
+      if (task.blockedByCount > 0) return false;
+      break;
+    case 'hasDependencies':
+      if (task.dependsOnCount === 0) return false;
+      break;
+    case 'hasDependents':
+      if (task.dependentCount === 0) return false;
+      break;
   }
   return true;
 }

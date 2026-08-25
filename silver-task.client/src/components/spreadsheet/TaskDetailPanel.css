@@ -127,3 +127,13 @@
   font-weight: 600;
   color: var(--text-h);
 }
+
+.task-detail-panel__blocked-banner {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 600;
+}

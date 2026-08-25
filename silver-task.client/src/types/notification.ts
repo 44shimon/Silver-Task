@@ -12,7 +12,8 @@ export type NotificationType =
   | 'MentionedInComment'
   | 'UserAddedToProject'
   | 'UserRemovedFromProject'
-  | 'ProjectTaskCompleted';
+  | 'ProjectTaskCompleted'
+  | 'TaskDependencyCompleted';
 
 export interface AppNotification {
   id: string;

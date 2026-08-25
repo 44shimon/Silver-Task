@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Task } from '@/types/task';
 import { taskFieldChange, useUpdateTask } from '@/hooks/useTasks';
+import { useProjectDependencyEdges } from '@/hooks/useTaskDependencies';
 import { addDays, toDateOnly } from '@/utils/calendarGrid';
 import {
   PIXELS_PER_DAY,
@@ -17,6 +18,7 @@ import { TimelineBar } from './TimelineBar';
 import { TimelineRuler } from './TimelineRuler';
 import { TimelineScaleToolbar } from './TimelineScaleToolbar';
 import { UnscheduledTray } from './UnscheduledTray';
+import { DependencyLines } from './DependencyLines';
 import './TimelineView.css';
 
 const ROW_HEIGHT = 40;
@@ -35,6 +37,7 @@ interface TimelineViewProps {
 // edit in the app, just driven by a pointer gesture instead of the date-picker inputs.
 export function TimelineView({ projectId, tasks, onOpenDetail }: TimelineViewProps) {
   const updateTask = useUpdateTask(projectId);
+  const { data: dependencyEdges } = useProjectDependencyEdges(projectId);
   const [scale, setScale] = useState<TimelineScale>('week');
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -127,6 +130,14 @@ export function TimelineView({ projectId, tasks, onOpenDetail }: TimelineViewPro
 
             <div className="timeline-view__rows" style={{ height: scheduled.length * ROW_HEIGHT }}>
               {todayLeft !== null && <div className="timeline-view__today-line" style={{ left: todayLeft }} />}
+              <DependencyLines
+                rows={scheduled}
+                edges={dependencyEdges ?? []}
+                rangeStart={rangeStart}
+                pixelsPerDay={pixelsPerDay}
+                rowHeight={ROW_HEIGHT}
+                rowOffsetPx={0}
+              />
               {scheduled.map((task, rowIndex) => {
                 const { start, end } = displayRange(task);
                 const left = daysBetween(rangeStart, start) * pixelsPerDay;

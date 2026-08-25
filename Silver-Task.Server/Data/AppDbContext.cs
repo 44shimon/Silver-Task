@@ -33,6 +33,8 @@ namespace Silver_Task.Server.Data
 
         public DbSet<Notification> Notifications => Set<Notification>();
 
+        public DbSet<TaskDependency> TaskDependencies => Set<TaskDependency>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

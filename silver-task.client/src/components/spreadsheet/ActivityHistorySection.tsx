@@ -48,6 +48,14 @@ function describeActivity(activity: TaskActivity): string {
     return `${actor} removed attachment ${activity.oldValue ?? ''}`.trim();
   }
 
+  if (activity.action === 'DependencyAdded') {
+    return `${actor} made "${activity.newValue ?? 'a task'}" a dependency of this task`;
+  }
+
+  if (activity.action === 'DependencyRemoved') {
+    return `${actor} removed the dependency on "${activity.oldValue ?? 'a task'}"`;
+  }
+
   const field = activity.fieldName ?? 'a field';
   const oldDisplay = formatActivityValue(activity.fieldName, activity.oldValue);
   const newDisplay = formatActivityValue(activity.fieldName, activity.newValue);

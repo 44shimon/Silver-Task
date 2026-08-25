@@ -1,4 +1,5 @@
 import type { DragEvent, KeyboardEvent } from 'react';
+import { Link2 } from 'lucide-react';
 import { STATUS_LABELS, type Task } from '@/types/task';
 import { StatusBadge } from '@/components/spreadsheet/StatusBadge';
 import { PriorityBadge } from '@/components/spreadsheet/PriorityBadge';
@@ -35,10 +36,11 @@ export function CalendarTaskChip({ task, variant, isDragging, hasError, onDragSt
   // Compact chips are small (see below), so the rest of the required "Display" fields — Status,
   // Assigned user — surface as a native hover tooltip instead of taking up cell space. The
   // expanded (Day) variant shows them directly since there's room for that there.
+  const blockedSuffix = task.blockedByCount > 0 ? `, blocked by ${task.blockedByCount}` : '';
   const tooltip = hasError
     ? 'Could not save the new due date — try dragging again'
     : variant === 'compact'
-      ? `${task.title} — ${STATUS_LABELS[task.status]}, ${task.priority}${task.assignedTo ? `, assigned to ${task.assignedTo.name}` : ''}`
+      ? `${task.title} — ${STATUS_LABELS[task.status]}, ${task.priority}${task.assignedTo ? `, assigned to ${task.assignedTo.name}` : ''}${blockedSuffix}`
       : undefined;
 
   const commonProps = {
@@ -63,6 +65,12 @@ export function CalendarTaskChip({ task, variant, isDragging, hasError, onDragSt
           <StatusBadge status={task.status} />
           <PriorityBadge priority={task.priority} />
           {task.assignedTo && <span className="calendar-chip__assignee-name">{task.assignedTo.name}</span>}
+          {task.blockedByCount > 0 && (
+            <span className="calendar-chip__blocked">
+              <Link2 size={11} />
+              Blocked
+            </span>
+          )}
         </div>
       </div>
     );
@@ -75,6 +83,7 @@ export function CalendarTaskChip({ task, variant, isDragging, hasError, onDragSt
     >
       <span className={`calendar-chip__dot calendar-chip__dot--${task.status.toLowerCase()}`} />
       <span className="calendar-chip__title">{task.title}</span>
+      {task.blockedByCount > 0 && <Link2 size={10} className="calendar-chip__blocked-icon" />}
       {task.assignedTo && <span className="calendar-chip__avatar">{initials(task.assignedTo.name)}</span>}
     </div>
   );

@@ -19,6 +19,7 @@ import { PriorityDropdownCell } from './PriorityDropdownCell';
 import { AssignedToDropdownCell } from './AssignedToDropdownCell';
 import { SortableColumnHeader } from './SortableColumnHeader';
 import { CustomFieldCell } from './CustomFieldCell';
+import { DependencySummaryCell } from './DependencySummaryCell';
 import './TaskTable.css';
 
 interface TaskTableProps {
@@ -147,6 +148,13 @@ export function TaskTable({
         size: 120,
         minSize: 100,
         cell: (info) => <EditableDateCell task={info.row.original} projectId={projectId} field="dueDate" />,
+      }),
+      columnHelper.display({
+        id: 'dependencies',
+        header: 'Dependencies',
+        size: 130,
+        minSize: 110,
+        cell: (info) => <DependencySummaryCell task={info.row.original} />,
       }),
       ...customFields.map((field) =>
         columnHelper.display({

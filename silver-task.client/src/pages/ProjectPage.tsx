@@ -240,8 +240,10 @@ export function ProjectPage() {
           projectId={project.id}
           members={memberUsers}
           customFields={customFields ?? []}
+          tasks={tasks ?? []}
           currentUserId={currentUser?.id}
           onClose={closeTaskDetail}
+          onOpenDetail={openTaskDetail}
         />
       )}
 

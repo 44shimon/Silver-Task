@@ -37,6 +37,13 @@ export interface Task {
   completedAt: string | null;
   sortOrder: number;
   customValues: TaskCustomValue[];
+  /** How many other tasks this one depends on (its prerequisites). */
+  dependsOnCount: number;
+  /** Of dependsOnCount, how many prerequisites are not yet Complete — 0 means this task isn't
+   * currently dependency-blocked. Never reflected in `status`; purely a computed display value. */
+  blockedByCount: number;
+  /** How many other tasks depend on this one (the "Blocking" count). */
+  dependentCount: number;
   createdAt: string;
   updatedAt: string;
 }

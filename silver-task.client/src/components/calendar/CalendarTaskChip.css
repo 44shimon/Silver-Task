@@ -135,3 +135,19 @@
   font-size: 12px;
   color: var(--text);
 }
+
+/* Dependency-blocked (computed) — deliberately a different name from calendar-chip__dot--blocked
+   above, which reflects the user-settable Status enum value "Blocked" and is an unrelated concept. */
+.calendar-chip__blocked {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.calendar-chip__blocked-icon {
+  color: var(--danger);
+  flex-shrink: 0;
+}

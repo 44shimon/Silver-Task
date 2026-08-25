@@ -39,7 +39,13 @@ export interface MyTasksFilters extends CommonTaskFilters {
   projectId: string | null;
 }
 
-const EMPTY_FILTERS: MyTasksFilters = { projectId: null, status: null, priority: null, dueBefore: null };
+const EMPTY_FILTERS: MyTasksFilters = {
+  projectId: null,
+  status: null,
+  priority: null,
+  dueBefore: null,
+  dependencyState: null,
+};
 
 /** Search + quick-filter + detailed-filter + sort over the already-loaded My Tasks list
  * (client-side, same reasoning as useTaskFilters — the list is already server-scoped to the
@@ -63,9 +69,13 @@ export function useMyTasksFilters(tasks: Task[]) {
     }
   }
 
-  const activeFilterCount = [filters.projectId, filters.status, filters.priority, filters.dueBefore].filter(
-    (value) => value !== null,
-  ).length;
+  const activeFilterCount = [
+    filters.projectId,
+    filters.status,
+    filters.priority,
+    filters.dueBefore,
+    filters.dependencyState,
+  ].filter((value) => value !== null).length;
 
   const today = todayDateOnly();
   const weekEnd = daysFromTodayDateOnly(6);

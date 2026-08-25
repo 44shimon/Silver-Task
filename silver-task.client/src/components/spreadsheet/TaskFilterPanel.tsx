@@ -2,6 +2,7 @@ import { Filter } from 'lucide-react';
 import { PRIORITY_OPTIONS, STATUS_LABELS, STATUS_OPTIONS } from '@/types/task';
 import type { UserSummary } from '@/types/project';
 import type { TaskFilters } from '@/hooks/useTaskFilters';
+import { DEPENDENCY_STATE_LABELS, type DependencyStateFilter } from '@/utils/taskFilters';
 import './Toolbar.css';
 
 interface TaskFilterPanelProps {
@@ -73,6 +74,23 @@ export function TaskFilterPanel({ filters, onChange, onClear, activeCount, membe
             value={filters.dueBefore ?? ''}
             onChange={(e) => onChange({ ...filters, dueBefore: e.target.value || null })}
           />
+        </label>
+
+        <label className="toolbar-popover__field">
+          <span>Dependency state</span>
+          <select
+            value={filters.dependencyState ?? ''}
+            onChange={(e) =>
+              onChange({ ...filters, dependencyState: (e.target.value || null) as DependencyStateFilter | null })
+            }
+          >
+            <option value="">All</option>
+            {(Object.keys(DEPENDENCY_STATE_LABELS) as DependencyStateFilter[]).map((state) => (
+              <option key={state} value={state}>
+                {DEPENDENCY_STATE_LABELS[state]}
+              </option>
+            ))}
+          </select>
         </label>
 
         {activeCount > 0 && (

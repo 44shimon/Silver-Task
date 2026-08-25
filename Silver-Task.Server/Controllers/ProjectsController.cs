@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Silver_Task.Server.Common;
 using Silver_Task.Server.Models.Common;
 using Silver_Task.Server.Models.DTOs.CustomFields;
+using Silver_Task.Server.Models.DTOs.Dependencies;
 using Silver_Task.Server.Models.DTOs.Projects;
 using Silver_Task.Server.Models.DTOs.Tasks;
 using Silver_Task.Server.Services;
@@ -10,11 +11,16 @@ namespace Silver_Task.Server.Controllers
 {
     [ApiController]
     [Route("api/projects")]
-    public class ProjectsController(IProjectService projectService, ITaskService taskService, ICustomFieldService customFieldService) : ControllerBase
+    public class ProjectsController(
+        IProjectService projectService,
+        ITaskService taskService,
+        ICustomFieldService customFieldService,
+        ITaskDependencyService dependencyService) : ControllerBase
     {
         private readonly IProjectService _projectService = projectService;
         private readonly ITaskService _taskService = taskService;
         private readonly ICustomFieldService _customFieldService = customFieldService;
+        private readonly ITaskDependencyService _dependencyService = dependencyService;
 
         [HttpGet]
         public async Task<ActionResult<IReadOnlyList<ProjectDto>>> GetAll([FromQuery] bool includeArchived = false)
@@ -120,6 +126,16 @@ namespace Silver_Task.Server.Controllers
         {
             var field = await _customFieldService.CreateAsync(id, request, User.GetUserId(), User.GetRole());
             return CreatedAtAction(nameof(CustomFieldsController.GetById), "CustomFields", new { id = field.Id }, field.ToDto());
+        }
+
+        /// <summary>Every dependency edge in the project, for Gantt/Timeline connector-line
+        /// rendering — one request instead of one per visible bar (the Task data for each row is
+        /// already loaded via GetTasks; this only adds which pairs are connected).</summary>
+        [HttpGet("{id:guid}/dependencies")]
+        public async Task<ActionResult<IReadOnlyList<TaskDependencyEdgeDto>>> GetDependencyEdges(Guid id)
+        {
+            var edges = await _dependencyService.GetProjectEdgesAsync(id, User.GetUserId(), User.GetRole());
+            return Ok(edges.Select(e => new TaskDependencyEdgeDto { TaskId = e.TaskId, DependsOnTaskId = e.DependsOnTaskId }));
         }
     }
 }

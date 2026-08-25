@@ -34,6 +34,17 @@ namespace Silver_Task.Server.Models.DTOs.Tasks
 
         public List<TaskCustomValueDto> CustomValues { get; set; } = [];
 
+        /// <summary>How many other tasks this one depends on (its prerequisites).</summary>
+        public int DependsOnCount { get; set; }
+
+        /// <summary>Of DependsOnCount, how many prerequisites are not yet Complete — 0 means this
+        /// task isn't currently dependency-blocked. Never written back to Status; purely a
+        /// computed display value (see TaskItem.BlockedByCount).</summary>
+        public int BlockedByCount { get; set; }
+
+        /// <summary>How many other tasks depend on this one (the "Blocking" count).</summary>
+        public int DependentCount { get; set; }
+
         public DateTime CreatedAt { get; set; }
 
         public DateTime UpdatedAt { get; set; }

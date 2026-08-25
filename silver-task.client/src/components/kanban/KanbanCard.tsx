@@ -1,4 +1,5 @@
 import type { DragEvent, KeyboardEvent } from 'react';
+import { Link2 } from 'lucide-react';
 import type { Task } from '@/types/task';
 import { PriorityBadge } from '@/components/spreadsheet/PriorityBadge';
 import { formatDate } from '@/utils/formatDate';
@@ -49,6 +50,15 @@ export function KanbanCard({ task, isDragging, hasError, onDragStart, onDragEnd,
         <PriorityBadge priority={task.priority} />
         {task.dueDate && <span className="kanban-card__due">{formatDate(task.dueDate)}</span>}
       </div>
+
+      {task.blockedByCount > 0 && (
+        // The whole card already opens the task detail (Dependencies section included) on click —
+        // this indicator doesn't need its own click handler, just to be visible.
+        <div className="kanban-card__blocked">
+          <Link2 size={11} />
+          <span>Blocked by {task.blockedByCount} task{task.blockedByCount === 1 ? '' : 's'}</span>
+        </div>
+      )}
 
       {task.assignedTo && (
         <div className="kanban-card__assignee">

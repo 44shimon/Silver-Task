@@ -96,6 +96,7 @@ builder.Services.AddScoped<IUserPreferencesService, UserPreferencesService>();
 builder.Services.AddScoped<IUserNotificationSettingsService, UserNotificationSettingsService>();
 builder.Services.AddScoped<ISystemSettingsService, SystemSettingsService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<ITaskDependencyService, TaskDependencyService>();
 builder.Services.AddHostedService<DueDateNotificationBackgroundService>();
 
 builder.Services.AddControllers()

@@ -22,6 +22,9 @@ namespace Silver_Task.Server.Models.DTOs.Tasks
             CustomValues = task.CustomValues
                 .Select(v => new TaskCustomValueDto { CustomFieldId = v.CustomFieldId, Value = v.Value })
                 .ToList(),
+            DependsOnCount = task.DependsOnCount,
+            BlockedByCount = task.BlockedByCount,
+            DependentCount = task.DependentCount,
             CreatedAt = task.CreatedAt,
             UpdatedAt = task.UpdatedAt
         };

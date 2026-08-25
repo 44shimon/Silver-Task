@@ -1,0 +1,20 @@
+.dependency-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.dependency-lines__path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  opacity: 0.6;
+}
+
+.dependency-lines__arrowhead {
+  fill: var(--accent);
+  opacity: 0.6;
+}

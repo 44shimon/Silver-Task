@@ -61,12 +61,15 @@ namespace Silver_Task.Server.Services
             var project = await LoadProjectAsync(projectId);
             await _projectAccess.EnsureCanParticipateAsync(project.Id, project.OwnerId, callerId, callerRole);
 
-            return await _db.Tasks
+            var tasks = await _db.Tasks
                 .Include(t => t.AssignedTo)
                 .Include(t => t.CustomValues)
                 .Where(t => t.ProjectId == projectId)
                 .OrderBy(t => t.SortOrder)
                 .ToListAsync();
+
+            await AttachDependencySummaryAsync(tasks);
+            return tasks;
         }
 
         public async Task<Dictionary<Guid, int>> GetTaskCountsByProjectAsync(IEnumerable<Guid> projectIds)
@@ -111,10 +114,13 @@ namespace Silver_Task.Server.Services
                     t.Project!.OwnerId == callerId || t.Project.Members.Any(m => m.UserId == callerId));
             }
 
-            return await tasksQuery
+            var results = await tasksQuery
                 .OrderByDescending(t => t.UpdatedAt)
                 .Take(limit)
                 .ToListAsync();
+
+            await AttachDependencySummaryAsync(results);
+            return results;
         }
 
         public async Task<IReadOnlyList<TaskItem>> GetAssignedToUserAsync(Guid callerId, UserRole callerRole)
@@ -136,17 +142,21 @@ namespace Silver_Task.Server.Services
                     t.Project!.OwnerId == callerId || t.Project.Members.Any(m => m.UserId == callerId));
             }
 
-            return await query
+            var tasks = await query
                 .OrderBy(t => t.DueDate == null)
                 .ThenBy(t => t.DueDate)
                 .ThenBy(t => t.Title)
                 .ToListAsync();
+
+            await AttachDependencySummaryAsync(tasks);
+            return tasks;
         }
 
         public async Task<TaskItem> GetByIdAsync(Guid taskId, Guid callerId, UserRole callerRole)
         {
             var task = await LoadTaskAsync(taskId);
             await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+            await AttachDependencySummaryAsync([task]);
             return task;
         }
 
@@ -313,6 +323,8 @@ namespace Silver_Task.Server.Services
                     task.Project!.OwnerId, callerId, NotificationTypes.ProjectTaskCompleted, "Task completed",
                     $"\"{trimmedTitle}\" was marked complete in \"{task.Project.Name}\".",
                     task.Id, task.ProjectId);
+
+                await NotifyUnblockedDependentsAsync(task, callerId);
             }
             else if (!willBeComplete && wasComplete)
             {
@@ -323,7 +335,43 @@ namespace Silver_Task.Server.Services
             await _db.SaveChangesAsync();
 
             task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
+            await AttachDependencySummaryAsync([task]);
             return task;
+        }
+
+        /// <summary>Called right after a task is marked Complete — finds every task that depends
+        /// on it (Finish-to-Start) and, for each one whose *other* prerequisites (if any) are
+        /// already Complete too, notifies its assignee that it's no longer blocked. A dependent
+        /// with other still-incomplete prerequisites is deliberately not notified yet — the spec's
+        /// example is "no longer blocked", not "one of several prerequisites finished".</summary>
+        private async Task NotifyUnblockedDependentsAsync(TaskItem completedTask, Guid actorId)
+        {
+            var dependentTaskIds = await _db.TaskDependencies
+                .Where(d => d.DependsOnTaskId == completedTask.Id)
+                .Select(d => d.TaskId)
+                .ToListAsync();
+
+            foreach (var dependentTaskId in dependentTaskIds)
+            {
+                var dependent = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == dependentTaskId);
+                if (dependent?.AssignedToUserId is not Guid assigneeId)
+                {
+                    continue;
+                }
+
+                var stillBlocked = await _db.TaskDependencies
+                    .Where(d => d.TaskId == dependentTaskId && d.DependsOnTaskId != completedTask.Id)
+                    .AnyAsync(d => d.DependsOnTask!.Status != TaskItemStatus.Complete);
+                if (stillBlocked)
+                {
+                    continue;
+                }
+
+                await _notificationService.NotifyAsync(
+                    assigneeId, actorId, NotificationTypes.TaskDependencyCompleted, "Task dependency completed",
+                    $"\"{completedTask.Title}\" is complete. \"{dependent.Title}\" is no longer blocked.",
+                    dependent.Id, dependent.ProjectId);
+            }
         }
 
         public async Task DeleteAsync(Guid taskId, Guid callerId, UserRole callerRole)
@@ -404,6 +452,44 @@ namespace Silver_Task.Server.Services
         {
             var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
             return project ?? throw new NotFoundException($"Project '{projectId}' was not found.");
+        }
+
+        /// <summary>Populates TaskItem.DependsOnCount/BlockedByCount/DependentCount for every task
+        /// in <paramref name="tasks"/> with exactly two aggregate queries total, regardless of how
+        /// many tasks are passed in — not one query per task — so list endpoints (including a
+        /// 1,000-task project) stay N+1-free. Called by every method that returns tasks to a
+        /// client (list, search, my-tasks, get-by-id, update).</summary>
+        private async Task AttachDependencySummaryAsync(IReadOnlyList<TaskItem> tasks)
+        {
+            if (tasks.Count == 0)
+            {
+                return;
+            }
+
+            var ids = tasks.Select(t => t.Id).ToList();
+
+            var dependsOnRows = await _db.TaskDependencies
+                .Where(d => ids.Contains(d.TaskId))
+                .Select(d => new { d.TaskId, PrerequisiteStatus = d.DependsOnTask!.Status })
+                .ToListAsync();
+
+            var dependentCounts = await _db.TaskDependencies
+                .Where(d => ids.Contains(d.DependsOnTaskId))
+                .GroupBy(d => d.DependsOnTaskId)
+                .Select(g => new { TaskId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.TaskId, x => x.Count);
+
+            var dependsOnGroups = dependsOnRows.GroupBy(r => r.TaskId).ToDictionary(g => g.Key, g => g.ToList());
+
+            foreach (var task in tasks)
+            {
+                if (dependsOnGroups.TryGetValue(task.Id, out var rows))
+                {
+                    task.DependsOnCount = rows.Count;
+                    task.BlockedByCount = rows.Count(r => r.PrerequisiteStatus != TaskItemStatus.Complete);
+                }
+                task.DependentCount = dependentCounts.GetValueOrDefault(task.Id);
+            }
         }
 
         public async Task<IReadOnlyList<TaskActivity>> GetActivitiesForTaskAsync(Guid taskId, Guid callerId, UserRole callerRole)
