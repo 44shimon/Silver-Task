@@ -110,6 +110,19 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
+// One-off demo data population: `dotnet run -- --seed`. Deliberately gated to Development and
+// never wired into the normal request pipeline — this is a manual dev-time tool, not a feature.
+if (args.Contains("--seed"))
+{
+    if (!app.Environment.IsDevelopment())
+    {
+        throw new InvalidOperationException("--seed is only allowed in the Development environment.");
+    }
+
+    await Silver_Task.Server.Data.Seeding.DemoDataSeeder.RunAsync(app.Services);
+    return;
+}
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseDefaultFiles();

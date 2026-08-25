@@ -23,3 +23,7 @@
 .modal-dialog h2 {
   font-size: 17px;
 }
+
+.modal-dialog--wide {
+  width: 480px;
+}

@@ -106,7 +106,7 @@ export function CustomFieldFormModal({ mode, field, projects, onClose }: CustomF
   }
 
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={onClose} size="wide">
       <h2>{mode === 'create' ? 'New Custom Field' : `Edit "${field?.name}"`}</h2>
       <form className="settings-form custom-field-form" onSubmit={handleSubmit}>
         <div className="settings-form__field">

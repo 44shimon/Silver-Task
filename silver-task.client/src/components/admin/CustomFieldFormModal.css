@@ -1,6 +1,6 @@
 .custom-field-form {
   max-width: none;
-  width: 380px;
+  width: 100%;
   max-height: 70vh;
   overflow-y: auto;
 }
