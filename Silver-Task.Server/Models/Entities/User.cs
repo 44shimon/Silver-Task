@@ -25,6 +25,20 @@ namespace Silver_Task.Server.Models.Entities
         /// locked out.</summary>
         public DateTime? LockedOutUntil { get; set; }
 
+        /// <summary>Soft-delete flag (Phase 26) — a "deleted" user's row is never removed, only
+        /// marked. This keeps every existing FK (task assignments, comments, activity history,
+        /// project ownership/membership) pointing at a real row instead of needing to be
+        /// nulled out or destroyed. Deleting always also sets IsActive=false (see
+        /// UserService.DeleteAsync), so login-rejection reuses the existing IsActive check rather
+        /// than needing a second one.</summary>
+        public bool IsDeleted { get; set; }
+
+        public DateTime? DeletedAt { get; set; }
+
+        public Guid? DeletedByUserId { get; set; }
+
+        public User? DeletedByUser { get; set; }
+
         public DateTime CreatedAt { get; set; }
 
         public DateTime UpdatedAt { get; set; }

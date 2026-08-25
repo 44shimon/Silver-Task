@@ -68,3 +68,23 @@ export function useResetUserPassword() {
       usersApi.resetPassword(id, request),
   });
 }
+
+/** Only fetched once the delete-confirmation dialog is actually open (enabled), not eagerly for
+ * every row in the table — it's a handful of count queries the backend runs on demand. */
+export function useUserDeletionImpact(id: string | undefined) {
+  return useQuery({
+    queryKey: ['users', id, 'deletion-impact'],
+    queryFn: () => usersApi.getDeletionImpact(id!),
+    enabled: Boolean(id),
+  });
+}
+
+export function useDeleteUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => usersApi.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: usersKey });
+    },
+  });
+}

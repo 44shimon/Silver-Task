@@ -2,6 +2,9 @@ export interface UserSummary {
   id: string;
   name: string;
   email: string;
+  /** So consumers like the assignee dropdown can exclude deactivated/deleted users from new
+   * selections while still showing them wherever they're already referenced. */
+  isActive: boolean;
 }
 
 export interface Project {

@@ -24,6 +24,14 @@ namespace Silver_Task.Server.Data.Configurations
             builder.Property(u => u.UpdatedAt).HasDefaultValueSql("timezone('utc', now())");
 
             builder.HasIndex(u => u.Email).IsUnique();
+
+            // Self-referencing and nullable — restrict rather than cascade/set-null on the FK's
+            // own delete behavior, since the admin who performed a deletion is never itself
+            // hard-deleted (soft-delete only), so this path never actually fires in practice.
+            builder.HasOne(u => u.DeletedByUser)
+                .WithMany()
+                .HasForeignKey(u => u.DeletedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

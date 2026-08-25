@@ -25,6 +25,12 @@ export function AssignedToDropdownCell({ task, projectId, members }: AssignedToD
     }
   }
 
+  // A deactivated/deleted member can't be picked as a *new* assignee (the backend rejects it
+  // too — this just keeps the option out of the list), but if this task is already assigned to
+  // one, keep them selectable here so the select still shows who it's actually assigned to
+  // instead of silently falling back to blank.
+  const selectableMembers = members.filter((m) => m.isActive || m.id === task.assignedTo?.id);
+
   return (
     <div className="dropdown-cell-wrapper dropdown-cell-wrapper--plain">
       <select
@@ -35,9 +41,10 @@ export function AssignedToDropdownCell({ task, projectId, members }: AssignedToD
         title={updateTask.isError ? 'Could not save — try again' : undefined}
       >
         <option value={UNASSIGNED_VALUE}>Unassigned</option>
-        {members.map((member) => (
+        {selectableMembers.map((member) => (
           <option key={member.id} value={member.id}>
             {member.name}
+            {member.isActive ? '' : ' (inactive)'}
           </option>
         ))}
       </select>

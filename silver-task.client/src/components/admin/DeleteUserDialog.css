@@ -1,0 +1,98 @@
+.delete-user-dialog__loading {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.delete-user-dialog__facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+}
+
+.delete-user-dialog__facts dt {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.delete-user-dialog__facts dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.delete-user-dialog__warning {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.delete-user-dialog__confirm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.delete-user-dialog__confirm-field input {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-h);
+}
+
+.delete-user-dialog__confirm-field input:focus {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.delete-user-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.delete-user-dialog__cancel {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.delete-user-dialog__delete {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--danger);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.delete-user-dialog__cancel:disabled,
+.delete-user-dialog__delete:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

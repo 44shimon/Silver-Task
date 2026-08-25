@@ -19,7 +19,8 @@ namespace Silver_Task.Server.Models.DTOs.Users
         {
             Id = user.Id,
             Name = user.Name,
-            Email = user.Email
+            Email = user.Email,
+            IsActive = user.IsActive
         };
     }
 }

@@ -30,3 +30,16 @@ export interface AdminStats {
   openTasks: number;
   completedTasks: number;
 }
+
+/** Shown in the delete-user confirmation dialog before an admin can commit to deleting a
+ * user — deletion is a soft delete, so nothing here is actually destroyed, but the admin should
+ * still see what historical data stays attached to the now-deleted account. */
+export interface UserDeletionImpact {
+  name: string;
+  email: string;
+  role: string;
+  assignedTaskCount: number;
+  projectCount: number;
+  commentCount: number;
+  activityCount: number;
+}

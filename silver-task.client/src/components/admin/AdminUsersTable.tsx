@@ -7,18 +7,21 @@ import { EditableUserNameCell } from './EditableUserNameCell';
 import { UserRoleDropdownCell } from './UserRoleDropdownCell';
 import { UserActiveToggleCell } from './UserActiveToggleCell';
 import { ResetPasswordButton } from './ResetPasswordButton';
+import { DeleteUserButton } from './DeleteUserButton';
 import '@/components/spreadsheet/TaskTable.css';
+import '@/components/admin/AdminProjectsTable.css';
 import './AdminUsersTable.css';
 
 interface AdminUsersTableProps {
   users: AdminUser[];
   currentUserId: string | undefined;
   onResetPassword: (user: AdminUser) => void;
+  onDelete: (user: AdminUser) => void;
 }
 
 const columnHelper = legacyCreateColumnHelper<AdminUser>();
 
-export function AdminUsersTable({ users, currentUserId, onResetPassword }: AdminUsersTableProps) {
+export function AdminUsersTable({ users, currentUserId, onResetPassword, onDelete }: AdminUsersTableProps) {
   const columns = useMemo<LegacyColumnDef<AdminUser, any>[]>(
     () => [
       columnHelper.accessor('name', {
@@ -67,15 +70,21 @@ export function AdminUsersTable({ users, currentUserId, onResetPassword }: Admin
       columnHelper.display({
         id: 'actions',
         header: '',
-        size: 60,
-        minSize: 60,
+        size: 90,
+        minSize: 90,
         enableResizing: false,
-        cell: (info) => (
-          <ResetPasswordButton userName={info.row.original.name} onClick={() => onResetPassword(info.row.original)} />
-        ),
+        cell: (info) => {
+          const user = info.row.original;
+          return (
+            <div className="task-table__actions">
+              <ResetPasswordButton userName={user.name} onClick={() => onResetPassword(user)} />
+              <DeleteUserButton userName={user.name} disabled={user.id === currentUserId} onClick={() => onDelete(user)} />
+            </div>
+          );
+        },
       }),
     ],
-    [currentUserId, onResetPassword],
+    [currentUserId, onResetPassword, onDelete],
   );
 
   const table = useLegacyTable({

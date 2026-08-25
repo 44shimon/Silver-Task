@@ -39,6 +39,11 @@ namespace Silver_Task.Server.Services
         /// <summary>Self-service password change — unlike the admin reset, this requires proving
         /// knowledge of the current password first.</summary>
         Task ChangePasswordAsync(Guid id, ChangePasswordRequest request);
+
+        /// <summary>Soft delete — see User.IsDeleted. Never destroys the user's tasks, comments,
+        /// activity history, or project ownership/membership; those FKs keep pointing at this
+        /// row.</summary>
+        Task DeleteAsync(Guid id, Guid callerId);
     }
 
     public class UserService(AppDbContext db, IPasswordHasher<User> passwordHasher, ISystemSettingsService systemSettings) : IUserService
@@ -47,8 +52,10 @@ namespace Silver_Task.Server.Services
         private readonly IPasswordHasher<User> _passwordHasher = passwordHasher;
         private readonly ISystemSettingsService _systemSettings = systemSettings;
 
+        // Deleted users never appear in the normal admin list — same "gone from active lists,
+        // preserved in historical records" split Phase 25 already established for custom fields.
         public async Task<IReadOnlyList<User>> GetAllAsync() =>
-            await _db.Users.OrderBy(u => u.Name).ToListAsync();
+            await _db.Users.Where(u => !u.IsDeleted).OrderBy(u => u.Name).ToListAsync();
 
         public async Task<User> GetByIdAsync(Guid id) =>
             await _db.Users.FindAsync(id) ?? throw new NotFoundException($"User '{id}' was not found.");
@@ -162,6 +169,41 @@ namespace Silver_Task.Server.Services
 
             user.PasswordHash = _passwordHasher.HashPassword(user, request.NewPassword);
             user.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
+
+        public async Task DeleteAsync(Guid id, Guid callerId)
+        {
+            var user = await GetByIdAsync(id);
+
+            // Same "can't cut off your own access" reasoning as UpdateAsync's self-lockout
+            // guard — deleting your own currently-authenticated account is never allowed,
+            // regardless of how many other administrators exist.
+            if (id == callerId)
+            {
+                throw new ConflictException("You cannot delete your own account.");
+            }
+
+            if (user.Role == UserRole.Administrator)
+            {
+                var otherActiveAdmins = await _db.Users.CountAsync(u =>
+                    u.Id != id && u.Role == UserRole.Administrator && u.IsActive && !u.IsDeleted);
+                if (otherActiveAdmins == 0)
+                {
+                    throw new ConflictException("Cannot delete the last active administrator.");
+                }
+            }
+
+            // Soft delete only — no cascading removal of tasks/comments/activity/projects. Also
+            // deactivates (blocking login through the existing IsActive check in
+            // AuthService.LoginAsync) rather than introducing a second, parallel "can this user
+            // log in" check.
+            user.IsDeleted = true;
+            user.IsActive = false;
+            user.DeletedAt = DateTime.UtcNow;
+            user.DeletedByUserId = callerId;
+            user.UpdatedAt = DateTime.UtcNow;
+
             await _db.SaveChangesAsync();
         }
 

@@ -5,12 +5,14 @@ import type { AdminUser } from '@/types/admin';
 import { AdminUsersTable } from '@/components/admin/AdminUsersTable';
 import { NewUserForm } from '@/components/admin/NewUserForm';
 import { ResetPasswordDialog } from '@/components/admin/ResetPasswordDialog';
+import { DeleteUserDialog } from '@/components/admin/DeleteUserDialog';
 import './AdminUsersPage.css';
 
 export function AdminUsersPage() {
   const { data: users, isLoading, isError } = useAdminUsers();
   const { data: currentUser } = useCurrentUser();
   const [resetPasswordUser, setResetPasswordUser] = useState<AdminUser | null>(null);
+  const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
 
   return (
     <div className="admin-users-page">
@@ -22,12 +24,19 @@ export function AdminUsersPage() {
       {isError && <p>Users could not be loaded.</p>}
 
       {!isLoading && !isError && (
-        <AdminUsersTable users={users ?? []} currentUserId={currentUser?.id} onResetPassword={setResetPasswordUser} />
+        <AdminUsersTable
+          users={users ?? []}
+          currentUserId={currentUser?.id}
+          onResetPassword={setResetPasswordUser}
+          onDelete={setDeletingUser}
+        />
       )}
 
       {resetPasswordUser && (
         <ResetPasswordDialog user={resetPasswordUser} onClose={() => setResetPasswordUser(null)} />
       )}
+
+      {deletingUser && <DeleteUserDialog user={deletingUser} onClose={() => setDeletingUser(null)} />}
     </div>
   );
 }

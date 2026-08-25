@@ -124,6 +124,7 @@ app.UseHttpsRedirection();
 app.UseCors(FrontendCorsPolicy);
 
 app.UseAuthentication();
+app.UseMiddleware<ActiveUserMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

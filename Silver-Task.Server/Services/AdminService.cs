@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.DTOs.Admin;
 using Silver_Task.Server.Models.Entities.Enums;
@@ -8,6 +9,9 @@ namespace Silver_Task.Server.Services
     public interface IAdminService
     {
         Task<AdminStatsDto> GetStatsAsync();
+
+        /// <summary>Counts shown in the delete-user confirmation dialog — see UserDeletionImpactDto.</summary>
+        Task<UserDeletionImpactDto> GetUserDeletionImpactAsync(Guid userId);
     }
 
     /// <summary>
@@ -42,6 +46,28 @@ namespace Silver_Task.Server.Services
                 TotalTasks = totalTasks,
                 OpenTasks = totalTasks - completedTasks - cancelledTasks,
                 CompletedTasks = completedTasks
+            };
+        }
+
+        public async Task<UserDeletionImpactDto> GetUserDeletionImpactAsync(Guid userId)
+        {
+            var user = await _db.Users.FindAsync(userId) ?? throw new NotFoundException($"User '{userId}' was not found.");
+
+            var assignedTaskCount = await _db.Tasks.CountAsync(t => t.AssignedToUserId == userId);
+            var projectCount = await _db.Projects
+                .CountAsync(p => p.OwnerId == userId || p.Members.Any(m => m.UserId == userId));
+            var commentCount = await _db.TaskComments.CountAsync(c => c.UserId == userId);
+            var activityCount = await _db.TaskActivities.CountAsync(a => a.UserId == userId);
+
+            return new UserDeletionImpactDto
+            {
+                Name = user.Name,
+                Email = user.Email,
+                Role = user.Role.ToString(),
+                AssignedTaskCount = assignedTaskCount,
+                ProjectCount = projectCount,
+                CommentCount = commentCount,
+                ActivityCount = activityCount
             };
         }
     }

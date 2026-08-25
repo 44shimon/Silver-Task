@@ -195,7 +195,12 @@ namespace Silver_Task.Server.Services
             var task = await LoadTaskAsync(taskId);
             await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
 
-            if (request.AssignedToUserId is Guid assigneeId)
+            // Only validate when the assignee is actually changing — UpdateTaskRequest is a
+            // full-resource replace (per the app's established PUT convention), so an edit to
+            // any other field resends the current AssignedToUserId unchanged. Re-validating that
+            // every time would break editing a task whose assignee has since been deactivated,
+            // even when the edit has nothing to do with assignment.
+            if (request.AssignedToUserId is Guid assigneeId && assigneeId != task.AssignedToUserId)
             {
                 await EnsureAssigneeIsMemberAsync(task.ProjectId, assigneeId);
             }
@@ -372,6 +377,16 @@ namespace Silver_Task.Server.Services
             if (!await _projectAccess.IsMemberAsync(projectId, assigneeId))
             {
                 throw new ValidationException("The assigned user must be a member of this project.");
+            }
+
+            // A deactivated or deleted member stays visible on tasks they were already assigned
+            // to (nothing here touches an existing AssignedToUserId), but can't be picked as a
+            // *new* assignment — deletion always sets IsActive=false too, so this one check
+            // covers both cases per Phase 26.
+            var isActive = await _db.Users.Where(u => u.Id == assigneeId).Select(u => u.IsActive).FirstOrDefaultAsync();
+            if (!isActive)
+            {
+                throw new ValidationException("The assigned user is not active.");
             }
         }
 
