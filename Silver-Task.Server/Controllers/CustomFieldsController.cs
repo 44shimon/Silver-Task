@@ -18,6 +18,13 @@ namespace Silver_Task.Server.Controllers
             return Ok(field.ToDto());
         }
 
+        [HttpGet("{id:guid}/usage")]
+        public async Task<ActionResult<CustomFieldUsageDto>> GetUsage(Guid id)
+        {
+            var taskCount = await _customFieldService.GetUsageCountAsync(id, User.GetUserId(), User.GetRole());
+            return Ok(new CustomFieldUsageDto { TaskCount = taskCount });
+        }
+
         [HttpPut("{id:guid}")]
         public async Task<ActionResult<CustomFieldDto>> Update(Guid id, [FromBody] UpdateCustomFieldRequest request)
         {
@@ -26,9 +33,9 @@ namespace Silver_Task.Server.Controllers
         }
 
         [HttpDelete("{id:guid}")]
-        public async Task<IActionResult> Delete(Guid id)
+        public async Task<IActionResult> Delete(Guid id, [FromQuery] bool confirm = false)
         {
-            await _customFieldService.DeleteAsync(id, User.GetUserId(), User.GetRole());
+            await _customFieldService.DeleteAsync(id, confirm, User.GetUserId(), User.GetRole());
             return NoContent();
         }
 
@@ -42,14 +49,14 @@ namespace Silver_Task.Server.Controllers
         [HttpPut("{id:guid}/options/{optionId:guid}")]
         public async Task<ActionResult<CustomFieldOptionDto>> UpdateOption(Guid id, Guid optionId, [FromBody] CustomFieldOptionRequest request)
         {
-            var option = await _customFieldService.UpdateOptionAsync(id, optionId, request.Value, User.GetUserId(), User.GetRole());
+            var option = await _customFieldService.UpdateOptionAsync(id, optionId, request, User.GetUserId(), User.GetRole());
             return Ok(option.ToDto());
         }
 
         [HttpDelete("{id:guid}/options/{optionId:guid}")]
-        public async Task<IActionResult> DeleteOption(Guid id, Guid optionId)
+        public async Task<IActionResult> DeleteOption(Guid id, Guid optionId, [FromQuery] bool confirm = false)
         {
-            await _customFieldService.DeleteOptionAsync(id, optionId, User.GetUserId(), User.GetRole());
+            await _customFieldService.DeleteOptionAsync(id, optionId, confirm, User.GetUserId(), User.GetRole());
             return NoContent();
         }
     }

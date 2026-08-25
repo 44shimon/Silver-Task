@@ -427,7 +427,7 @@ namespace Silver_Task.Server.Services
                 .FirstOrDefaultAsync(f => f.Id == customFieldId)
                 ?? throw new NotFoundException($"Custom field '{customFieldId}' was not found.");
 
-            if (field.ProjectId != task.ProjectId)
+            if (field.ProjectId is Guid fieldProjectId && fieldProjectId != task.ProjectId)
             {
                 throw new ValidationException("That custom field does not belong to this task's project.");
             }
@@ -475,7 +475,19 @@ namespace Silver_Task.Server.Services
         {
             if (string.IsNullOrWhiteSpace(value))
             {
+                if (field.IsRequired)
+                {
+                    throw new ValidationException($"'{field.Name}' is required and cannot be cleared.");
+                }
                 return null;
+            }
+
+            // A deactivated field keeps its existing values readable (never force-cleared) but
+            // can't be given a new value — the admin-facing "prefer deactivation over deletion"
+            // path from Phase 25 would be pointless if the field stayed fully writable anyway.
+            if (!field.IsActive)
+            {
+                throw new ValidationException($"'{field.Name}' has been disabled and can no longer be set.");
             }
 
             switch (field.FieldType)

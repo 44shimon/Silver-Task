@@ -11,6 +11,10 @@ namespace Silver_Task.Server.Models.Entities
 
         public int SortOrder { get; set; }
 
+        /// <summary>Disabling an option (rather than deleting it) keeps it selectable nowhere new
+        /// while leaving existing task values that reference it intact and readable.</summary>
+        public bool IsActive { get; set; } = true;
+
         public DateTime CreatedAt { get; set; }
 
         public CustomField? CustomField { get; set; }

@@ -15,6 +15,7 @@ import {
   useDeleteCustomFieldOption,
 } from '@/hooks/useCustomFields';
 import { ApiError } from '@/api/httpClient';
+import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
 import './Toolbar.css';
 import './CustomFieldsPanel.css';
 
@@ -31,6 +32,20 @@ export function CustomFieldsPanel({ projectId }: CustomFieldsPanelProps) {
   const [newType, setNewType] = useState<CustomFieldType>('Text');
   const [newOptions, setNewOptions] = useState<string[]>([]);
   const [newOptionDraft, setNewOptionDraft] = useState('');
+  const [fieldConflict, setFieldConflict] = useState<{ id: string; name: string; message: string } | null>(null);
+
+  function handleDeleteField(field: CustomField) {
+    deleteField.mutate(
+      { id: field.id },
+      {
+        onError: (error) => {
+          if (error instanceof ApiError && error.status === 409) {
+            setFieldConflict({ id: field.id, name: field.name, message: error.message });
+          }
+        },
+      },
+    );
+  }
 
   function addOptionDraft() {
     const trimmed = newOptionDraft.trim();
@@ -81,7 +96,7 @@ export function CustomFieldsPanel({ projectId }: CustomFieldsPanelProps) {
               key={field.id}
               projectId={projectId}
               field={field}
-              onDelete={() => deleteField.mutate(field.id)}
+              onDelete={() => handleDeleteField(field)}
             />
           ))}
           {fields?.length === 0 && <p className="custom-fields-panel__empty">No custom fields yet.</p>}
@@ -152,6 +167,18 @@ export function CustomFieldsPanel({ projectId }: CustomFieldsPanelProps) {
           )}
         </form>
       </div>
+
+      {fieldConflict && (
+        <ConfirmDeleteDialog
+          title={`Delete "${fieldConflict.name}"?`}
+          message={fieldConflict.message}
+          isDeleting={deleteField.isPending}
+          onClose={() => setFieldConflict(null)}
+          onConfirmDelete={() =>
+            deleteField.mutate({ id: fieldConflict.id, confirm: true }, { onSuccess: () => setFieldConflict(null) })
+          }
+        />
+      )}
     </details>
   );
 }
@@ -166,6 +193,7 @@ function CustomFieldRow({ projectId, field, onDelete }: CustomFieldRowProps) {
   const addOption = useAddCustomFieldOption(projectId);
   const deleteOption = useDeleteCustomFieldOption(projectId);
   const [optionDraft, setOptionDraft] = useState('');
+  const [optionConflict, setOptionConflict] = useState<{ optionId: string; value: string; message: string } | null>(null);
 
   function handleAddOption() {
     const trimmed = optionDraft.trim();
@@ -173,6 +201,19 @@ function CustomFieldRow({ projectId, field, onDelete }: CustomFieldRowProps) {
       return;
     }
     addOption.mutate({ fieldId: field.id, value: trimmed }, { onSuccess: () => setOptionDraft('') });
+  }
+
+  function handleDeleteOption(optionId: string, value: string) {
+    deleteOption.mutate(
+      { fieldId: field.id, optionId },
+      {
+        onError: (error) => {
+          if (error instanceof ApiError && error.status === 409) {
+            setOptionConflict({ optionId, value, message: error.message });
+          }
+        },
+      },
+    );
   }
 
   return (
@@ -193,7 +234,7 @@ function CustomFieldRow({ projectId, field, onDelete }: CustomFieldRowProps) {
               <button
                 type="button"
                 aria-label={`Remove ${option.value}`}
-                onClick={() => deleteOption.mutate({ fieldId: field.id, optionId: option.id })}
+                onClick={() => handleDeleteOption(option.id, option.value)}
               >
                 <X size={11} />
               </button>
@@ -217,6 +258,21 @@ function CustomFieldRow({ projectId, field, onDelete }: CustomFieldRowProps) {
             </button>
           </div>
         </div>
+      )}
+
+      {optionConflict && (
+        <ConfirmDeleteDialog
+          title={`Delete "${optionConflict.value}"?`}
+          message={optionConflict.message}
+          isDeleting={deleteOption.isPending}
+          onClose={() => setOptionConflict(null)}
+          onConfirmDelete={() =>
+            deleteOption.mutate(
+              { fieldId: field.id, optionId: optionConflict.optionId, confirm: true },
+              { onSuccess: () => setOptionConflict(null) },
+            )
+          }
+        />
       )}
     </div>
   );

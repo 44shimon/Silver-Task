@@ -1,0 +1,32 @@
+.admin-custom-fields-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-custom-fields-page__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-custom-fields-page__toolbar select {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+}
+
+.admin-custom-fields-page__create {
+  margin-left: auto;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}

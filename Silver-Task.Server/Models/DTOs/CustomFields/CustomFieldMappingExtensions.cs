@@ -8,8 +8,13 @@ namespace Silver_Task.Server.Models.DTOs.CustomFields
         {
             Id = field.Id,
             ProjectId = field.ProjectId,
+            ProjectName = field.Project?.Name,
             Name = field.Name,
+            Description = field.Description,
             FieldType = field.FieldType,
+            IsRequired = field.IsRequired,
+            IsActive = field.IsActive,
+            DefaultValue = field.DefaultValue,
             SortOrder = field.SortOrder,
             Options = field.Options
                 .OrderBy(o => o.SortOrder)
@@ -23,7 +28,8 @@ namespace Silver_Task.Server.Models.DTOs.CustomFields
         {
             Id = option.Id,
             Value = option.Value,
-            SortOrder = option.SortOrder
+            SortOrder = option.SortOrder,
+            IsActive = option.IsActive
         };
     }
 }

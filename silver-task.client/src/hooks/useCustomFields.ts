@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { customFieldsApi } from '@/api/customFieldsApi';
-import type { CreateCustomFieldRequest, UpdateCustomFieldRequest } from '@/types/customField';
+import type { CreateCustomFieldRequest, CustomFieldOptionRequest, UpdateCustomFieldRequest } from '@/types/customField';
 
 const customFieldsKey = (projectId: string) => ['projects', projectId, 'customFields'] as const;
 
@@ -36,7 +36,10 @@ export function useUpdateCustomField(projectId: string) {
 export function useDeleteCustomField(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => customFieldsApi.remove(id),
+    // confirm defaults to false — the backend rejects deleting a field that still has task
+    // values unless the caller explicitly confirms, so a first attempt can surface that as a
+    // 409 the UI turns into a "used by N tasks, delete anyway?" prompt before retrying with true.
+    mutationFn: ({ id, confirm }: { id: string; confirm?: boolean }) => customFieldsApi.remove(id, confirm),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: customFieldsKey(projectId) });
       // A deleted field's values disappear from tasks too.
@@ -58,8 +61,8 @@ export function useAddCustomFieldOption(projectId: string) {
 export function useUpdateCustomFieldOption(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ fieldId, optionId, value }: { fieldId: string; optionId: string; value: string }) =>
-      customFieldsApi.updateOption(fieldId, optionId, value),
+    mutationFn: ({ fieldId, optionId, request }: { fieldId: string; optionId: string; request: CustomFieldOptionRequest }) =>
+      customFieldsApi.updateOption(fieldId, optionId, request),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: customFieldsKey(projectId) });
     },
@@ -69,8 +72,9 @@ export function useUpdateCustomFieldOption(projectId: string) {
 export function useDeleteCustomFieldOption(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ fieldId, optionId }: { fieldId: string; optionId: string }) =>
-      customFieldsApi.removeOption(fieldId, optionId),
+    // Same confirm-then-retry shape as useDeleteCustomField, for the same reason.
+    mutationFn: ({ fieldId, optionId, confirm }: { fieldId: string; optionId: string; confirm?: boolean }) =>
+      customFieldsApi.removeOption(fieldId, optionId, confirm),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: customFieldsKey(projectId) });
       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] });

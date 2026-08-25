@@ -7,5 +7,7 @@ namespace Silver_Task.Server.Models.DTOs.CustomFields
         public required string Value { get; set; }
 
         public int SortOrder { get; set; }
+
+        public bool IsActive { get; set; }
     }
 }

@@ -1,0 +1,43 @@
+.confirm-delete-dialog__message {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.confirm-delete-dialog__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.confirm-delete-dialog__cancel,
+.confirm-delete-dialog__deactivate {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.confirm-delete-dialog__delete {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--danger);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.confirm-delete-dialog__cancel:disabled,
+.confirm-delete-dialog__deactivate:disabled,
+.confirm-delete-dialog__delete:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

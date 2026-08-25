@@ -1,0 +1,13 @@
+.admin-custom-field-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.admin-custom-field-badge--on {
+  background: var(--accent-bg);
+  color: var(--accent);
+}

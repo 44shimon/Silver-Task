@@ -9,6 +9,16 @@ namespace Silver_Task.Server.Models.DTOs.CustomFields
         [Required, StringLength(200, MinimumLength = 1)]
         public required string Name { get; set; }
 
+        [StringLength(1000)]
+        public string? Description { get; set; }
+
+        public bool IsRequired { get; set; }
+
+        public bool IsActive { get; set; } = true;
+
+        [StringLength(1000)]
+        public string? DefaultValue { get; set; }
+
         [Required]
         public int SortOrder { get; set; }
     }

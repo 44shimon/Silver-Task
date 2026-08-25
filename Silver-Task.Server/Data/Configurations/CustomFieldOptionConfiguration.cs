@@ -15,6 +15,10 @@ namespace Silver_Task.Server.Data.Configurations
 
             builder.Property(o => o.CreatedAt).HasDefaultValueSql("timezone('utc', now())");
 
+            // Same reasoning as CustomFieldConfiguration.IsActive — an explicit default so
+            // existing options don't get silently deactivated by the ADD COLUMN migration.
+            builder.Property(o => o.IsActive).HasDefaultValue(true);
+
             builder.HasIndex(o => new { o.CustomFieldId, o.SortOrder });
 
             builder.HasOne(o => o.CustomField)
