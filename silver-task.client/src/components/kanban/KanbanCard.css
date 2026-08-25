@@ -75,6 +75,15 @@
   white-space: nowrap;
 }
 
+.kanban-card__parent {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .kanban-card__blocked {
   display: flex;
   align-items: center;

@@ -3,6 +3,7 @@ import type { Task } from '@/types/task';
 import { taskFieldChange, useUpdateTask } from '@/hooks/useTasks';
 import { useProjectDependencyEdges } from '@/hooks/useTaskDependencies';
 import { addDays, toDateOnly } from '@/utils/calendarGrid';
+import { orderByScheduledHierarchy } from '@/utils/taskHierarchy';
 import {
   PIXELS_PER_DAY,
   buildTimelineMonthBands,
@@ -43,6 +44,11 @@ export function TimelineView({ projectId, tasks, onOpenDetail }: TimelineViewPro
 
   const scheduled = useMemo(() => tasksWithDates(tasks), [tasks]);
   const unscheduled = useMemo(() => tasksWithoutDates(tasks), [tasks]);
+  // Groups subtasks directly under a scheduled parent (when one exists among the scheduled set)
+  // rather than rendering rows in flat sortOrder — the row order below iterates this, not
+  // `scheduled` directly, so `scheduled.length` is still correct for range/height math.
+  const hierarchyRows = useMemo(() => orderByScheduledHierarchy(scheduled, tasks), [scheduled, tasks]);
+  const orderedTasks = useMemo(() => hierarchyRows.map((row) => row.task), [hierarchyRows]);
   const errorTaskId = updateTask.isError ? (updateTask.variables?.task.id ?? null) : null;
 
   const pixelsPerDay = PIXELS_PER_DAY[scale];
@@ -117,8 +123,13 @@ export function TimelineView({ projectId, tasks, onOpenDetail }: TimelineViewPro
       <div className="timeline-view__body">
         <div className="timeline-view__labels">
           <div className="timeline-view__label-spacer" />
-          {scheduled.map((task) => (
-            <div className="timeline-row-label" key={task.id} style={{ height: ROW_HEIGHT }} title={task.title}>
+          {hierarchyRows.map(({ task, depth }) => (
+            <div
+              className={`timeline-row-label${task.subtaskCount > 0 ? ' timeline-row-label--parent' : ''}`}
+              key={task.id}
+              style={{ height: ROW_HEIGHT, paddingLeft: 10 + depth * 16 }}
+              title={task.title}
+            >
               {task.title}
             </div>
           ))}
@@ -131,14 +142,14 @@ export function TimelineView({ projectId, tasks, onOpenDetail }: TimelineViewPro
             <div className="timeline-view__rows" style={{ height: scheduled.length * ROW_HEIGHT }}>
               {todayLeft !== null && <div className="timeline-view__today-line" style={{ left: todayLeft }} />}
               <DependencyLines
-                rows={scheduled}
+                rows={orderedTasks}
                 edges={dependencyEdges ?? []}
                 rangeStart={rangeStart}
                 pixelsPerDay={pixelsPerDay}
                 rowHeight={ROW_HEIGHT}
                 rowOffsetPx={0}
               />
-              {scheduled.map((task, rowIndex) => {
+              {hierarchyRows.map(({ task }, rowIndex) => {
                 const { start, end } = displayRange(task);
                 const left = daysBetween(rangeStart, start) * pixelsPerDay;
                 const width = (daysBetween(start, end) + 1) * pixelsPerDay;

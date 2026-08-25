@@ -32,6 +32,12 @@ namespace Silver_Task.Server.Models.DTOs.Tasks
 
         public double SortOrder { get; set; }
 
+        /// <summary>Null means top-level. See TaskItem.ParentTaskId.</summary>
+        public Guid? ParentTaskId { get; set; }
+
+        /// <summary>Only populated when ParentTaskId is set. See TaskItem.ParentTaskTitle.</summary>
+        public string? ParentTaskTitle { get; set; }
+
         public List<TaskCustomValueDto> CustomValues { get; set; } = [];
 
         /// <summary>How many other tasks this one depends on (its prerequisites).</summary>
@@ -44,6 +50,12 @@ namespace Silver_Task.Server.Models.DTOs.Tasks
 
         /// <summary>How many other tasks depend on this one (the "Blocking" count).</summary>
         public int DependentCount { get; set; }
+
+        /// <summary>Direct children count — not the full recursive subtree.</summary>
+        public int SubtaskCount { get; set; }
+
+        /// <summary>Of SubtaskCount, how many direct children have Status == Complete.</summary>
+        public int CompletedSubtaskCount { get; set; }
 
         public DateTime CreatedAt { get; set; }
 

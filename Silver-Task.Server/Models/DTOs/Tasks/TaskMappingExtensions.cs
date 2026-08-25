@@ -19,12 +19,16 @@ namespace Silver_Task.Server.Models.DTOs.Tasks
             DueDate = task.DueDate,
             CompletedAt = task.CompletedAt,
             SortOrder = task.SortOrder,
+            ParentTaskId = task.ParentTaskId,
+            ParentTaskTitle = task.ParentTaskTitle,
             CustomValues = task.CustomValues
                 .Select(v => new TaskCustomValueDto { CustomFieldId = v.CustomFieldId, Value = v.Value })
                 .ToList(),
             DependsOnCount = task.DependsOnCount,
             BlockedByCount = task.BlockedByCount,
             DependentCount = task.DependentCount,
+            SubtaskCount = task.SubtaskCount,
+            CompletedSubtaskCount = task.CompletedSubtaskCount,
             CreatedAt = task.CreatedAt,
             UpdatedAt = task.UpdatedAt
         };

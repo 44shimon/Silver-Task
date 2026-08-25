@@ -46,6 +46,12 @@ export function KanbanCard({ task, isDragging, hasError, onDragStart, onDragEnd,
     >
       <div className="kanban-card__title">{task.title}</div>
 
+      {task.parentTaskTitle && (
+        <div className="kanban-card__parent" title={`Subtask of "${task.parentTaskTitle}"`}>
+          Parent: {task.parentTaskTitle}
+        </div>
+      )}
+
       <div className="kanban-card__meta">
         <PriorityBadge priority={task.priority} />
         {task.dueDate && <span className="kanban-card__due">{formatDate(task.dueDate)}</span>}

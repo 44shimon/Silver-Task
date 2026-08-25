@@ -18,3 +18,19 @@
   font-size: 13px;
   color: var(--text);
 }
+
+.my-tasks-table__title-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: normal;
+}
+
+.my-tasks-table__parent {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

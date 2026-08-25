@@ -44,6 +44,15 @@ export interface Task {
   blockedByCount: number;
   /** How many other tasks depend on this one (the "Blocking" count). */
   dependentCount: number;
+  /** Null means top-level. */
+  parentTaskId: string | null;
+  /** Only populated when parentTaskId is set — lets a cross-project list like My Tasks show
+   * "Parent: X" without that other project's full task list already being loaded. */
+  parentTaskTitle: string | null;
+  /** Direct children count — not the full recursive subtree. */
+  subtaskCount: number;
+  /** Of subtaskCount, how many direct children have status === 'Complete'. */
+  completedSubtaskCount: number;
   createdAt: string;
   updatedAt: string;
 }

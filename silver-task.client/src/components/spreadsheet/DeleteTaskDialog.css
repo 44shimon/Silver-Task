@@ -1,0 +1,57 @@
+.delete-task-dialog__message {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.delete-task-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.delete-task-dialog__actions--stacked {
+  flex-direction: column-reverse;
+  align-items: stretch;
+}
+
+.delete-task-dialog__option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.delete-task-dialog__option:hover:not(:disabled) {
+  background: var(--bg-subtle);
+}
+
+.delete-task-dialog__option span {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text);
+  opacity: 0.75;
+}
+
+.delete-task-dialog__option--danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.delete-task-dialog__option--danger:hover:not(:disabled) {
+  background: var(--danger-bg);
+}
+
+.delete-task-dialog__option:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

@@ -90,6 +90,10 @@
   white-space: nowrap;
 }
 
+.timeline-row-label--parent {
+  background: var(--bg-subtle);
+}
+
 .timeline-view__chart-scroll {
   flex: 1;
   overflow-x: auto;

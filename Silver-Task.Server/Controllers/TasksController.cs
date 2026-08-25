@@ -58,10 +58,14 @@ namespace Silver_Task.Server.Controllers
             return Ok(task.ToDto());
         }
 
+        /// <param name="deleteSubtasks">False (default): direct children are reparented to this
+        /// task's own parent and preserved. True: the entire subtree is deleted with it. The
+        /// frontend only ever sends true after the user explicitly picks "Delete Task + All
+        /// Subtasks" in the confirmation dialog.</param>
         [HttpDelete("{id:guid}")]
-        public async Task<IActionResult> Delete(Guid id)
+        public async Task<IActionResult> Delete(Guid id, [FromQuery] bool deleteSubtasks = false)
         {
-            await _taskService.DeleteAsync(id, User.GetUserId(), User.GetRole());
+            await _taskService.DeleteAsync(id, deleteSubtasks, User.GetUserId(), User.GetRole());
             return NoContent();
         }
 
@@ -150,6 +154,38 @@ namespace Silver_Task.Server.Controllers
         {
             await _dependencyService.DeleteAsync(id, dependencyId, User.GetUserId(), User.GetRole());
             return NoContent();
+        }
+
+        /// <summary>Direct children only, not the full recursive subtree.</summary>
+        [HttpGet("{id:guid}/subtasks")]
+        public async Task<ActionResult<IReadOnlyList<TaskDto>>> GetSubtasks(Guid id)
+        {
+            var subtasks = await _taskService.GetSubtasksAsync(id, User.GetUserId(), User.GetRole());
+            return Ok(subtasks.Select(t => t.ToDto()));
+        }
+
+        /// <summary>ProjectId and ParentTaskId are resolved from the parent task server-side —
+        /// never accepted from the request body.</summary>
+        [HttpPost("{id:guid}/subtasks")]
+        public async Task<ActionResult<TaskDto>> CreateSubtask(Guid id, [FromBody] CreateTaskRequest request)
+        {
+            var subtask = await _taskService.CreateSubtaskAsync(id, request, User.GetUserId(), User.GetRole());
+            return CreatedAtAction(nameof(GetById), new { id = subtask.Id }, subtask.ToDto());
+        }
+
+        /// <summary>The "Move Task" action — null ParentTaskId moves the task to top level.</summary>
+        [HttpPut("{id:guid}/parent")]
+        public async Task<ActionResult<TaskDto>> SetParent(Guid id, [FromBody] SetTaskParentRequest request)
+        {
+            var task = await _taskService.SetParentAsync(id, request.ParentTaskId, User.GetUserId(), User.GetRole());
+            return Ok(task.ToDto());
+        }
+
+        [HttpPut("{id:guid}/sort-order")]
+        public async Task<ActionResult<TaskDto>> SetSortOrder(Guid id, [FromBody] SetTaskSortOrderRequest request)
+        {
+            var task = await _taskService.SetSortOrderAsync(id, request.SortOrder, User.GetUserId(), User.GetRole());
+            return Ok(task.ToDto());
         }
     }
 }

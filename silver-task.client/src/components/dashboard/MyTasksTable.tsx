@@ -63,7 +63,19 @@ export function MyTasksTable({ tasks, isFiltered, sortField, sortDirection, onSo
         ),
         size: 260,
         minSize: 160,
-        cell: (info) => <EditableTitleCell task={info.row.original} projectId={info.row.original.projectId} />,
+        cell: (info) => {
+          const task = info.row.original;
+          return (
+            <div className="my-tasks-table__title-cell">
+              <EditableTitleCell task={task} projectId={task.projectId} />
+              {task.parentTaskTitle && (
+                <span className="my-tasks-table__parent" title={`Subtask of "${task.parentTaskTitle}"`}>
+                  Parent: {task.parentTaskTitle}
+                </span>
+              )}
+            </div>
+          );
+        },
       }),
       columnHelper.accessor('projectName', {
         header: () => (

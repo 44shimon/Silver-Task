@@ -36,13 +36,36 @@ namespace Silver_Task.Server.Services
 
         Task<TaskItem> UpdateAsync(Guid taskId, UpdateTaskRequest request, Guid callerId, UserRole callerRole);
 
-        Task DeleteAsync(Guid taskId, Guid callerId, UserRole callerRole);
+        /// <param name="deleteSubtasks">False (default): direct children are reparented to this
+        /// task's own parent (grandparent) and preserved — "delete task only". True: the entire
+        /// subtree is removed in the same transaction — "delete task and all subtasks". Never a
+        /// silent, unconfirmed cascade; the caller (controller) always gets this from an explicit
+        /// query parameter the frontend only sets after the user picks one of the two options.</param>
+        Task DeleteAsync(Guid taskId, bool deleteSubtasks, Guid callerId, UserRole callerRole);
 
         Task<TaskItem> DuplicateAsync(Guid taskId, Guid callerId, UserRole callerRole);
 
         Task<TaskItem> SetCustomValueAsync(Guid taskId, Guid customFieldId, string? value, Guid callerId, UserRole callerRole);
 
         Task<IReadOnlyList<TaskActivity>> GetActivitiesForTaskAsync(Guid taskId, Guid callerId, UserRole callerRole);
+
+        /// <summary>Direct children only (not the full recursive subtree) — matches
+        /// GET .../subtasks. Mainly useful outside a project page (e.g. My Tasks), which doesn't
+        /// already have the parent's sibling set loaded the way ProjectPage does.</summary>
+        Task<IReadOnlyList<TaskItem>> GetSubtasksAsync(Guid taskId, Guid callerId, UserRole callerRole);
+
+        /// <summary>ProjectId and ParentTaskId are always resolved from the parent task server-side
+        /// — never trusted from the request body, same "don't trust the frontend for ownership"
+        /// rule CreateAsync already follows for ProjectId.</summary>
+        Task<TaskItem> CreateSubtaskAsync(Guid parentTaskId, CreateTaskRequest request, Guid callerId, UserRole callerRole);
+
+        /// <summary>The "Move Task" action — null parentTaskId moves the task to top level.
+        /// Validates same-project, no self-parent, no circular hierarchy, and the nesting depth
+        /// limit; never actually creates or removes a TaskDependency row (hierarchy and
+        /// dependencies are deliberately separate concepts).</summary>
+        Task<TaskItem> SetParentAsync(Guid taskId, Guid? parentTaskId, Guid callerId, UserRole callerRole);
+
+        Task<TaskItem> SetSortOrderAsync(Guid taskId, double sortOrder, Guid callerId, UserRole callerRole);
     }
 
     public class TaskService(
@@ -68,7 +91,7 @@ namespace Silver_Task.Server.Services
                 .OrderBy(t => t.SortOrder)
                 .ToListAsync();
 
-            await AttachDependencySummaryAsync(tasks);
+            await AttachTaskSummariesAsync(tasks);
             return tasks;
         }
 
@@ -119,7 +142,7 @@ namespace Silver_Task.Server.Services
                 .Take(limit)
                 .ToListAsync();
 
-            await AttachDependencySummaryAsync(results);
+            await AttachTaskSummariesAsync(results);
             return results;
         }
 
@@ -148,7 +171,7 @@ namespace Silver_Task.Server.Services
                 .ThenBy(t => t.Title)
                 .ToListAsync();
 
-            await AttachDependencySummaryAsync(tasks);
+            await AttachTaskSummariesAsync(tasks);
             return tasks;
         }
 
@@ -156,27 +179,73 @@ namespace Silver_Task.Server.Services
         {
             var task = await LoadTaskAsync(taskId);
             await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
-            await AttachDependencySummaryAsync([task]);
+            await AttachTaskSummariesAsync([task]);
             return task;
+        }
+
+        public async Task<IReadOnlyList<TaskItem>> GetSubtasksAsync(Guid taskId, Guid callerId, UserRole callerRole)
+        {
+            var task = await LoadTaskAsync(taskId);
+            await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+
+            var subtasks = await _db.Tasks
+                .Include(t => t.AssignedTo)
+                .Include(t => t.CustomValues)
+                .Where(t => t.ParentTaskId == taskId)
+                .OrderBy(t => t.SortOrder)
+                .ToListAsync();
+
+            await AttachTaskSummariesAsync(subtasks);
+            return subtasks;
         }
 
         public async Task<TaskItem> CreateAsync(Guid projectId, CreateTaskRequest request, Guid callerId, UserRole callerRole)
         {
             var project = await LoadProjectAsync(projectId);
             await _projectAccess.EnsureCanParticipateAsync(project.Id, project.OwnerId, callerId, callerRole);
+            await EnsureCanCreateTasksAsync(project, callerId, callerRole);
 
-            // Plain Members pass EnsureCanParticipateAsync (same as Managers/the owner) — this
-            // extra check is the only place task creation can be narrowed further, to just
-            // Manager-tier, via the "Allow members to create tasks" system setting.
-            if (callerRole == UserRole.Member && callerId != project.OwnerId &&
-                !await _systemSettings.GetBoolAsync(SystemSettingKeys.AllowMembersToCreateTasks))
+            var task = await BuildNewTaskAsync(project, parentTaskId: null, request, callerId);
+            await _db.SaveChangesAsync();
+
+            task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
+            return task;
+        }
+
+        public async Task<TaskItem> CreateSubtaskAsync(Guid parentTaskId, CreateTaskRequest request, Guid callerId, UserRole callerRole)
+        {
+            var parent = await LoadTaskAsync(parentTaskId);
+            await _projectAccess.EnsureCanParticipateAsync(parent.ProjectId, parent.Project!.OwnerId, callerId, callerRole);
+            await EnsureCanCreateTasksAsync(parent.Project!, callerId, callerRole);
+            await EnsureDepthWithinLimitAsync(parentTaskId);
+
+            var subtask = await BuildNewTaskAsync(parent.Project!, parentTaskId, request, callerId);
+
+            _db.TaskActivities.Add(new TaskActivity
             {
-                throw new ForbiddenException("Members are currently not allowed to create tasks.");
-            }
+                Id = Guid.NewGuid(),
+                TaskId = parentTaskId,
+                UserId = callerId,
+                Action = "SubtaskAdded",
+                NewValue = subtask.Title
+            });
 
+            await _db.SaveChangesAsync();
+
+            subtask.AssignedTo = subtask.AssignedToUserId is null ? null : await _db.Users.FindAsync(subtask.AssignedToUserId);
+            return subtask;
+        }
+
+        /// <summary>Shared by CreateAsync (parentTaskId: null) and CreateSubtaskAsync — builds and
+        /// tracks the new task, its "Created" activity, and the assignment notification, but
+        /// deliberately does not call SaveChangesAsync so a caller adding one more entity (like
+        /// CreateSubtaskAsync's "SubtaskAdded" activity on the parent) still persists everything
+        /// in a single unit of work.</summary>
+        private async Task<TaskItem> BuildNewTaskAsync(Project project, Guid? parentTaskId, CreateTaskRequest request, Guid callerId)
+        {
             if (request.AssignedToUserId is Guid assigneeId)
             {
-                await EnsureAssigneeIsMemberAsync(projectId, assigneeId);
+                await EnsureAssigneeIsMemberAsync(project.Id, assigneeId);
             }
 
             var status = request.Status ?? await ResolveDefaultStatusAsync();
@@ -185,7 +254,8 @@ namespace Silver_Task.Server.Services
             var task = new TaskItem
             {
                 Id = Guid.NewGuid(),
-                ProjectId = projectId,
+                ProjectId = project.Id,
+                ParentTaskId = parentTaskId,
                 Title = request.Title.Trim(),
                 Description = NormalizeText(request.Description),
                 Status = status,
@@ -194,7 +264,7 @@ namespace Silver_Task.Server.Services
                 StartDate = request.StartDate,
                 DueDate = request.DueDate,
                 CompletedAt = status == TaskItemStatus.Complete ? DateTime.UtcNow : null,
-                SortOrder = await GetNextSortOrderAsync(projectId)
+                SortOrder = await GetNextSortOrderAsync(project.Id, parentTaskId)
             };
 
             _db.Tasks.Add(task);
@@ -209,10 +279,19 @@ namespace Silver_Task.Server.Services
                     task.Id, project.Id);
             }
 
-            await _db.SaveChangesAsync();
-
-            task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
             return task;
+        }
+
+        // Plain Members pass EnsureCanParticipateAsync (same as Managers/the owner) — this extra
+        // check is the only place task creation can be narrowed further, to just Manager-tier,
+        // via the "Allow members to create tasks" system setting. Applies identically to subtasks.
+        private async Task EnsureCanCreateTasksAsync(Project project, Guid callerId, UserRole callerRole)
+        {
+            if (callerRole == UserRole.Member && callerId != project.OwnerId &&
+                !await _systemSettings.GetBoolAsync(SystemSettingKeys.AllowMembersToCreateTasks))
+            {
+                throw new ForbiddenException("Members are currently not allowed to create tasks.");
+            }
         }
 
         public async Task<TaskItem> UpdateAsync(Guid taskId, UpdateTaskRequest request, Guid callerId, UserRole callerRole)
@@ -335,8 +414,148 @@ namespace Silver_Task.Server.Services
             await _db.SaveChangesAsync();
 
             task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
-            await AttachDependencySummaryAsync([task]);
+            await AttachTaskSummariesAsync([task]);
             return task;
+        }
+
+        public async Task<TaskItem> SetParentAsync(Guid taskId, Guid? parentTaskId, Guid callerId, UserRole callerRole)
+        {
+            var task = await LoadTaskAsync(taskId);
+            await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+
+            if (parentTaskId == task.ParentTaskId)
+            {
+                task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
+                await AttachTaskSummariesAsync([task]);
+                return task;
+            }
+
+            string? newParentTitle = null;
+            if (parentTaskId is Guid newParentId)
+            {
+                if (newParentId == taskId)
+                {
+                    throw new ValidationException("Cannot move this task because it would create a circular hierarchy.");
+                }
+
+                var newParent = await LoadTaskAsync(newParentId);
+
+                if (newParent.ProjectId != task.ProjectId)
+                {
+                    throw new ValidationException("Parent and child tasks must belong to the same project.");
+                }
+
+                // Would newParentId end up *below* task in the tree? Walking up from newParentId
+                // and finding task means task is already an ancestor of newParentId — assigning
+                // task -> newParentId would close that loop.
+                if (await IsDescendantOfAsync(newParentId, taskId))
+                {
+                    throw new ValidationException("Cannot move this task because it would create a circular hierarchy.");
+                }
+
+                await EnsureDepthWithinLimitAsync(newParentId);
+
+                newParentTitle = newParent.Title;
+            }
+
+            var oldParentTitle = task.ParentTaskId is Guid oldParentId
+                ? await _db.Tasks.Where(t => t.Id == oldParentId).Select(t => t.Title).FirstOrDefaultAsync()
+                : null;
+
+            task.ParentTaskId = parentTaskId;
+            task.SortOrder = await GetNextSortOrderAsync(task.ProjectId, parentTaskId);
+            task.UpdatedAt = DateTime.UtcNow;
+
+            _db.TaskActivities.Add(new TaskActivity
+            {
+                Id = Guid.NewGuid(),
+                TaskId = taskId,
+                UserId = callerId,
+                Action = "Moved",
+                OldValue = oldParentTitle ?? "Top Level",
+                NewValue = newParentTitle ?? "Top Level"
+            });
+
+            await _db.SaveChangesAsync();
+
+            task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
+            await AttachTaskSummariesAsync([task]);
+            return task;
+        }
+
+        public async Task<TaskItem> SetSortOrderAsync(Guid taskId, double sortOrder, Guid callerId, UserRole callerRole)
+        {
+            var task = await LoadTaskAsync(taskId);
+            await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+
+            task.SortOrder = sortOrder;
+            task.UpdatedAt = DateTime.UtcNow;
+
+            _db.TaskActivities.Add(new TaskActivity
+            {
+                Id = Guid.NewGuid(),
+                TaskId = taskId,
+                UserId = callerId,
+                Action = "Reordered"
+            });
+
+            await _db.SaveChangesAsync();
+
+            task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
+            await AttachTaskSummariesAsync([task]);
+            return task;
+        }
+
+        private const int MaxNestingDepth = 10;
+
+        /// <summary>Walks up from <paramref name="candidateParentId"/> and rejects once the chain
+        /// would put a new subtask more than MaxNestingDepth levels deep. Bounded by
+        /// MaxNestingDepth itself (never an unbounded loop) since it throws the moment the count
+        /// is exceeded.</summary>
+        private async Task EnsureDepthWithinLimitAsync(Guid candidateParentId)
+        {
+            var depth = 1;
+            var currentId = candidateParentId;
+            while (true)
+            {
+                var nextParentId = await _db.Tasks.Where(t => t.Id == currentId).Select(t => t.ParentTaskId).FirstOrDefaultAsync();
+                if (nextParentId is not Guid next)
+                {
+                    return;
+                }
+                depth++;
+                if (depth >= MaxNestingDepth)
+                {
+                    throw new ValidationException($"Tasks cannot be nested more than {MaxNestingDepth} levels deep.");
+                }
+                currentId = next;
+            }
+        }
+
+        /// <summary>True if walking up from <paramref name="startTaskId"/> via ParentTaskId ever
+        /// reaches <paramref name="candidateAncestorId"/> (or startTaskId *is*
+        /// candidateAncestorId) — i.e. whether candidateAncestorId is an ancestor of (or the same
+        /// task as) startTaskId.</summary>
+        private async Task<bool> IsDescendantOfAsync(Guid startTaskId, Guid candidateAncestorId)
+        {
+            var currentId = (Guid?)startTaskId;
+            var guard = 0;
+            while (currentId is Guid id)
+            {
+                if (id == candidateAncestorId)
+                {
+                    return true;
+                }
+                // A safety valve, not an expected path — the depth limit already keeps real
+                // chains far shorter than this, so only a corrupted chain would ever reach it,
+                // and treating that as "yes, this would be circular" is the safe failure mode.
+                if (++guard > 1000)
+                {
+                    return true;
+                }
+                currentId = await _db.Tasks.Where(t => t.Id == id).Select(t => t.ParentTaskId).FirstOrDefaultAsync();
+            }
+            return false;
         }
 
         /// <summary>Called right after a task is marked Complete — finds every task that depends
@@ -374,7 +593,7 @@ namespace Silver_Task.Server.Services
             }
         }
 
-        public async Task DeleteAsync(Guid taskId, Guid callerId, UserRole callerRole)
+        public async Task DeleteAsync(Guid taskId, bool deleteSubtasks, Guid callerId, UserRole callerRole)
         {
             var task = await LoadTaskAsync(taskId);
 
@@ -391,8 +610,56 @@ namespace Silver_Task.Server.Services
                 await _projectAccess.EnsureCanManageAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
             }
 
+            var children = await _db.Tasks.Where(t => t.ParentTaskId == taskId).ToListAsync();
+
+            if (children.Count > 0 && deleteSubtasks)
+            {
+                // "Delete task and all subtasks" — the whole subtree removed in the same
+                // SaveChangesAsync as the task itself, so this can never partially delete a
+                // hierarchy (a failed save leaves everything untouched, not half-gone).
+                var descendants = await CollectDescendantsAsync(taskId);
+                _db.Tasks.RemoveRange(descendants);
+            }
+            else if (children.Count > 0)
+            {
+                // "Delete task only" (the default/safe option) — direct children move up to this
+                // task's own parent, same as removing one link from the middle of a chain. Their
+                // own descendants are untouched (only child.ParentTaskId changes here), so nothing
+                // deeper in the tree needs to move at all.
+                foreach (var child in children)
+                {
+                    child.ParentTaskId = task.ParentTaskId;
+                    child.SortOrder = await GetNextSortOrderAsync(task.ProjectId, task.ParentTaskId);
+                    child.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+
             _db.Tasks.Remove(task);
             await _db.SaveChangesAsync();
+        }
+
+        /// <summary>Breadth-first walk collecting every descendant of <paramref name="rootTaskId"/>
+        /// (not including the root itself) — used only for the transactional "delete task and all
+        /// subtasks" path. One query per depth level, not one query per node.</summary>
+        private async Task<List<TaskItem>> CollectDescendantsAsync(Guid rootTaskId)
+        {
+            var all = new List<TaskItem>();
+            var frontier = new List<Guid> { rootTaskId };
+
+            while (frontier.Count > 0)
+            {
+                var children = await _db.Tasks
+                    .Where(t => t.ParentTaskId != null && frontier.Contains(t.ParentTaskId!.Value))
+                    .ToListAsync();
+                if (children.Count == 0)
+                {
+                    break;
+                }
+                all.AddRange(children);
+                frontier = children.Select(c => c.Id).ToList();
+            }
+
+            return all;
         }
 
         public async Task<TaskItem> DuplicateAsync(Guid taskId, Guid callerId, UserRole callerRole)
@@ -404,6 +671,9 @@ namespace Silver_Task.Server.Services
             {
                 Id = Guid.NewGuid(),
                 ProjectId = original.ProjectId,
+                // A duplicate of a subtask stays a subtask under the same parent — "duplicate"
+                // shouldn't silently relocate it to top level.
+                ParentTaskId = original.ParentTaskId,
                 Title = $"{original.Title} (Copy)",
                 Description = original.Description,
                 Status = original.Status,
@@ -492,6 +762,53 @@ namespace Silver_Task.Server.Services
             }
         }
 
+        /// <summary>Every bulk-populated, non-persisted field TaskDto exposes (dependency counts,
+        /// subtask counts, parent title) in one call — the single place every task-returning
+        /// method in this service goes through, so a future addition to this family only needs to
+        /// be wired in once.</summary>
+        private async Task AttachTaskSummariesAsync(IReadOnlyList<TaskItem> tasks)
+        {
+            await AttachDependencySummaryAsync(tasks);
+            await AttachSubtaskSummaryAsync(tasks);
+        }
+
+        /// <summary>Populates TaskItem.SubtaskCount/CompletedSubtaskCount (direct children only,
+        /// not the full recursive subtree) and ParentTaskTitle — three aggregate queries total
+        /// regardless of how many tasks are passed in, not one per task.</summary>
+        private async Task AttachSubtaskSummaryAsync(IReadOnlyList<TaskItem> tasks)
+        {
+            if (tasks.Count == 0)
+            {
+                return;
+            }
+
+            var ids = tasks.Select(t => t.Id).ToList();
+
+            var childRows = await _db.Tasks
+                .Where(t => t.ParentTaskId != null && ids.Contains(t.ParentTaskId!.Value))
+                .Select(t => new { ParentTaskId = t.ParentTaskId!.Value, t.Status })
+                .ToListAsync();
+            var childGroups = childRows.GroupBy(r => r.ParentTaskId).ToDictionary(g => g.Key, g => g.ToList());
+
+            var parentIds = tasks.Where(t => t.ParentTaskId != null).Select(t => t.ParentTaskId!.Value).Distinct().ToList();
+            var parentTitles = parentIds.Count == 0
+                ? []
+                : await _db.Tasks.Where(t => parentIds.Contains(t.Id)).Select(t => new { t.Id, t.Title }).ToDictionaryAsync(x => x.Id, x => x.Title);
+
+            foreach (var task in tasks)
+            {
+                if (childGroups.TryGetValue(task.Id, out var rows))
+                {
+                    task.SubtaskCount = rows.Count;
+                    task.CompletedSubtaskCount = rows.Count(r => r.Status == TaskItemStatus.Complete);
+                }
+                if (task.ParentTaskId is Guid parentId)
+                {
+                    task.ParentTaskTitle = parentTitles.GetValueOrDefault(parentId);
+                }
+            }
+        }
+
         public async Task<IReadOnlyList<TaskActivity>> GetActivitiesForTaskAsync(Guid taskId, Guid callerId, UserRole callerRole)
         {
             var task = await LoadTaskAsync(taskId);
@@ -558,20 +875,26 @@ namespace Silver_Task.Server.Services
             return Enum.TryParse<TaskPriority>(value, out var priority) ? priority : TaskPriority.Medium;
         }
 
-        private async Task<double> GetNextSortOrderAsync(Guid projectId)
+        /// <summary>Scoped to siblings (same ProjectId + ParentTaskId, where ParentTaskId=null is
+        /// the project's top-level group) rather than the whole project — every existing task has
+        /// ParentTaskId=null, so top-level ordering is unaffected; subtasks simply get their own
+        /// independent sequence under their parent (Phase 30).</summary>
+        private async Task<double> GetNextSortOrderAsync(Guid projectId, Guid? parentTaskId)
         {
             var maxSortOrder = await _db.Tasks
-                .Where(t => t.ProjectId == projectId)
+                .Where(t => t.ProjectId == projectId && t.ParentTaskId == parentTaskId)
                 .Select(t => (double?)t.SortOrder)
                 .MaxAsync();
             return (maxSortOrder ?? 0) + 1;
         }
 
-        /// <summary>Fractional-index insertion point immediately after <paramref name="task"/>, so a duplicate lands next to its source instead of at the bottom of the list.</summary>
+        /// <summary>Fractional-index insertion point immediately after <paramref name="task"/>
+        /// among its own siblings, so a duplicate lands next to its source instead of at the
+        /// bottom of the (whole project's, pre-Phase-30) list.</summary>
         private async Task<double> GetSortOrderAfterAsync(TaskItem task)
         {
             var nextSortOrder = await _db.Tasks
-                .Where(t => t.ProjectId == task.ProjectId && t.SortOrder > task.SortOrder)
+                .Where(t => t.ProjectId == task.ProjectId && t.ParentTaskId == task.ParentTaskId && t.SortOrder > task.SortOrder)
                 .OrderBy(t => t.SortOrder)
                 .Select(t => (double?)t.SortOrder)
                 .FirstOrDefaultAsync();

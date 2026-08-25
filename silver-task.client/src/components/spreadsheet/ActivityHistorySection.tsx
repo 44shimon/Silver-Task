@@ -56,6 +56,20 @@ function describeActivity(activity: TaskActivity): string {
     return `${actor} removed the dependency on "${activity.oldValue ?? 'a task'}"`;
   }
 
+  if (activity.action === 'SubtaskAdded') {
+    return `${actor} added subtask "${activity.newValue ?? 'a task'}"`;
+  }
+
+  if (activity.action === 'Moved') {
+    return activity.newValue && activity.newValue !== 'Top Level'
+      ? `${actor} moved this task under "${activity.newValue}"`
+      : `${actor} moved this task to top level`;
+  }
+
+  if (activity.action === 'Reordered') {
+    return `${actor} reordered this task among its siblings`;
+  }
+
   const field = activity.fieldName ?? 'a field';
   const oldDisplay = formatActivityValue(activity.fieldName, activity.oldValue);
   const newDisplay = formatActivityValue(activity.fieldName, activity.newValue);

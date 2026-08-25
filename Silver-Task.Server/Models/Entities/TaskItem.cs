@@ -30,8 +30,17 @@ namespace Silver_Task.Server.Models.Entities
 
         public DateTime? CompletedAt { get; set; }
 
-        /// <summary>Fractional index used to persist manual row ordering within a project.</summary>
+        /// <summary>Fractional index used to persist manual row ordering — scoped to siblings
+        /// (same ParentTaskId, including the "top-level" group where ParentTaskId is null) as of
+        /// Phase 30, not the whole project. Every pre-existing task has ParentTaskId=null, so this
+        /// is behavior-preserving: project-level ordering is unchanged, subtasks simply get their
+        /// own independent sequence under their parent.</summary>
         public double SortOrder { get; set; }
+
+        /// <summary>Null = top-level task. Self-referencing — a subtask is still a normal
+        /// TaskItem row, not a separate entity (see TaskService's hierarchy methods for the
+        /// circular-parent/same-project/depth validation this requires).</summary>
+        public Guid? ParentTaskId { get; set; }
 
         public DateTime CreatedAt { get; set; }
 
@@ -40,6 +49,10 @@ namespace Silver_Task.Server.Models.Entities
         public Project? Project { get; set; }
 
         public User? AssignedTo { get; set; }
+
+        public TaskItem? ParentTask { get; set; }
+
+        public ICollection<TaskItem> Subtasks { get; set; } = [];
 
         public ICollection<TaskComment> Comments { get; set; } = [];
 
@@ -65,5 +78,23 @@ namespace Silver_Task.Server.Models.Entities
         /// <summary>How many other tasks depend on this one (the "Blocking" count).</summary>
         [NotMapped]
         public int DependentCount { get; set; }
+
+        /// <summary>Direct children count — not the full recursive subtree. Same bulk-aggregate
+        /// population pattern as the dependency counts above (see
+        /// TaskService.AttachSubtaskSummaryAsync).</summary>
+        [NotMapped]
+        public int SubtaskCount { get; set; }
+
+        /// <summary>Of SubtaskCount, how many direct children have Status == Complete — backs the
+        /// "N of M complete" / percentage progress display. Never fed back into the parent's own
+        /// Status (same "computed display value, not stored state" rule as BlockedByCount).</summary>
+        [NotMapped]
+        public int CompletedSubtaskCount { get; set; }
+
+        /// <summary>Only populated when ParentTaskId is set — lets a cross-project list like My
+        /// Tasks show "Parent: X" without the caller needing that other project's full task list
+        /// already loaded the way ProjectPage does.</summary>
+        [NotMapped]
+        public string? ParentTaskTitle { get; set; }
     }
 }

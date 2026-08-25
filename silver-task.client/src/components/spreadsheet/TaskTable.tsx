@@ -1,17 +1,24 @@
-import { useMemo } from 'react';
-import { flexRender } from '@tanstack/react-table';
+import { useMemo, useState } from 'react';
+import { flexRender, type ExpandedState } from '@tanstack/react-table';
 // TanStack Table v9 replaced useReactTable with a new modular `features`-based
 // useTable API. useLegacyTable is the officially bundled v8-compatible layer —
 // used here deliberately (not left over from a migration) since a static grid
 // with resizable columns doesn't need v9's tree-shakeable feature system, and
 // the classic API is far less code to get right.
-import { getCoreRowModel, legacyCreateColumnHelper, useLegacyTable, type LegacyColumnDef } from '@tanstack/react-table/legacy';
-import { Copy, Maximize2, Trash2 } from 'lucide-react';
+import {
+  getCoreRowModel,
+  getExpandedRowModel,
+  legacyCreateColumnHelper,
+  useLegacyTable,
+  type LegacyColumnDef,
+} from '@tanstack/react-table/legacy';
+import { ChevronDown, ChevronRight, Copy, Maximize2, Trash2 } from 'lucide-react';
 import type { Task } from '@/types/task';
 import type { UserSummary } from '@/types/project';
 import type { CustomField } from '@/types/customField';
 import type { TaskSortField } from '@/hooks/useTaskFilters';
 import type { SortDirection } from '@/utils/taskFilters';
+import { buildTaskTree, type TaskTreeNode } from '@/utils/taskHierarchy';
 import { EditableTitleCell } from './EditableTitleCell';
 import { EditableDateCell } from './EditableDateCell';
 import { StatusDropdownCell } from './StatusDropdownCell';
@@ -36,7 +43,7 @@ interface TaskTableProps {
   onOpenDetail: (taskId: string) => void;
 }
 
-const columnHelper = legacyCreateColumnHelper<Task>();
+const columnHelper = legacyCreateColumnHelper<TaskTreeNode>();
 
 export function TaskTable({
   projectId,
@@ -51,7 +58,13 @@ export function TaskTable({
   onDelete,
   onOpenDetail,
 }: TaskTableProps) {
-  const columns = useMemo<LegacyColumnDef<Task, any>[]>(
+  // Expanded by default — subtasks should be visible without an extra step the first time a
+  // project with hierarchy is opened. Kept in local state (not reloaded from the server), so
+  // toggling never refetches anything.
+  const [expanded, setExpanded] = useState<ExpandedState>(true);
+  const treeData = useMemo(() => buildTaskTree(tasks), [tasks]);
+
+  const columns = useMemo<LegacyColumnDef<TaskTreeNode, any>[]>(
     () => [
       columnHelper.display({
         id: 'expand',
@@ -82,7 +95,32 @@ export function TaskTable({
         ),
         size: 280,
         minSize: 160,
-        cell: (info) => <EditableTitleCell task={info.row.original} projectId={projectId} />,
+        cell: (info) => {
+          const row = info.row;
+          const task = row.original;
+          return (
+            <div className="task-table__title-cell" style={{ paddingLeft: row.depth * 18 }}>
+              {row.getCanExpand() ? (
+                <button
+                  type="button"
+                  className="task-table__expand-toggle"
+                  aria-label={row.getIsExpanded() ? 'Collapse subtasks' : 'Expand subtasks'}
+                  onClick={row.getToggleExpandedHandler()}
+                >
+                  {row.getIsExpanded() ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                </button>
+              ) : (
+                <span className="task-table__expand-spacer" />
+              )}
+              <EditableTitleCell task={task} projectId={projectId} />
+              {task.subtaskCount > 0 && (
+                <span className="task-table__subtask-count" title={`${task.subtaskCount} subtasks`}>
+                  {task.subtaskCount}
+                </span>
+              )}
+            </div>
+          );
+        },
       }),
       columnHelper.accessor('status', {
         header: () => (
@@ -199,14 +237,30 @@ export function TaskTable({
   );
 
   const table = useLegacyTable({
-    data: tasks,
+    data: treeData,
     columns,
     columnResizeMode: 'onChange',
     getCoreRowModel: getCoreRowModel(),
+    getSubRows: (row) => row.subRows,
+    getExpandedRowModel: getExpandedRowModel(),
+    state: { expanded },
+    onExpandedChange: setExpanded,
   });
+
+  const hasSubtasks = tasks.some((t) => t.parentTaskId);
 
   return (
     <div className="task-table-wrapper">
+      {hasSubtasks && (
+        <div className="task-table__hierarchy-toolbar">
+          <button type="button" className="task-table__hierarchy-toolbar-button" onClick={() => setExpanded(true)}>
+            Expand All
+          </button>
+          <button type="button" className="task-table__hierarchy-toolbar-button" onClick={() => setExpanded({})}>
+            Collapse All
+          </button>
+        </div>
+      )}
       <table className="task-table" style={{ width: table.getTotalSize() }}>
         <thead>
           {table.getHeaderGroups().map((headerGroup) => (

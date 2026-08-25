@@ -1,0 +1,193 @@
+.subtasks-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.subtasks-section__add {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.subtasks-section__add:hover {
+  background: var(--bg-subtle);
+}
+
+.subtasks-section__add:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.subtasks-section__progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.subtasks-section__progress-label {
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.subtasks-section__progress-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+
+.subtasks-section__progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.subtasks-section__progress-percent {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-h);
+  min-width: 32px;
+  text-align: right;
+}
+
+.subtasks-section__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.subtask-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  cursor: pointer;
+}
+
+.subtask-row__checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: white;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.subtask-row__checkbox--checked {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.subtask-row__checkbox:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.subtask-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.subtask-row__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtask-row__title--complete {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.subtask-row__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.subtask-row__assignee,
+.subtask-row__due {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.8;
+}
+
+.subtask-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.subtask-form input[type='text'],
+.subtask-form textarea {
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font-size: 13px;
+  color: var(--text-h);
+  font-family: inherit;
+  resize: vertical;
+}
+
+.subtask-form__row {
+  display: flex;
+  gap: 8px;
+}
+
+.subtask-form__row select,
+.subtask-form__row input[type='date'] {
+  flex: 1;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font-size: 12px;
+  color: var(--text-h);
+}
+
+.subtask-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.subtask-form__actions button[type='button'] {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-h);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}

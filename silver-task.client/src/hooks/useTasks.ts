@@ -105,14 +105,62 @@ export function useCreateTask(projectId: string) {
   });
 }
 
+/** Every hierarchy-changing mutation below (delete-with-subtasks, create-subtask, move, reorder)
+ * invalidates broadly — the per-project task list, My Tasks, and every cached `subtasks` query —
+ * rather than tracking exactly which parent(s) were affected. These are relatively infrequent
+ * actions compared to a field edit, so the extra invalidation breadth costs little and avoids
+ * subtly-stale counts/lists after a move touches two different parents at once. */
+function invalidateTaskHierarchyData(queryClient: ReturnType<typeof useQueryClient>, projectId: string) {
+  queryClient.invalidateQueries({ queryKey: tasksKey(projectId) });
+  queryClient.invalidateQueries({ queryKey: myTasksKey });
+  queryClient.invalidateQueries({ predicate: (query) => query.queryKey.includes('subtasks') });
+}
+
 export function useDeleteTask(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (taskId: string) => tasksApi.remove(taskId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: tasksKey(projectId) });
-      queryClient.invalidateQueries({ queryKey: myTasksKey });
-    },
+    // deleteSubtasks defaults to false (reparent children) — the caller only ever sets it true
+    // after the user explicitly picks "Delete Task + All Subtasks" in the confirmation dialog.
+    mutationFn: ({ taskId, deleteSubtasks }: { taskId: string; deleteSubtasks?: boolean }) =>
+      tasksApi.remove(taskId, deleteSubtasks),
+    onSuccess: () => invalidateTaskHierarchyData(queryClient, projectId),
+  });
+}
+
+/** Direct children only, not the full recursive subtree — matches GET .../subtasks. */
+export function useSubtasks(taskId: string | undefined) {
+  return useQuery({
+    queryKey: ['tasks', taskId ?? '', 'subtasks'],
+    queryFn: () => tasksApi.subtasks(taskId!),
+    enabled: Boolean(taskId),
+  });
+}
+
+export function useCreateSubtask(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ parentTaskId, request }: { parentTaskId: string; request: CreateTaskRequest }) =>
+      tasksApi.createSubtask(parentTaskId, request),
+    onSuccess: () => invalidateTaskHierarchyData(queryClient, projectId),
+  });
+}
+
+/** The "Move Task" action — null parentTaskId moves the task to top level. */
+export function useSetTaskParent(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, parentTaskId }: { taskId: string; parentTaskId: string | null }) =>
+      tasksApi.setParent(taskId, parentTaskId),
+    onSuccess: () => invalidateTaskHierarchyData(queryClient, projectId),
+  });
+}
+
+export function useSetTaskSortOrder(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, sortOrder }: { taskId: string; sortOrder: number }) =>
+      tasksApi.setSortOrder(taskId, sortOrder),
+    onSuccess: () => invalidateTaskHierarchyData(queryClient, projectId),
   });
 }
 

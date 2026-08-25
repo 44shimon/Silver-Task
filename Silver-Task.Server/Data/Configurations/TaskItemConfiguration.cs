@@ -26,6 +26,9 @@ namespace Silver_Task.Server.Data.Configurations
             builder.HasIndex(t => t.Status);
             builder.HasIndex(t => t.Priority);
             builder.HasIndex(t => t.DueDate);
+            // Serves "ordered siblings under a parent" (Phase 30) — the composite index above
+            // doesn't help that query shape since it's keyed on ProjectId, not ParentTaskId.
+            builder.HasIndex(t => new { t.ParentTaskId, t.SortOrder });
 
             builder.HasOne(t => t.Project)
                 .WithMany(p => p.Tasks)
@@ -36,6 +39,16 @@ namespace Silver_Task.Server.Data.Configurations
                 .WithMany(u => u.AssignedTasks)
                 .HasForeignKey(t => t.AssignedToUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            // Restrict, deliberately — a parent with existing children can never be deleted by a
+            // bare DB-level cascade (which would silently wipe an entire subtask tree). TaskService
+            // always explicitly reparents-or-cascades children itself *before* removing the parent
+            // row, so this constraint should never actually fire in normal use; it exists as a
+            // backstop against ever accidentally shipping a code path that doesn't.
+            builder.HasOne(t => t.ParentTask)
+                .WithMany(t => t.Subtasks)
+                .HasForeignKey(t => t.ParentTaskId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

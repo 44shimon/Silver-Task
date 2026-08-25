@@ -1,5 +1,5 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
-import { X } from 'lucide-react';
+import { ArrowRightLeft, X } from 'lucide-react';
 import type { Task } from '@/types/task';
 import type { CustomField } from '@/types/customField';
 import type { UserSummary } from '@/types/project';
@@ -13,6 +13,9 @@ import { CommentsSection } from './CommentsSection';
 import { ActivityHistorySection } from './ActivityHistorySection';
 import { AttachmentsSection } from './AttachmentsSection';
 import { DependenciesSection } from './DependenciesSection';
+import { SubtasksSection } from './SubtasksSection';
+import { TaskBreadcrumb } from './TaskBreadcrumb';
+import { MoveTaskDialog } from './MoveTaskDialog';
 import './TaskDetailPanel.css';
 
 interface TaskDetailPanelProps {
@@ -31,6 +34,8 @@ interface TaskDetailPanelProps {
 }
 
 export function TaskDetailPanel({ task, projectId, members, customFields, tasks, currentUserId, onClose, onOpenDetail }: TaskDetailPanelProps) {
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+
   useEffect(() => {
     function handleKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === 'Escape') {
@@ -46,10 +51,21 @@ export function TaskDetailPanel({ task, projectId, members, customFields, tasks,
       <div className="task-detail-panel" onClick={(e) => e.stopPropagation()}>
         <div className="task-detail-panel__header">
           <TaskTitleField task={task} projectId={projectId} />
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Move task"
+            title="Move task"
+            onClick={() => setShowMoveDialog(true)}
+          >
+            <ArrowRightLeft size={16} />
+          </button>
           <button type="button" className="icon-button" aria-label="Close task details" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
+
+        <TaskBreadcrumb task={task} tasks={tasks} onOpenDetail={onOpenDetail} />
 
         <div className="task-detail-panel__body">
           <div className="task-detail-panel__field">
@@ -104,11 +120,16 @@ export function TaskDetailPanel({ task, projectId, members, customFields, tasks,
             </div>
           )}
 
+          <SubtasksSection task={task} projectId={projectId} members={members} onOpenDetail={onOpenDetail} />
           <DependenciesSection task={task} projectId={projectId} tasks={tasks} onOpenDetail={onOpenDetail} />
           <AttachmentsSection taskId={task.id} />
           <CommentsSection taskId={task.id} currentUserId={currentUserId} />
           <ActivityHistorySection taskId={task.id} />
         </div>
+
+        {showMoveDialog && (
+          <MoveTaskDialog task={task} projectId={projectId} tasks={tasks} onClose={() => setShowMoveDialog(false)} />
+        )}
       </div>
     </div>
   );

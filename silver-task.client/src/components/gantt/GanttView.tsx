@@ -4,6 +4,7 @@ import type { Task } from '@/types/task';
 import { taskFieldChange, useUpdateTask } from '@/hooks/useTasks';
 import { useProjectDependencyEdges } from '@/hooks/useTaskDependencies';
 import { addDays, toDateOnly } from '@/utils/calendarGrid';
+import { buildGanttRows } from '@/utils/taskHierarchy';
 import {
   PIXELS_PER_DAY,
   buildTimelineMonthBands,
@@ -12,7 +13,6 @@ import {
   daysBetween,
   displayRange,
   tasksWithDates,
-  tasksWithoutDates,
   type TimelineScale,
 } from '@/utils/timelineGrid';
 import { TimelineBar } from '@/components/timeline/TimelineBar';
@@ -52,12 +52,38 @@ export function GanttView({ projectId, projectName, tasks, onOpenDetail }: Gantt
   const { data: dependencyEdges } = useProjectDependencyEdges(projectId);
   const [scale, setScale] = useState<TimelineScale>('week');
   const [isExpanded, setIsExpanded] = useState(true);
+  const [collapsedTaskIds, setCollapsedTaskIds] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scheduled = useMemo(() => tasksWithDates(tasks), [tasks]);
-  const unscheduled = useMemo(() => tasksWithoutDates(tasks), [tasks]);
+  // Hierarchy-aware row list — includes parent tasks that have no dates of their own but do have
+  // at least one dated descendant, with a computed (display-only, never persisted) date range.
+  const ganttRows = useMemo(() => buildGanttRows(tasks, collapsedTaskIds), [tasks, collapsedTaskIds]);
+  // The unfiltered/fully-expanded id set determines what's "renderable" on the chart at all —
+  // used to keep calculated-only parents (and their dated descendants, when the parent row is
+  // currently collapsed) out of the Unscheduled tray, independent of the current collapse state.
+  const renderableIds = useMemo(
+    () => new Set(buildGanttRows(tasks, new Set()).map((row) => row.task.id)),
+    [tasks],
+  );
+  const unscheduled = useMemo(
+    () => tasks.filter((task) => task.startDate === null && task.dueDate === null && !renderableIds.has(task.id)),
+    [tasks, renderableIds],
+  );
   const errorTaskId = updateTask.isError ? (updateTask.variables?.task.id ?? null) : null;
-  const visibleRows = isExpanded ? scheduled : [];
+  const visibleRows = isExpanded ? ganttRows : [];
+
+  function toggleTaskCollapse(taskId: string) {
+    setCollapsedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  }
 
   const pixelsPerDay = PIXELS_PER_DAY[scale];
 
@@ -151,9 +177,29 @@ export function GanttView({ projectId, projectName, tasks, onOpenDetail }: Gantt
             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             <span>{projectName}</span>
           </button>
-          {visibleRows.map((task) => (
-            <div className="timeline-row-label gantt-view__task-row-label" key={task.id} style={{ height: ROW_HEIGHT }} title={task.title}>
-              {task.title}
+          {visibleRows.map((row) => (
+            <div
+              className={`timeline-row-label gantt-view__task-row-label${row.task.subtaskCount > 0 ? ' timeline-row-label--parent' : ''}`}
+              key={row.task.id}
+              style={{ height: ROW_HEIGHT, paddingLeft: 10 + row.depth * 16 }}
+              title={row.task.title}
+            >
+              {row.hasChildren ? (
+                <button
+                  type="button"
+                  className="gantt-view__row-expand-toggle"
+                  aria-label={collapsedTaskIds.has(row.task.id) ? 'Expand subtasks' : 'Collapse subtasks'}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleTaskCollapse(row.task.id);
+                  }}
+                >
+                  {collapsedTaskIds.has(row.task.id) ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                </button>
+              ) : (
+                <span className="gantt-view__row-expand-spacer" />
+              )}
+              <span className="gantt-view__row-label-text">{row.task.title}</span>
             </div>
           ))}
         </div>
@@ -166,7 +212,7 @@ export function GanttView({ projectId, projectName, tasks, onOpenDetail }: Gantt
               {todayLeft !== null && <div className="timeline-view__today-line" style={{ left: todayLeft }} />}
 
               <DependencyLines
-                rows={visibleRows}
+                rows={visibleRows.map((row) => row.task)}
                 edges={dependencyEdges ?? []}
                 rangeStart={rangeStart}
                 pixelsPerDay={pixelsPerDay}
@@ -187,17 +233,42 @@ export function GanttView({ projectId, projectName, tasks, onOpenDetail }: Gantt
                 />
               )}
 
-              {visibleRows.map((task, rowIndex) => {
-                const { start, end } = displayRange(task);
-                const left = daysBetween(rangeStart, start) * pixelsPerDay;
-                const width = (daysBetween(start, end) + 1) * pixelsPerDay;
+              {visibleRows.map((row, rowIndex) => {
+                const { task, range, isCalculated } = row;
+                const left = daysBetween(rangeStart, range.start) * pixelsPerDay;
+                const width = Math.max((daysBetween(range.start, range.end) + 1) * pixelsPerDay, pixelsPerDay);
+                const rowTop = (rowIndex + 1) * ROW_HEIGHT;
+
+                // Calculated (parent-with-no-dates-of-its-own) rows render as a non-interactive
+                // summary bar — never draggable, since there are no real dates on the task to
+                // move, and this range must never be written back to the task's own fields.
+                if (isCalculated) {
+                  return (
+                    <div
+                      key={task.id}
+                      className="gantt-view__calculated-bar"
+                      style={{ left, width, top: rowTop + (ROW_HEIGHT - SUMMARY_BAR_HEIGHT) / 2, height: SUMMARY_BAR_HEIGHT }}
+                      title={`${task.title} — calculated from subtask dates, not a saved date`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => onOpenDetail(task.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          onOpenDetail(task.id);
+                        }
+                      }}
+                    />
+                  );
+                }
+
                 return (
                   <TimelineBar
                     key={task.id}
                     task={task}
                     left={left}
-                    width={Math.max(width, pixelsPerDay)}
-                    top={(rowIndex + 1) * ROW_HEIGHT + (ROW_HEIGHT - BAR_HEIGHT) / 2}
+                    width={width}
+                    top={rowTop + (ROW_HEIGHT - BAR_HEIGHT) / 2}
                     height={BAR_HEIGHT}
                     pixelsPerDay={pixelsPerDay}
                     hasError={errorTaskId === task.id}

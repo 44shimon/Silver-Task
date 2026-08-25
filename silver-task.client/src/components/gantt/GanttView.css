@@ -26,7 +26,41 @@
 }
 
 .gantt-view__task-row-label {
-  padding-left: 26px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gantt-view__row-expand-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.gantt-view__row-expand-toggle:hover {
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.gantt-view__row-expand-spacer {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+}
+
+.gantt-view__row-label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gantt-view__summary-bar {
@@ -34,4 +68,17 @@
   border-radius: 999px;
   background: var(--text);
   opacity: 0.5;
+}
+
+.gantt-view__calculated-bar {
+  position: absolute;
+  border-radius: 999px;
+  background: var(--text);
+  opacity: 0.35;
+  border: 1px dashed var(--text);
+  cursor: pointer;
+}
+
+.gantt-view__calculated-bar:hover {
+  opacity: 0.55;
 }

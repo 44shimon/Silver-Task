@@ -37,10 +37,11 @@ export function CalendarTaskChip({ task, variant, isDragging, hasError, onDragSt
   // Assigned user — surface as a native hover tooltip instead of taking up cell space. The
   // expanded (Day) variant shows them directly since there's room for that there.
   const blockedSuffix = task.blockedByCount > 0 ? `, blocked by ${task.blockedByCount}` : '';
+  const parentSuffix = task.parentTaskTitle ? `, subtask of "${task.parentTaskTitle}"` : '';
   const tooltip = hasError
     ? 'Could not save the new due date — try dragging again'
     : variant === 'compact'
-      ? `${task.title} — ${STATUS_LABELS[task.status]}, ${task.priority}${task.assignedTo ? `, assigned to ${task.assignedTo.name}` : ''}${blockedSuffix}`
+      ? `${task.title} — ${STATUS_LABELS[task.status]}, ${task.priority}${task.assignedTo ? `, assigned to ${task.assignedTo.name}` : ''}${blockedSuffix}${parentSuffix}`
       : undefined;
 
   const commonProps = {
@@ -58,9 +59,11 @@ export function CalendarTaskChip({ task, variant, isDragging, hasError, onDragSt
     return (
       <div
         {...commonProps}
+        title={task.parentTaskTitle ? `Subtask of "${task.parentTaskTitle}"` : undefined}
         className={`calendar-chip calendar-chip--expanded${isDragging ? ' calendar-chip--dragging' : ''}${hasError ? ' calendar-chip--error' : ''}`}
       >
         <span className="calendar-chip__title">{task.title}</span>
+        {task.parentTaskTitle && <span className="calendar-chip__parent">Parent: {task.parentTaskTitle}</span>}
         <div className="calendar-chip__expanded-meta">
           <StatusBadge status={task.status} />
           <PriorityBadge priority={task.priority} />

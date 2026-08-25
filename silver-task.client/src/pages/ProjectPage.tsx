@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { useProject, useProjectMembers, useRemoveProjectMember, useUpdateProject } from '@/hooks/useProjects';
-import { useDeleteTask, useDuplicateTask, useTasks } from '@/hooks/useTasks';
+import { useDuplicateTask, useTasks } from '@/hooks/useTasks';
 import { useTaskFilters, SORT_FIELDS, SORT_FIELD_LABELS } from '@/hooks/useTaskFilters';
 import { useCustomFields } from '@/hooks/useCustomFields';
 import { useCurrentUser } from '@/hooks/useAuth';
@@ -21,7 +21,9 @@ import { SortMenu } from '@/components/filters/SortMenu';
 import { QuickFilterChips } from '@/components/filters/QuickFilterChips';
 import { CustomFieldsPanel } from '@/components/spreadsheet/CustomFieldsPanel';
 import { TaskDetailPanel } from '@/components/spreadsheet/TaskDetailPanel';
+import { DeleteTaskDialog } from '@/components/spreadsheet/DeleteTaskDialog';
 import { initials } from '@/utils/initials';
+import type { Task } from '@/types/task';
 import './ProjectPage.css';
 
 const TASK_QUERY_PARAM = 'task';
@@ -39,7 +41,7 @@ export function ProjectPage() {
   const updateProject = useUpdateProject(projectId ?? '');
   const removeMember = useRemoveProjectMember(projectId ?? '');
   const duplicateTask = useDuplicateTask(projectId ?? '');
-  const deleteTask = useDeleteTask(projectId ?? '');
+  const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const memberUsers = members?.map((m) => m.user) ?? [];
   const {
     filteredTasks,
@@ -229,9 +231,13 @@ export function ProjectPage() {
           sortDirection={sortDirection}
           onSortFieldClick={setSortField}
           onDuplicate={(taskId) => duplicateTask.mutate(taskId)}
-          onDelete={(taskId) => deleteTask.mutate(taskId)}
+          onDelete={(taskId) => setDeletingTask(tasks?.find((t) => t.id === taskId) ?? null)}
           onOpenDetail={openTaskDetail}
         />
+      )}
+
+      {deletingTask && (
+        <DeleteTaskDialog task={deletingTask} projectId={project.id} onClose={() => setDeletingTask(null)} />
       )}
 
       {selectedTask && (
