@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Silver_Task.Server.Common;
 using Silver_Task.Server.Data;
@@ -12,6 +13,13 @@ namespace Silver_Task.Server.Middleware
     /// UseAuthorization) and reject with 401 the moment it goes false — capping the exposure
     /// window to "next request" instead of "until the token's own expiry". A deleted user always
     /// has IsActive=false too (see UserService.DeleteAsync), so a single check covers both.
+    ///
+    /// Skips [AllowAnonymous] endpoints (relies on endpoint routing having already resolved
+    /// context.GetEndpoint() by this point in the pipeline, which is automatic in the minimal
+    /// hosting model) — a deactivated user holding a still-unexpired cookie who calls, say,
+    /// POST /api/auth/login must still reach AuthController's own logic (which returns a clean
+    /// "invalid email or password" and would let a *re*-activated user log back in), not get a
+    /// blank 401 from this middleware before the endpoint ever runs.
     /// </summary>
     public class ActiveUserMiddleware(RequestDelegate next)
     {
@@ -19,7 +27,9 @@ namespace Silver_Task.Server.Middleware
 
         public async Task InvokeAsync(HttpContext context, AppDbContext db)
         {
-            if (context.User.Identity?.IsAuthenticated == true)
+            var allowsAnonymous = context.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() is not null;
+
+            if (!allowsAnonymous && context.User.Identity?.IsAuthenticated == true)
             {
                 var userId = context.User.GetUserId();
                 var isActive = await db.Users.Where(u => u.Id == userId).Select(u => u.IsActive).FirstOrDefaultAsync();
