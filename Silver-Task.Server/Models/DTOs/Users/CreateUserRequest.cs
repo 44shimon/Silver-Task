@@ -11,7 +11,10 @@ namespace Silver_Task.Server.Models.DTOs.Users
         [Required, EmailAddress, StringLength(320)]
         public required string Email { get; set; }
 
-        [Required, MinLength(8)]
+        // Length/complexity are enforced in UserService against the configurable
+        // Security.MinPasswordLength / Security.RequirePasswordComplexity system settings, not
+        // a static attribute here — an admin can tighten or loosen the policy without a deploy.
+        [Required]
         public required string Password { get; set; }
 
         /// <summary>

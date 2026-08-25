@@ -9,6 +9,7 @@ import { AdminLayout } from '@/pages/admin/AdminLayout';
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
 import { AdminProjectsPage } from '@/pages/admin/AdminProjectsPage';
+import { AdminSystemSettingsPage } from '@/pages/admin/AdminSystemSettingsPage';
 import { SettingsLayout } from '@/pages/settings/SettingsLayout';
 import { ProfileSettingsPage } from '@/pages/settings/ProfileSettingsPage';
 import { PreferencesSettingsPage } from '@/pages/settings/PreferencesSettingsPage';
@@ -44,6 +45,7 @@ export function AppRoutes() {
                   <Route index element={<AdminDashboardPage />} />
                   <Route path="users" element={<AdminUsersPage />} />
                   <Route path="projects" element={<AdminProjectsPage />} />
+                  <Route path="settings" element={<AdminSystemSettingsPage />} />
                 </Route>
               </Routes>
             </AppShell>

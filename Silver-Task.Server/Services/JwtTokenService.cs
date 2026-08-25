@@ -8,20 +8,24 @@ namespace Silver_Task.Server.Services
 {
     public interface IJwtTokenService
     {
-        (string Token, DateTime ExpiresAtUtc) GenerateToken(User user);
+        /// <summary>expiryMinutes comes from the caller (AuthService, reading the
+        /// Security.SessionTimeoutMinutes system setting) rather than being read from
+        /// IConfiguration in here — this service is a DI singleton, and the setting lives behind
+        /// a scoped DbContext, so the value has to be resolved by a scoped caller and passed in,
+        /// not fetched by this class itself.</summary>
+        (string Token, DateTime ExpiresAtUtc) GenerateToken(User user, int expiryMinutes);
     }
 
     public class JwtTokenService(IConfiguration configuration) : IJwtTokenService
     {
         private readonly IConfiguration _configuration = configuration;
 
-        public (string Token, DateTime ExpiresAtUtc) GenerateToken(User user)
+        public (string Token, DateTime ExpiresAtUtc) GenerateToken(User user, int expiryMinutes)
         {
             var secret = _configuration["Jwt:Secret"]
                 ?? throw new InvalidOperationException("Jwt:Secret is not configured.");
             var issuer = _configuration["Jwt:Issuer"];
             var audience = _configuration["Jwt:Audience"];
-            var expiryMinutes = _configuration.GetValue("Jwt:ExpiryMinutes", 240);
             var expiresAtUtc = DateTime.UtcNow.AddMinutes(expiryMinutes);
 
             var claims = new List<Claim>

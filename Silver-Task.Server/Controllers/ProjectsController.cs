@@ -27,7 +27,7 @@ namespace Silver_Task.Server.Controllers
         [HttpPost]
         public async Task<ActionResult<ProjectDto>> Create([FromBody] CreateProjectRequest request)
         {
-            var project = await _projectService.CreateAsync(request, User.GetUserId());
+            var project = await _projectService.CreateAsync(request, User.GetUserId(), User.GetRole());
             return CreatedAtAction(nameof(GetById), new { id = project.Id }, project.ToDto());
         }
 

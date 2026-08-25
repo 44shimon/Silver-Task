@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Silver_Task.Server.Common;
 using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.Entities;
@@ -18,10 +19,11 @@ namespace Silver_Task.Server.Services
         Task DeleteAsync(Guid commentId, Guid callerId);
     }
 
-    public class CommentService(AppDbContext db, IProjectAccessService projectAccess) : ICommentService
+    public class CommentService(AppDbContext db, IProjectAccessService projectAccess, ISystemSettingsService systemSettings) : ICommentService
     {
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
+        private readonly ISystemSettingsService _systemSettings = systemSettings;
 
         public async Task<IReadOnlyList<TaskComment>> GetAllForTaskAsync(Guid taskId, Guid callerId, UserRole callerRole)
         {
@@ -39,6 +41,15 @@ namespace Silver_Task.Server.Services
         {
             var task = await LoadTaskAsync(taskId);
             await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+
+            // A blanket kill-switch — existing comments stay fully visible/readable either way,
+            // this only gates *new* ones, checked after the normal participate-tier check so a
+            // caller with no access to the task still gets the usual 403, not a misleading
+            // "comments are disabled" for a task they couldn't see anyway.
+            if (!await _systemSettings.GetBoolAsync(SystemSettingKeys.AllowComments))
+            {
+                throw new ForbiddenException("Comments are currently disabled by an Administrator.");
+            }
 
             var comment = new TaskComment
             {

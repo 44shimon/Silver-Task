@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Silver_Task.Server.Common;
 using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.DTOs.Settings;
@@ -20,7 +21,7 @@ namespace Silver_Task.Server.Services
     /// other write path in this app validates server-side regardless of what the UI already
     /// restricts client-side.
     /// </summary>
-    public class UserPreferencesService(AppDbContext db, IProjectAccessService projectAccess) : IUserPreferencesService
+    public class UserPreferencesService(AppDbContext db, IProjectAccessService projectAccess, ISystemSettingsService systemSettings) : IUserPreferencesService
     {
         private static readonly HashSet<string> ValidThemes = new(StringComparer.OrdinalIgnoreCase) { "Light", "Dark", "System" };
         private static readonly HashSet<string> ValidTimeFormats = new(StringComparer.OrdinalIgnoreCase) { "12h", "24h" };
@@ -31,6 +32,7 @@ namespace Silver_Task.Server.Services
 
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
+        private readonly ISystemSettingsService _systemSettings = systemSettings;
 
         public async Task<UserPreference> GetOrCreateAsync(Guid userId)
         {
@@ -40,7 +42,19 @@ namespace Silver_Task.Server.Services
                 return existing;
             }
 
-            var preference = new UserPreference { Id = Guid.NewGuid(), UserId = userId };
+            // Seed a brand-new row from the admin-configured General defaults rather than the
+            // entity's hardcoded fallbacks, so an admin's chosen defaults actually apply to users
+            // who haven't set preferences yet — the entity's own defaults only matter if this row
+            // somehow gets created without going through here.
+            var preference = new UserPreference
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                TimeZone = await _systemSettings.GetStringAsync(SystemSettingKeys.DefaultTimeZone),
+                DateFormat = await _systemSettings.GetStringAsync(SystemSettingKeys.DefaultDateFormat),
+                TimeFormat = await _systemSettings.GetStringAsync(SystemSettingKeys.DefaultTimeFormat),
+                ItemsPerPage = await _systemSettings.GetIntAsync(SystemSettingKeys.DefaultItemsPerPage)
+            };
             _db.UserPreferences.Add(preference);
             await _db.SaveChangesAsync();
             return preference;

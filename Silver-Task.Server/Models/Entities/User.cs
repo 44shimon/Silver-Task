@@ -16,6 +16,15 @@ namespace Silver_Task.Server.Models.Entities
 
         public bool IsActive { get; set; } = true;
 
+        /// <summary>Consecutive failed login attempts since the last success — reset to 0 on any
+        /// successful login. Compared against Security.MaxFailedLoginAttempts in AuthService.</summary>
+        public int FailedLoginAttempts { get; set; }
+
+        /// <summary>Set when FailedLoginAttempts reaches the configured max; login is rejected
+        /// while this is in the future, regardless of password correctness. Null means not
+        /// locked out.</summary>
+        public DateTime? LockedOutUntil { get; set; }
+
         public DateTime CreatedAt { get; set; }
 
         public DateTime UpdatedAt { get; set; }

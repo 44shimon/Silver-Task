@@ -1,0 +1,24 @@
+.admin-system-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.admin-system-settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-system-settings__section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-h);
+  margin: 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-system-settings .settings-form {
+  max-width: 520px;
+}

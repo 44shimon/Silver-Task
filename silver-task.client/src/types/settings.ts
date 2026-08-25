@@ -39,3 +39,24 @@ export interface NotificationSetting {
   notificationType: string;
   isEnabled: boolean;
 }
+
+/** Mirrors Common/SystemSettingDefinitions.cs's SystemSettingSection enum server-side. */
+export type SystemSettingSection = 'General' | 'TaskDefaults' | 'ProjectDefaults' | 'Security' | 'Behavior';
+
+/** Every value is a string on the wire (the EAV Key/Value store) — ValueType tells the UI how
+ * to render/parse it ("bool" | "int" | "string"), but the server is still the sole source of
+ * truth for validation; nothing client-side is trusted as the real check. */
+export interface SystemSetting {
+  key: string;
+  section: SystemSettingSection;
+  value: string;
+  valueType: 'bool' | 'int' | 'string';
+  description: string | null;
+  updatedAt: string | null;
+  updatedByName: string | null;
+}
+
+export interface PublicSettings {
+  applicationName: string;
+  applicationDescription: string;
+}

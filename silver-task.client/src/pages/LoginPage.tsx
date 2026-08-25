@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useLogin } from '@/hooks/useAuth';
+import { usePublicSettings } from '@/hooks/useSystemSettings';
 import { ApiError } from '@/api/httpClient';
 import './LoginPage.css';
 
@@ -14,6 +15,7 @@ export function LoginPage() {
   const login = useLogin();
   const navigate = useNavigate();
   const location = useLocation();
+  const { data: publicSettings } = usePublicSettings();
 
   const state = location.state as LocationState | null;
   const from = state?.from?.pathname ?? '/';
@@ -31,8 +33,8 @@ export function LoginPage() {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={handleSubmit}>
-        <h1>Silver-Task</h1>
-        <p className="login-subtitle">Sign in to continue</p>
+        <h1>{publicSettings?.applicationName ?? 'Silver-Task'}</h1>
+        <p className="login-subtitle">{publicSettings?.applicationDescription ?? 'Sign in to continue'}</p>
 
         <label className="login-field">
           <span>Email</span>

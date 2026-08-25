@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Silver_Task.Server.Common;
 using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.DTOs.Settings;
@@ -40,10 +41,11 @@ namespace Silver_Task.Server.Services
         Task ChangePasswordAsync(Guid id, ChangePasswordRequest request);
     }
 
-    public class UserService(AppDbContext db, IPasswordHasher<User> passwordHasher) : IUserService
+    public class UserService(AppDbContext db, IPasswordHasher<User> passwordHasher, ISystemSettingsService systemSettings) : IUserService
     {
         private readonly AppDbContext _db = db;
         private readonly IPasswordHasher<User> _passwordHasher = passwordHasher;
+        private readonly ISystemSettingsService _systemSettings = systemSettings;
 
         public async Task<IReadOnlyList<User>> GetAllAsync() =>
             await _db.Users.OrderBy(u => u.Name).ToListAsync();
@@ -61,6 +63,8 @@ namespace Silver_Task.Server.Services
             {
                 throw new ConflictException($"A user with email '{request.Email}' already exists.");
             }
+
+            await ValidatePasswordAsync(request.Password);
 
             var user = new User
             {
@@ -110,6 +114,8 @@ namespace Silver_Task.Server.Services
 
         public async Task ResetPasswordAsync(Guid id, string newPassword)
         {
+            await ValidatePasswordAsync(newPassword);
+
             var user = await GetByIdAsync(id);
             user.PasswordHash = _passwordHasher.HashPassword(user, newPassword);
             user.UpdatedAt = DateTime.UtcNow;
@@ -152,9 +158,37 @@ namespace Silver_Task.Server.Services
                 throw new ValidationException("Current password is incorrect.");
             }
 
+            await ValidatePasswordAsync(request.NewPassword);
+
             user.PasswordHash = _passwordHasher.HashPassword(user, request.NewPassword);
             user.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
+        }
+
+        /// <summary>Shared by every password-setting path (signup, admin reset, self-service
+        /// change) so the configurable Security.MinPasswordLength / RequirePasswordComplexity
+        /// settings are enforced consistently everywhere a password can be set, not just at
+        /// signup.</summary>
+        private async Task ValidatePasswordAsync(string password)
+        {
+            var minLength = await _systemSettings.GetIntAsync(SystemSettingKeys.MinPasswordLength);
+            if (password.Length < minLength)
+            {
+                throw new ValidationException($"Password must be at least {minLength} characters long.");
+            }
+
+            var requireComplexity = await _systemSettings.GetBoolAsync(SystemSettingKeys.RequirePasswordComplexity);
+            if (requireComplexity)
+            {
+                var hasUpper = password.Any(char.IsUpper);
+                var hasLower = password.Any(char.IsLower);
+                var hasDigit = password.Any(char.IsDigit);
+                var hasSymbol = password.Any(c => !char.IsLetterOrDigit(c));
+                if (!(hasUpper && hasLower && hasDigit && hasSymbol))
+                {
+                    throw new ValidationException("Password must contain at least one uppercase letter, one lowercase letter, one number, and one symbol.");
+                }
+            }
         }
     }
 }

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Silver_Task.Server.Common;
 using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.DTOs.Tasks;
@@ -44,10 +45,11 @@ namespace Silver_Task.Server.Services
         Task<IReadOnlyList<TaskActivity>> GetActivitiesForTaskAsync(Guid taskId, Guid callerId, UserRole callerRole);
     }
 
-    public class TaskService(AppDbContext db, IProjectAccessService projectAccess) : ITaskService
+    public class TaskService(AppDbContext db, IProjectAccessService projectAccess, ISystemSettingsService systemSettings) : ITaskService
     {
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
+        private readonly ISystemSettingsService _systemSettings = systemSettings;
 
         public async Task<IReadOnlyList<TaskItem>> GetAllForProjectAsync(Guid projectId, Guid callerId, UserRole callerRole)
         {
@@ -148,10 +150,22 @@ namespace Silver_Task.Server.Services
             var project = await LoadProjectAsync(projectId);
             await _projectAccess.EnsureCanParticipateAsync(project.Id, project.OwnerId, callerId, callerRole);
 
+            // Plain Members pass EnsureCanParticipateAsync (same as Managers/the owner) — this
+            // extra check is the only place task creation can be narrowed further, to just
+            // Manager-tier, via the "Allow members to create tasks" system setting.
+            if (callerRole == UserRole.Member && callerId != project.OwnerId &&
+                !await _systemSettings.GetBoolAsync(SystemSettingKeys.AllowMembersToCreateTasks))
+            {
+                throw new ForbiddenException("Members are currently not allowed to create tasks.");
+            }
+
             if (request.AssignedToUserId is Guid assigneeId)
             {
                 await EnsureAssigneeIsMemberAsync(projectId, assigneeId);
             }
+
+            var status = request.Status ?? await ResolveDefaultStatusAsync();
+            var priority = request.Priority ?? await ResolveDefaultPriorityAsync();
 
             var task = new TaskItem
             {
@@ -159,12 +173,12 @@ namespace Silver_Task.Server.Services
                 ProjectId = projectId,
                 Title = request.Title.Trim(),
                 Description = NormalizeText(request.Description),
-                Status = request.Status,
-                Priority = request.Priority,
+                Status = status,
+                Priority = priority,
                 AssignedToUserId = request.AssignedToUserId,
                 StartDate = request.StartDate,
                 DueDate = request.DueDate,
-                CompletedAt = request.Status == TaskItemStatus.Complete ? DateTime.UtcNow : null,
+                CompletedAt = status == TaskItemStatus.Complete ? DateTime.UtcNow : null,
                 SortOrder = await GetNextSortOrderAsync(projectId)
             };
 
@@ -243,7 +257,19 @@ namespace Silver_Task.Server.Services
         public async Task DeleteAsync(Guid taskId, Guid callerId, UserRole callerRole)
         {
             var task = await LoadTaskAsync(taskId);
-            await _projectAccess.EnsureCanManageAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+
+            // "Allow members to delete tasks" relaxes the tier from manage (Administrator/owner/
+            // Manager-member) down to participate (also plain Members) — the inverse of most
+            // Behavior settings, which narrow an otherwise-open action instead.
+            var allowMembersToDelete = await _systemSettings.GetBoolAsync(SystemSettingKeys.AllowMembersToDeleteTasks);
+            if (allowMembersToDelete)
+            {
+                await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+            }
+            else
+            {
+                await _projectAccess.EnsureCanManageAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+            }
 
             _db.Tasks.Remove(task);
             await _db.SaveChangesAsync();
@@ -347,6 +373,21 @@ namespace Silver_Task.Server.Services
             {
                 throw new ValidationException("The assigned user must be a member of this project.");
             }
+        }
+
+        /// <summary>Used only when the client omits Status entirely (CreateTaskRequest.Status is
+        /// nullable specifically for this) — an explicit client-chosen status is never
+        /// overridden by the configured default.</summary>
+        private async Task<TaskItemStatus> ResolveDefaultStatusAsync()
+        {
+            var value = await _systemSettings.GetStringAsync(SystemSettingKeys.DefaultTaskStatus);
+            return Enum.TryParse<TaskItemStatus>(value, out var status) ? status : TaskItemStatus.NotStarted;
+        }
+
+        private async Task<TaskPriority> ResolveDefaultPriorityAsync()
+        {
+            var value = await _systemSettings.GetStringAsync(SystemSettingKeys.DefaultTaskPriority);
+            return Enum.TryParse<TaskPriority>(value, out var priority) ? priority : TaskPriority.Medium;
         }
 
         private async Task<double> GetNextSortOrderAsync(Guid projectId)

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Silver_Task.Server.Common;
 using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.Entities;
@@ -27,7 +28,12 @@ namespace Silver_Task.Server.Services
     /// only in the database for display/download — this avoids path traversal and collisions
     /// without trusting anything about the client-supplied name for the actual file path.
     /// </summary>
-    public class AttachmentService(AppDbContext db, IProjectAccessService projectAccess, IConfiguration configuration, IWebHostEnvironment environment) : IAttachmentService
+    public class AttachmentService(
+        AppDbContext db,
+        IProjectAccessService projectAccess,
+        ISystemSettingsService systemSettings,
+        IConfiguration configuration,
+        IWebHostEnvironment environment) : IAttachmentService
     {
         // 25 MB — generous enough for phone photos and scanned PDF documents (this app's actual
         // domain: permits, inspections), while still guarding against unbounded uploads.
@@ -40,6 +46,7 @@ namespace Silver_Task.Server.Services
 
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
+        private readonly ISystemSettingsService _systemSettings = systemSettings;
         private readonly string _storageRoot = ResolveStorageRoot(configuration, environment);
 
         public async Task<IReadOnlyList<TaskAttachment>> GetAllForTaskAsync(Guid taskId, Guid callerId, UserRole callerRole)
@@ -58,6 +65,11 @@ namespace Silver_Task.Server.Services
         {
             var task = await LoadTaskAsync(taskId);
             await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+
+            if (!await _systemSettings.GetBoolAsync(SystemSettingKeys.AllowAttachments))
+            {
+                throw new ForbiddenException("Attachments are currently disabled by an Administrator.");
+            }
 
             if (file.Length == 0)
             {

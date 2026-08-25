@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Silver_Task.Server.Common;
 using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.DTOs.Projects;
@@ -13,7 +14,7 @@ namespace Silver_Task.Server.Services
 
         Task<Project> GetByIdAsync(Guid projectId, Guid callerId, UserRole callerRole);
 
-        Task<Project> CreateAsync(CreateProjectRequest request, Guid ownerId);
+        Task<Project> CreateAsync(CreateProjectRequest request, Guid ownerId, UserRole ownerRole);
 
         Task<Project> UpdateAsync(Guid projectId, UpdateProjectRequest request, Guid callerId, UserRole callerRole);
 
@@ -38,10 +39,11 @@ namespace Silver_Task.Server.Services
         Task RemoveMemberAsync(Guid projectId, Guid targetUserId, Guid callerId, UserRole callerRole);
     }
 
-    public class ProjectService(AppDbContext db, IProjectAccessService projectAccess) : IProjectService
+    public class ProjectService(AppDbContext db, IProjectAccessService projectAccess, ISystemSettingsService systemSettings) : IProjectService
     {
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
+        private readonly ISystemSettingsService _systemSettings = systemSettings;
 
         public async Task<IReadOnlyList<Project>> GetAllForUserAsync(Guid callerId, UserRole callerRole, bool includeArchived = false)
         {
@@ -67,8 +69,17 @@ namespace Silver_Task.Server.Services
             return project;
         }
 
-        public async Task<Project> CreateAsync(CreateProjectRequest request, Guid ownerId)
+        public async Task<Project> CreateAsync(CreateProjectRequest request, Guid ownerId, UserRole ownerRole)
         {
+            if (ownerRole != UserRole.Administrator && !await _systemSettings.GetBoolAsync(SystemSettingKeys.AllowUsersToCreateProjects))
+            {
+                throw new ForbiddenException("Project creation is currently disabled by an Administrator.");
+            }
+            if (await _systemSettings.GetBoolAsync(SystemSettingKeys.RequireProjectDescription) && string.IsNullOrWhiteSpace(request.Description))
+            {
+                throw new ValidationException("A project description is required.");
+            }
+
             var project = new Project
             {
                 Id = Guid.NewGuid(),

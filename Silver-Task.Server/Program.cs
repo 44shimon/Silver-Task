@@ -94,6 +94,7 @@ builder.Services.AddScoped<IAttachmentService, AttachmentService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IUserPreferencesService, UserPreferencesService>();
 builder.Services.AddScoped<IUserNotificationSettingsService, UserNotificationSettingsService>();
+builder.Services.AddScoped<ISystemSettingsService, SystemSettingsService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

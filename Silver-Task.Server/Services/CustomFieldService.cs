@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Silver_Task.Server.Common;
 using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.DTOs.CustomFields;
@@ -26,10 +27,11 @@ namespace Silver_Task.Server.Services
         Task DeleteOptionAsync(Guid customFieldId, Guid optionId, Guid callerId, UserRole callerRole);
     }
 
-    public class CustomFieldService(AppDbContext db, IProjectAccessService projectAccess) : ICustomFieldService
+    public class CustomFieldService(AppDbContext db, IProjectAccessService projectAccess, ISystemSettingsService systemSettings) : ICustomFieldService
     {
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
+        private readonly ISystemSettingsService _systemSettings = systemSettings;
 
         public async Task<IReadOnlyList<CustomField>> GetAllForProjectAsync(Guid projectId, Guid callerId, UserRole callerRole)
         {
@@ -54,7 +56,19 @@ namespace Silver_Task.Server.Services
         public async Task<CustomField> CreateAsync(Guid projectId, CreateCustomFieldRequest request, Guid callerId, UserRole callerRole)
         {
             var project = await LoadProjectAsync(projectId);
-            await _projectAccess.EnsureCanManageAsync(project.Id, project.OwnerId, callerId, callerRole);
+
+            // "Allow users to create custom fields" relaxes the tier from manage down to
+            // participate, the same inversion pattern as TaskService's "allow members to delete
+            // tasks" — field *definitions* otherwise stay a manage-tier action by default.
+            var allowMembersToCreate = await _systemSettings.GetBoolAsync(SystemSettingKeys.AllowUsersToCreateCustomFields);
+            if (allowMembersToCreate)
+            {
+                await _projectAccess.EnsureCanParticipateAsync(project.Id, project.OwnerId, callerId, callerRole);
+            }
+            else
+            {
+                await _projectAccess.EnsureCanManageAsync(project.Id, project.OwnerId, callerId, callerRole);
+            }
 
             await EnsureNameIsAvailableAsync(projectId, request.Name, excludingFieldId: null);
 
