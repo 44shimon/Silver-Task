@@ -1,0 +1,72 @@
+.project-files-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.project-files-view__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-files-view__toolbar select,
+.project-files-view__toolbar input[type='date'] {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+}
+
+.project-files-view__sort-direction {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.project-files-view__sort-direction:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.project-files-view__deleted-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.project-files-view__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding-top: 8px;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.project-files-view__pagination button {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.project-files-view__pagination button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

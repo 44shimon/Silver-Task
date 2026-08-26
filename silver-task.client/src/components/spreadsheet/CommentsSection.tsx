@@ -1,12 +1,23 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Paperclip, X } from 'lucide-react';
 import type { Comment } from '@/types/comment';
+import type { Attachment } from '@/types/attachment';
 import { useComments, useCreateComment, useDeleteComment, useUpdateComment } from '@/hooks/useComments';
+import { useCommentAttachments } from '@/hooks/useAttachments';
+import { attachmentsApi } from '@/api/attachmentsApi';
+import { useProject } from '@/hooks/useProjects';
+import { useProjectPermissions } from '@/hooks/usePermissions';
+import { Permissions } from '@/types/permissions';
+import { AttachmentRow } from '@/components/attachments/AttachmentRow';
+import { FilePreviewModal } from '@/components/attachments/FilePreviewModal';
 import { ApiError } from '@/api/httpClient';
 import { initials } from '@/utils/initials';
 import './CommentsSection.css';
 
 interface CommentsSectionProps {
   taskId: string;
+  projectId: string;
   currentUserId: string | undefined;
   /** Gates the "add a comment" form only — editing/deleting your *own* existing comment is
    * author-only at the backend (no project-tier check at all, a deliberate design decision from
@@ -15,18 +26,50 @@ interface CommentsSectionProps {
   canEdit: boolean;
 }
 
-export function CommentsSection({ taskId, currentUserId, canEdit }: CommentsSectionProps) {
+export function CommentsSection({ taskId, projectId, currentUserId, canEdit }: CommentsSectionProps) {
   const { data: comments } = useComments(taskId);
+  const { data: project } = useProject(projectId);
+  const { can } = useProjectPermissions(project);
+  const canUploadFiles = can(Permissions.FilesUpload);
+  const canManageFiles = can(Permissions.FilesDelete);
   const createComment = useCreateComment(taskId);
+  const queryClient = useQueryClient();
   const [text, setText] = useState('');
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const [isAttaching, setIsAttaching] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  function handleSubmit(event: FormEvent) {
+  function handleFileSelected(event: ChangeEvent<HTMLInputElement>) {
+    const files = event.target.files ? Array.from(event.target.files) : [];
+    event.target.value = '';
+    setStagedFiles((prev) => [...prev, ...files]);
+  }
+
+  function removeStagedFile(index: number) {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     const trimmed = text.trim();
     if (!trimmed) {
       return;
     }
-    createComment.mutate(trimmed, { onSuccess: () => setText('') });
+
+    createComment.mutate(trimmed, {
+      onSuccess: async (comment) => {
+        setText('');
+        if (stagedFiles.length > 0) {
+          setIsAttaching(true);
+          const files = stagedFiles;
+          setStagedFiles([]);
+          await Promise.allSettled(files.map((file) => attachmentsApi.uploadForComment(comment.id, file)));
+          setIsAttaching(false);
+          queryClient.invalidateQueries({ queryKey: ['comments', comment.id, 'attachments'] });
+          queryClient.invalidateQueries({ queryKey: ['tasks', taskId, 'activities'] });
+        }
+      },
+    });
   }
 
   return (
@@ -35,7 +78,14 @@ export function CommentsSection({ taskId, currentUserId, canEdit }: CommentsSect
 
       <div className="comment-list">
         {comments?.map((comment) => (
-          <CommentRow key={comment.id} taskId={taskId} comment={comment} currentUserId={currentUserId} />
+          <CommentRow
+            key={comment.id}
+            taskId={taskId}
+            comment={comment}
+            currentUserId={currentUserId}
+            canUploadFiles={canUploadFiles}
+            canManageFiles={canManageFiles}
+          />
         ))}
         {comments?.length === 0 && <p className="comment-list__empty">No comments yet.</p>}
       </div>
@@ -48,9 +98,35 @@ export function CommentsSection({ taskId, currentUserId, canEdit }: CommentsSect
             onChange={(e) => setText(e.target.value)}
             rows={2}
           />
-          <button type="submit" disabled={createComment.isPending || !text.trim()}>
-            Comment
-          </button>
+
+          {stagedFiles.length > 0 && (
+            <div className="comment-form__staged">
+              {stagedFiles.map((file, index) => (
+                <span className="comment-form__staged-chip" key={`${file.name}-${index}`}>
+                  {file.name}
+                  <button type="button" aria-label={`Remove ${file.name}`} onClick={() => removeStagedFile(index)}>
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="comment-form__actions">
+            {canUploadFiles && (
+              <>
+                <input ref={fileInputRef} type="file" multiple className="comment-form__file-input" onChange={handleFileSelected} />
+                <button type="button" className="comment-form__attach" onClick={() => fileInputRef.current?.click()}>
+                  <Paperclip size={13} />
+                  Attach File
+                </button>
+              </>
+            )}
+            <button type="submit" disabled={createComment.isPending || isAttaching || !text.trim()}>
+              {isAttaching ? 'Attaching...' : 'Comment'}
+            </button>
+          </div>
+
           {createComment.isError && (
             <p className="form-error">
               {createComment.error instanceof ApiError ? createComment.error.message : 'Could not post comment.'}
@@ -66,13 +142,17 @@ interface CommentRowProps {
   taskId: string;
   comment: Comment;
   currentUserId: string | undefined;
+  canUploadFiles: boolean;
+  canManageFiles: boolean;
 }
 
-function CommentRow({ taskId, comment, currentUserId }: CommentRowProps) {
+function CommentRow({ taskId, comment, currentUserId, canUploadFiles, canManageFiles }: CommentRowProps) {
   const updateComment = useUpdateComment(taskId);
   const deleteComment = useDeleteComment(taskId);
+  const { data: attachments } = useCommentAttachments(comment.id);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const [previewing, setPreviewing] = useState<Attachment | null>(null);
 
   const isOwn = comment.user.id === currentUserId;
 
@@ -116,6 +196,21 @@ function CommentRow({ taskId, comment, currentUserId }: CommentRowProps) {
           <p className="comment-row__text">{comment.text}</p>
         )}
 
+        {attachments && attachments.length > 0 && (
+          <div className="comment-row__attachments">
+            {attachments.map((attachment) => (
+              <AttachmentRow
+                key={attachment.id}
+                attachment={attachment}
+                currentUserId={currentUserId}
+                canUpload={canUploadFiles}
+                canManageFiles={canManageFiles}
+                onPreview={setPreviewing}
+              />
+            ))}
+          </div>
+        )}
+
         {isOwn && !isEditing && (
           <div className="comment-row__actions">
             <button type="button" onClick={startEditing}>
@@ -127,6 +222,8 @@ function CommentRow({ taskId, comment, currentUserId }: CommentRowProps) {
           </div>
         )}
       </div>
+
+      {previewing && <FilePreviewModal attachment={previewing} onClose={() => setPreviewing(null)} />}
     </div>
   );
 }

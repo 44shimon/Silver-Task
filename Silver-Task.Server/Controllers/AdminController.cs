@@ -19,12 +19,14 @@ namespace Silver_Task.Server.Controllers
         IAdminService adminService,
         IProjectService projectService,
         IUserService userService,
-        IRecurringTaskService recurringTaskService) : ControllerBase
+        IRecurringTaskService recurringTaskService,
+        IAttachmentService attachmentService) : ControllerBase
     {
         private readonly IAdminService _adminService = adminService;
         private readonly IProjectService _projectService = projectService;
         private readonly IUserService _userService = userService;
         private readonly IRecurringTaskService _recurringTaskService = recurringTaskService;
+        private readonly IAttachmentService _attachmentService = attachmentService;
 
         [HttpGet("stats")]
         public async Task<ActionResult<AdminStatsDto>> GetStats()
@@ -70,6 +72,18 @@ namespace Silver_Task.Server.Controllers
         {
             var generatedCount = await _recurringTaskService.GenerateDueOccurrencesAsync();
             return Ok(new { generatedCount });
+        }
+
+        /// <summary>Admin-only storage health probe for the System Settings page — writability,
+        /// provider, file count/bytes. Deliberately omits StorageHealth.RootPath (the server's raw
+        /// filesystem path) from the response — never returns credentials (local disk has none)
+        /// or internal storage paths, per the spec's "never expose secret credentials"/"never
+        /// expose internal storage paths beyond what's needed for display" constraints.</summary>
+        [HttpGet("storage/health")]
+        public async Task<ActionResult<object>> GetStorageHealth()
+        {
+            var health = await _attachmentService.GetStorageHealthAsync();
+            return Ok(new { health.IsWritable, health.Provider, health.FileCount, health.TotalBytes });
         }
     }
 }

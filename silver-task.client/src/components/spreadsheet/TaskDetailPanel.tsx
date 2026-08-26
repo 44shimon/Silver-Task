@@ -129,8 +129,8 @@ export function TaskDetailPanel({ task, projectId, members, customFields, tasks,
           <RecurrenceSection task={task} projectId={projectId} members={members} onOpenDetail={onOpenDetail} canEdit={canEdit} />
           <SubtasksSection task={task} projectId={projectId} members={members} onOpenDetail={onOpenDetail} canEdit={canEdit} />
           <DependenciesSection task={task} projectId={projectId} tasks={tasks} onOpenDetail={onOpenDetail} canEdit={canEdit} />
-          <AttachmentsSection taskId={task.id} canEdit={canEdit} />
-          <CommentsSection taskId={task.id} currentUserId={currentUserId} canEdit={canEdit} />
+          <AttachmentsSection taskId={task.id} projectId={projectId} canEdit={canEdit} />
+          <CommentsSection taskId={task.id} projectId={projectId} currentUserId={currentUserId} canEdit={canEdit} />
           <ActivityHistorySection taskId={task.id} />
         </div>
 

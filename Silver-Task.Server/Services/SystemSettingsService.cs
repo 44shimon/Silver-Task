@@ -169,6 +169,12 @@ namespace Silver_Task.Server.Services
                         throw new ValidationException("Recurring task generation window must be between 7 and 180 days.");
                     }
                     break;
+                case SystemSettingKeys.MaxAttachmentSizeMb:
+                    if (value is < 1 or > 500)
+                    {
+                        throw new ValidationException("Maximum attachment size must be between 1 and 500 MB.");
+                    }
+                    break;
             }
         }
 
@@ -210,6 +216,21 @@ namespace Silver_Task.Server.Services
             if (key is SystemSettingKeys.DefaultTaskPriority && !Enum.TryParse<TaskPriority>(value, out _))
             {
                 throw new ValidationException($"'{value}' is not a valid task priority.");
+            }
+            if (key is SystemSettingKeys.AllowedAttachmentExtensions)
+            {
+                var extensions = value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                if (extensions.Length == 0)
+                {
+                    throw new ValidationException("At least one allowed file extension is required.");
+                }
+                foreach (var extension in extensions)
+                {
+                    if (!extension.StartsWith('.') || extension.Length is < 2 or > 10 || extension.Any(char.IsWhiteSpace))
+                    {
+                        throw new ValidationException($"'{extension}' is not a valid file extension (expected a leading dot, e.g. '.pdf').");
+                    }
+                }
             }
         }
     }

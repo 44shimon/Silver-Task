@@ -1,0 +1,109 @@
+.file-dropzone {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-dropzone__area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--text-h);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.file-dropzone__area:hover,
+.file-dropzone__area--dragging {
+  border-color: var(--accent-border);
+  color: var(--accent);
+  background: var(--bg-subtle);
+}
+
+.file-dropzone__area--disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}
+
+.file-dropzone--compact .file-dropzone__area {
+  padding: 6px 12px;
+  border-style: dashed;
+  justify-content: flex-start;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.file-dropzone__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.file-dropzone__staged {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.file-dropzone__staged-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.file-dropzone__staged-name {
+  flex-shrink: 0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-h);
+}
+
+.file-dropzone__progress {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+
+.file-dropzone__progress-bar {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s ease;
+}
+
+.file-dropzone__staged-error {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--danger);
+}
+
+.file-dropzone__staged-dismiss {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  opacity: 0.6;
+  cursor: pointer;
+  display: inline-flex;
+}
+
+.file-dropzone__staged-dismiss:hover {
+  opacity: 1;
+}

@@ -76,7 +76,7 @@ namespace Silver_Task.Server.Models.Entities
 
         public ICollection<TaskActivity> Activities { get; set; } = [];
 
-        public ICollection<TaskAttachment> Attachments { get; set; } = [];
+        public ICollection<Attachment> Attachments { get; set; } = [];
 
         public ICollection<TaskCustomValue> CustomValues { get; set; } = [];
 

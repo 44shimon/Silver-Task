@@ -7,3 +7,10 @@ export function useAdminStats() {
     queryFn: adminApi.stats,
   });
 }
+
+export function useStorageHealth() {
+  return useQuery({
+    queryKey: ['admin', 'storage', 'health'],
+    queryFn: adminApi.storageHealth,
+  });
+}

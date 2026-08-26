@@ -1,8 +1,11 @@
 import { useState, type FormEvent } from 'react';
+import { CheckCircle2, XCircle } from 'lucide-react';
 import { useSystemSettings, useUpdateSystemSettings } from '@/hooks/useSystemSettings';
+import { useStorageHealth } from '@/hooks/useAdminStats';
 import type { SystemSetting, SystemSettingSection } from '@/types/settings';
 import { PRIORITY_OPTIONS, STATUS_LABELS, STATUS_OPTIONS } from '@/types/task';
 import { ApiError } from '@/api/httpClient';
+import { formatFileSize } from '@/utils/formatFileSize';
 import '../settings/SettingsForm.css';
 import './AdminSystemSettingsPage.css';
 
@@ -103,10 +106,19 @@ const SECTIONS: { id: SystemSettingSection; title: string; fields: FieldConfig[]
       { key: 'Behavior.AllowAttachments', title: 'Allow attachments', kind: 'boolean' },
     ],
   },
+  {
+    id: 'Attachments',
+    title: 'Attachments',
+    fields: [
+      { key: 'Attachments.MaxSizeMb', title: 'Maximum file size (MB)', kind: 'number', min: 1, max: 500 },
+      { key: 'Attachments.AllowedExtensions', title: 'Allowed file extensions (comma-separated)', kind: 'text' },
+    ],
+  },
 ];
 
 export function AdminSystemSettingsPage() {
   const { data: settings } = useSystemSettings();
+  const { data: storageHealth } = useStorageHealth();
   const updateSettings = useUpdateSystemSettings();
 
   const [form, setForm] = useState<Record<string, string> | null>(null);
@@ -155,6 +167,20 @@ export function AdminSystemSettingsPage() {
               />
             ))}
           </div>
+          {section.id === 'Attachments' && storageHealth && (
+            <div className="admin-system-settings__storage-health">
+              {storageHealth.isWritable ? (
+                <CheckCircle2 size={14} className="admin-system-settings__storage-ok" />
+              ) : (
+                <XCircle size={14} className="admin-system-settings__storage-bad" />
+              )}
+              <span>
+                Storage: {storageHealth.isWritable ? 'Connected' : 'Not writable'} ({storageHealth.provider}) &middot;{' '}
+                {storageHealth.fileCount} file{storageHealth.fileCount === 1 ? '' : 's'} &middot;{' '}
+                {formatFileSize(storageHealth.totalBytes)} used
+              </span>
+            </div>
+          )}
         </div>
       ))}
 

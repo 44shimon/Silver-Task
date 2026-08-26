@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Silver_Task.Server.Common;
+using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Models.Common;
+using Silver_Task.Server.Models.DTOs.Attachments;
 using Silver_Task.Server.Models.DTOs.CustomFields;
 using Silver_Task.Server.Models.DTOs.Dependencies;
 using Silver_Task.Server.Models.DTOs.Projects;
@@ -18,7 +20,8 @@ namespace Silver_Task.Server.Controllers
         ICustomFieldService customFieldService,
         ITaskDependencyService dependencyService,
         IRecurringTaskService recurringTaskService,
-        IPermissionService permissionService) : ControllerBase
+        IPermissionService permissionService,
+        IAttachmentService attachmentService) : ControllerBase
     {
         private readonly IProjectService _projectService = projectService;
         private readonly ITaskService _taskService = taskService;
@@ -26,6 +29,7 @@ namespace Silver_Task.Server.Controllers
         private readonly ITaskDependencyService _dependencyService = dependencyService;
         private readonly IRecurringTaskService _recurringTaskService = recurringTaskService;
         private readonly IPermissionService _permissionService = permissionService;
+        private readonly IAttachmentService _attachmentService = attachmentService;
 
         [HttpGet]
         public async Task<ActionResult<IReadOnlyList<ProjectDto>>> GetAll([FromQuery] bool includeArchived = false)
@@ -160,6 +164,41 @@ namespace Silver_Task.Server.Controllers
         {
             var rules = await _recurringTaskService.GetForProjectAsync(id, User.GetUserId(), User.GetRole());
             return Ok(rules.Select(r => r.ToDto()));
+        }
+
+        /// <summary>Project → Files. onlyDeleted=true (Manage-tier only) backs the Restore UI —
+        /// see IAttachmentService.GetAllForProjectAsync's own doc comment.</summary>
+        [HttpGet("{id:guid}/files")]
+        public async Task<ActionResult<AttachmentListDto>> GetFiles(
+            Guid id, [FromQuery] bool onlyDeleted = false, [FromQuery] int page = 1, [FromQuery] int pageSize = 50,
+            [FromQuery] string? search = null, [FromQuery] string? type = null, [FromQuery] Guid? uploadedByUserId = null,
+            [FromQuery] DateTime? dateFrom = null, [FromQuery] DateTime? dateTo = null,
+            [FromQuery] string? sortField = null, [FromQuery] bool sortDescending = true)
+        {
+            var (items, totalCount) = await _attachmentService.GetAllForProjectAsync(
+                id, User.GetUserId(), User.GetRole(), onlyDeleted, page, pageSize,
+                search, type, uploadedByUserId, dateFrom, dateTo, sortField, sortDescending);
+
+            return Ok(new AttachmentListDto
+            {
+                Items = [.. items.Select(a => a.ToDto())],
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
+            });
+        }
+
+        [HttpPost("{id:guid}/files")]
+        [RequestSizeLimit(AttachmentUploadLimits.MaxRequestBodyBytes)]
+        public async Task<ActionResult<AttachmentDto>> UploadFile(Guid id, IFormFile? file)
+        {
+            if (file is null)
+            {
+                throw new ValidationException("No file was provided.");
+            }
+
+            var attachment = await _attachmentService.UploadForProjectAsync(id, file, User.GetUserId(), User.GetRole());
+            return CreatedAtAction(nameof(AttachmentsController.GetById), "Attachments", new { id = attachment.Id }, attachment.ToDto());
         }
     }
 }

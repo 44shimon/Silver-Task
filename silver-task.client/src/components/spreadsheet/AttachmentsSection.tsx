@@ -1,85 +1,90 @@
-import type { ChangeEvent } from 'react';
-import { Paperclip, Trash2 } from 'lucide-react';
-import { useAttachments, useDeleteAttachment, useUploadAttachment } from '@/hooks/useAttachments';
-import { attachmentsApi } from '@/api/attachmentsApi';
-import { ApiError } from '@/api/httpClient';
-import { formatFileSize } from '@/utils/formatFileSize';
+import { useState } from 'react';
+import { useTaskAttachments, useUploadTaskAttachment } from '@/hooks/useAttachments';
+import { useProject } from '@/hooks/useProjects';
+import { useCurrentUser } from '@/hooks/useAuth';
+import { useProjectPermissions } from '@/hooks/usePermissions';
+import { Permissions } from '@/types/permissions';
+import { FileDropzone } from '@/components/attachments/FileDropzone';
+import { AttachmentRow } from '@/components/attachments/AttachmentRow';
+import { FilePreviewModal } from '@/components/attachments/FilePreviewModal';
+import { Modal } from '@/components/shared/Modal';
+import type { Attachment } from '@/types/attachment';
 import './AttachmentsSection.css';
+
+const COMPACT_LIMIT = 3;
 
 interface AttachmentsSectionProps {
   taskId: string;
+  projectId: string;
+  /** Tasks.Edit tier — kept for backward compatibility with callers that only know the task-edit
+   * gate; the real upload/delete gates are Files.Upload/Files.Delete, resolved below from the
+   * project's own permission set. */
   canEdit: boolean;
 }
 
-export function AttachmentsSection({ taskId, canEdit }: AttachmentsSectionProps) {
-  const { data: attachments } = useAttachments(taskId);
-  const uploadAttachment = useUploadAttachment(taskId);
-  const deleteAttachment = useDeleteAttachment(taskId);
+export function AttachmentsSection({ taskId, projectId, canEdit }: AttachmentsSectionProps) {
+  const { data: attachments } = useTaskAttachments(taskId);
+  const { data: project } = useProject(projectId);
+  const { data: currentUser } = useCurrentUser();
+  const { can } = useProjectPermissions(project);
+  const canUploadFiles = canEdit && can(Permissions.FilesUpload);
+  const canManageFiles = can(Permissions.FilesDelete);
+  const uploadAttachment = useUploadTaskAttachment(taskId);
+  const [previewing, setPreviewing] = useState<Attachment | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
-  function handleFileSelected(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = ''; // allow re-selecting the same file again later
-    if (!file) {
-      return;
-    }
-    uploadAttachment.mutate(file);
-  }
+  const visible = attachments ?? [];
+  const compactList = visible.slice(0, COMPACT_LIMIT);
 
   return (
     <div className="task-detail-panel__section">
-      <h3>Attachments{attachments && attachments.length > 0 ? ` (${attachments.length})` : ''}</h3>
+      <h3>Attachments{visible.length > 0 ? ` (${visible.length})` : ''}</h3>
+
+      {canUploadFiles && (
+        <FileDropzone
+          compact
+          onUpload={(file, onProgress) => uploadAttachment.mutateAsync({ file, onProgress })}
+        />
+      )}
 
       <div className="attachment-list">
-        {attachments?.map((attachment) => (
-          <div className="attachment-row" key={attachment.id}>
-            <Paperclip size={14} className="attachment-row__icon" />
-            <div className="attachment-row__info">
-              <a
-                className="attachment-row__name"
-                href={attachmentsApi.downloadUrl(attachment.id)}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {attachment.fileName}
-              </a>
-              <span className="attachment-row__meta">
-                {formatFileSize(attachment.fileSize)} &middot; {attachment.uploadedBy.name} &middot;{' '}
-                {new Date(attachment.createdAt).toLocaleDateString()}
-              </span>
-            </div>
-            {canEdit && (
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={`Delete ${attachment.fileName}`}
-                onClick={() => deleteAttachment.mutate(attachment.id)}
-              >
-                <Trash2 size={13} />
-              </button>
-            )}
-          </div>
+        {compactList.map((attachment) => (
+          <AttachmentRow
+            key={attachment.id}
+            attachment={attachment}
+            currentUserId={currentUser?.id}
+            canUpload={canUploadFiles}
+            canManageFiles={canManageFiles}
+            onPreview={setPreviewing}
+          />
         ))}
-        {attachments?.length === 0 && <p className="attachment-list__empty">No attachments yet.</p>}
+        {visible.length === 0 && <p className="attachment-list__empty">No attachments yet.</p>}
       </div>
 
-      {canEdit && (
-        <div className="attachment-upload">
-          <input
-            type="file"
-            id={`attachment-upload-${taskId}`}
-            className="attachment-upload__input"
-            onChange={handleFileSelected}
-            disabled={uploadAttachment.isPending}
-          />
-          <label htmlFor={`attachment-upload-${taskId}`} className="attachment-upload__label">
-            {uploadAttachment.isPending ? 'Uploading...' : '+ Add File'}
-          </label>
-          {uploadAttachment.isError && (
-            <p className="form-error">
-              {uploadAttachment.error instanceof ApiError ? uploadAttachment.error.message : 'Could not upload file.'}
-            </p>
-          )}
-        </div>
+      {visible.length > COMPACT_LIMIT && (
+        <button type="button" className="attachment-list__view-all" onClick={() => setShowAll(true)}>
+          View all ({visible.length})
+        </button>
+      )}
+
+      {previewing && <FilePreviewModal attachment={previewing} onClose={() => setPreviewing(null)} />}
+
+      {showAll && (
+        <Modal onClose={() => setShowAll(false)} size="wide">
+          <h2>Attachments ({visible.length})</h2>
+          <div className="attachment-list">
+            {visible.map((attachment) => (
+              <AttachmentRow
+                key={attachment.id}
+                attachment={attachment}
+                currentUserId={currentUser?.id}
+                canUpload={canUploadFiles}
+                canManageFiles={canManageFiles}
+                onPreview={setPreviewing}
+              />
+            ))}
+          </div>
+        </Modal>
       )}
     </div>
   );

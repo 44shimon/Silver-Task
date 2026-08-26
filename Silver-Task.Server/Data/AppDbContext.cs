@@ -17,7 +17,7 @@ namespace Silver_Task.Server.Data
 
         public DbSet<TaskActivity> TaskActivities => Set<TaskActivity>();
 
-        public DbSet<TaskAttachment> TaskAttachments => Set<TaskAttachment>();
+        public DbSet<Attachment> Attachments => Set<Attachment>();
 
         public DbSet<CustomField> CustomFields => Set<CustomField>();
 

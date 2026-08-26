@@ -7,7 +7,8 @@ namespace Silver_Task.Server.Common
         ProjectDefaults,
         Security,
         Behavior,
-        RecurringTasks
+        RecurringTasks,
+        Attachments
     }
 
     public record SystemSettingDefinition(
@@ -73,7 +74,16 @@ namespace Silver_Task.Server.Common
                 "true", "bool", "Allow new file attachments to be uploaded to tasks."),
 
             new(SystemSettingKeys.RecurringTaskGenerationWindowDays, SystemSettingSection.RecurringTasks,
-                "30", "int", "How many days ahead recurring task occurrences are generated. Missed occurrences older than 7 days are skipped rather than backfilled.")
+                "30", "int", "How many days ahead recurring task occurrences are generated. Missed occurrences older than 7 days are skipped rather than backfilled."),
+
+            // 25 MB preserves this app's original attachment default exactly (see
+            // AttachmentService's own doc comment) — Phase 33 makes it admin-configurable without
+            // silently changing behavior for existing deployments.
+            new(SystemSettingKeys.MaxAttachmentSizeMb, SystemSettingSection.Attachments,
+                "25", "int", "Maximum size, in MB, for a single file attachment."),
+            new(SystemSettingKeys.AllowedAttachmentExtensions, SystemSettingSection.Attachments,
+                ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.gif,.webp,.zip", "string",
+                "Comma-separated list of allowed file extensions for attachments, including the leading dot.")
         ];
 
         public static readonly IReadOnlyDictionary<string, SystemSettingDefinition> ByKey =

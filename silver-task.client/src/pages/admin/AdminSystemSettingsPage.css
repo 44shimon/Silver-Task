@@ -22,3 +22,24 @@
 .admin-system-settings .settings-form {
   max-width: 520px;
 }
+
+.admin-system-settings__storage-health {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 520px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  font-size: 12px;
+  color: var(--text-h);
+}
+
+.admin-system-settings__storage-ok {
+  color: var(--success, #2a9d5c);
+}
+
+.admin-system-settings__storage-bad {
+  color: var(--danger);
+}

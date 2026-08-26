@@ -1,5 +1,5 @@
 import { httpClient } from './httpClient';
-import type { AdminStats, RoleInfo } from '@/types/admin';
+import type { AdminStats, RoleInfo, StorageHealth } from '@/types/admin';
 
 export const adminApi = {
   stats: () => httpClient.get<AdminStats>('/admin/stats'),
@@ -9,4 +9,5 @@ export const adminApi = {
   roles: () => httpClient.get<RoleInfo[]>('/admin/roles'),
   /** The fixed project-role permission matrix. */
   projectRoles: () => httpClient.get<RoleInfo[]>('/admin/project-roles'),
+  storageHealth: () => httpClient.get<StorageHealth>('/admin/storage/health'),
 };

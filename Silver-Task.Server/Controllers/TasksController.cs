@@ -108,25 +108,26 @@ namespace Silver_Task.Server.Controllers
         }
 
         [HttpGet("{id:guid}/attachments")]
-        public async Task<ActionResult<IReadOnlyList<TaskAttachmentDto>>> GetAttachments(Guid id)
+        public async Task<ActionResult<IReadOnlyList<AttachmentDto>>> GetAttachments(Guid id)
         {
             var attachments = await _attachmentService.GetAllForTaskAsync(id, User.GetUserId(), User.GetRole());
             return Ok(attachments.Select(a => a.ToDto()));
         }
 
-        // Comfortably above AttachmentService's 25 MB app-level cap, so an oversized upload gets
-        // AttachmentService's clean JSON error instead of a raw framework-level rejection.
+        // AttachmentUploadLimits.MaxRequestBodyBytes is comfortably above the admin-configurable
+        // Attachments.MaxSizeMb app-level cap, so an oversized upload gets AttachmentService's
+        // clean JSON error instead of a raw framework-level rejection.
         [HttpPost("{id:guid}/attachments")]
-        [RequestSizeLimit(30 * 1024 * 1024)]
-        public async Task<ActionResult<TaskAttachmentDto>> UploadAttachment(Guid id, IFormFile? file)
+        [RequestSizeLimit(AttachmentUploadLimits.MaxRequestBodyBytes)]
+        public async Task<ActionResult<AttachmentDto>> UploadAttachment(Guid id, IFormFile? file)
         {
             if (file is null)
             {
                 throw new ValidationException("No file was provided.");
             }
 
-            var attachment = await _attachmentService.UploadAsync(id, file, User.GetUserId(), User.GetRole());
-            return CreatedAtAction(nameof(GetAttachments), new { id }, attachment.ToDto());
+            var attachment = await _attachmentService.UploadForTaskAsync(id, file, User.GetUserId(), User.GetRole());
+            return CreatedAtAction(nameof(AttachmentsController.GetById), "Attachments", new { id = attachment.Id }, attachment.ToDto());
         }
 
         /// <summary>The "Depends On" list — prerequisites of this task.</summary>

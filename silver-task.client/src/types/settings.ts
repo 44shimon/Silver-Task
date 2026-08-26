@@ -33,7 +33,7 @@ export interface NotificationSetting {
 }
 
 /** Mirrors Common/SystemSettingDefinitions.cs's SystemSettingSection enum server-side. */
-export type SystemSettingSection = 'General' | 'TaskDefaults' | 'ProjectDefaults' | 'Security' | 'Behavior';
+export type SystemSettingSection = 'General' | 'TaskDefaults' | 'ProjectDefaults' | 'Security' | 'Behavior' | 'Attachments';
 
 /** Every value is a string on the wire (the EAV Key/Value store) — ValueType tells the UI how
  * to render/parse it ("bool" | "int" | "string"), but the server is still the sole source of

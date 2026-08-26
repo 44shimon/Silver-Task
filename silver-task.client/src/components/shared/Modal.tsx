@@ -5,10 +5,11 @@ interface ModalProps {
   onClose: () => void;
   children: ReactNode;
   /** Default (undefined) is the standard 340px dialog every other modal uses. "wide" is for
-   * content-heavy forms (e.g. CustomFieldFormModal) that need more room — widening the dialog
-   * itself here, rather than a child forcing its own width past a fixed-width parent, which
+   * content-heavy forms (e.g. CustomFieldFormModal) that need more room. "xl" is for the file
+   * preview modal (Phase 33), which needs real room for an embedded image/PDF — widening the
+   * dialog itself here, rather than a child forcing its own width past a fixed-width parent, which
    * just overflows the rounded box instead of actually growing it. */
-  size?: 'wide';
+  size?: 'wide' | 'xl';
 }
 
 // Shared centered-dialog shell (backdrop + box) — used by ResetPasswordDialog and
@@ -24,7 +25,7 @@ export function Modal({ onClose, children, size }: ModalProps) {
 
   return (
     <div className="modal-backdrop" onClick={handleBackdropClick}>
-      <div className={`modal-dialog${size === 'wide' ? ' modal-dialog--wide' : ''}`}>{children}</div>
+      <div className={`modal-dialog${size ? ` modal-dialog--${size}` : ''}`}>{children}</div>
     </div>
   );
 }

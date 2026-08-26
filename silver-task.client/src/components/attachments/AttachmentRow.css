@@ -1,0 +1,82 @@
+.attachment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attachment-list__empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.attachment-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+}
+
+.attachment-row--deleted {
+  opacity: 0.6;
+}
+
+.attachment-row__icon {
+  flex-shrink: 0;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.attachment-row__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.attachment-row__name {
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.attachment-row__name:hover {
+  text-decoration: underline;
+}
+
+.attachment-row__rename-input {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 4px;
+}
+
+.attachment-row__meta {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.attachment-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.attachment-row__actions .icon-button {
+  width: 26px;
+  height: 26px;
+}

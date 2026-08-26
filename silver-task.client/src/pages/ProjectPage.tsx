@@ -19,6 +19,7 @@ import { CalendarView } from '@/components/calendar/CalendarView';
 import { TimelineView } from '@/components/timeline/TimelineView';
 import { GanttView } from '@/components/gantt/GanttView';
 import { RecurringTasksView } from '@/components/project/RecurringTasksView';
+import { ProjectFilesView } from '@/components/project/ProjectFilesView';
 import { TaskSearchInput } from '@/components/spreadsheet/TaskSearchInput';
 import { TaskFilterPanel } from '@/components/spreadsheet/TaskFilterPanel';
 import { SortMenu } from '@/components/filters/SortMenu';
@@ -234,6 +235,13 @@ export function ProjectPage() {
         <GanttView projectId={project.id} projectName={project.name} tasks={filteredTasks} onOpenDetail={openTaskDetail} canEdit={canEditTasks} />
       ) : view === 'recurring' ? (
         <RecurringTasksView projectId={project.id} tasks={tasks ?? []} members={memberUsers} onOpenDetail={openTaskDetail} canEdit={canEditTasks} />
+      ) : view === 'files' ? (
+        <ProjectFilesView
+          projectId={project.id}
+          members={memberUsers}
+          canUploadFiles={can(Permissions.FilesUpload)}
+          canManageFiles={can(Permissions.FilesDelete)}
+        />
       ) : (
         <TaskTable
           projectId={project.id}

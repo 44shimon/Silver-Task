@@ -40,6 +40,15 @@ export interface RoleInfo {
   userCount: number;
 }
 
+/** Admin-only storage connectivity probe (Phase 33) — deliberately has no path/credential
+ * fields; the server never sends its raw filesystem path to the client. */
+export interface StorageHealth {
+  isWritable: boolean;
+  provider: string;
+  fileCount: number;
+  totalBytes: number;
+}
+
 /** Shown in the delete-user confirmation dialog before an admin can commit to deleting a
  * user — deletion is a soft delete, so nothing here is actually destroyed, but the admin should
  * still see what historical data stays attached to the now-deleted account. */

@@ -27,3 +27,8 @@
 .modal-dialog--wide {
   width: 480px;
 }
+
+.modal-dialog--xl {
+  width: 720px;
+  max-height: calc(100% - 64px);
+}

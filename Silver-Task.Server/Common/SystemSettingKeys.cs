@@ -38,5 +38,9 @@ namespace Silver_Task.Server.Common
         public const string AllowUsersToCreateCustomFields = "Behavior.AllowUsersToCreateCustomFields";
         public const string AllowComments = "Behavior.AllowComments";
         public const string AllowAttachments = "Behavior.AllowAttachments";
+
+        // Attachments (Phase 33)
+        public const string MaxAttachmentSizeMb = "Attachments.MaxSizeMb";
+        public const string AllowedAttachmentExtensions = "Attachments.AllowedExtensions";
     }
 }

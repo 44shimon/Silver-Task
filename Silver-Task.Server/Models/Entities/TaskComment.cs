@@ -17,5 +17,7 @@ namespace Silver_Task.Server.Models.Entities
         public TaskItem? Task { get; set; }
 
         public User? User { get; set; }
+
+        public ICollection<Attachment> Attachments { get; set; } = [];
     }
 }

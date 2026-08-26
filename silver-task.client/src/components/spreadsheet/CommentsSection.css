@@ -122,8 +122,74 @@
   box-shadow: 0 0 0 3px var(--accent-bg);
 }
 
-.comment-form button {
-  align-self: flex-end;
+.comment-form__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.comment-form__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.comment-form__attach {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-h);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.comment-form__attach:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.comment-form__staged {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.comment-form__staged-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  color: var(--text-h);
+  font-size: 11px;
+}
+
+.comment-form__staged-chip button {
+  display: inline-flex;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  opacity: 0.7;
+  cursor: pointer;
+  padding: 0;
+}
+
+.comment-form__staged-chip button:hover {
+  opacity: 1;
+}
+
+.comment-form__actions > button[type='submit'] {
   padding: 6px 12px;
   border: none;
   border-radius: 6px;
@@ -134,7 +200,14 @@
   cursor: pointer;
 }
 
-.comment-form button:disabled {
+.comment-form__actions > button[type='submit']:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.comment-row__attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
 }
