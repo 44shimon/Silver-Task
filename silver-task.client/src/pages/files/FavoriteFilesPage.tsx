@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useFavoriteFiles } from '@/hooks/useAttachments';
 import { useCurrentUser } from '@/hooks/useAuth';
+import { useProjectsByIds } from '@/hooks/useProjects';
+import { Permissions } from '@/types/permissions';
 import { AttachmentRow } from '@/components/attachments/AttachmentRow';
 import { FilePreviewModal } from '@/components/attachments/FilePreviewModal';
 import type { Attachment } from '@/types/attachment';
@@ -8,12 +10,21 @@ import './FilesListPage.css';
 
 /** Files -> Favorites — every file the caller has favorited that they can still currently
  * access (re-checked live server-side; see IAttachmentService.GetFavoritesAsync). Spans every
- * project, so rename/move/category actions are deliberately not exposed here — only
- * preview/download/unfavorite; full management stays on the file's own Project Files tab. */
+ * project, so each row's own edit/manage permissions are resolved against *that file's* project
+ * (via useProjectsByIds), not a single page-level flag. */
 export function FavoriteFilesPage() {
   const { data: currentUser } = useCurrentUser();
   const { data: favorites, isLoading, isError } = useFavoriteFiles();
+  const projectsById = useProjectsByIds((favorites ?? []).map((a) => a.effectiveProjectId));
   const [previewing, setPreviewing] = useState<Attachment | null>(null);
+
+  function permissionsFor(attachment: Attachment) {
+    const myPermissions = projectsById[attachment.effectiveProjectId]?.myPermissions ?? [];
+    return {
+      canUpload: myPermissions.includes(Permissions.FilesUpload),
+      canManageFiles: myPermissions.includes(Permissions.FilesDelete),
+    };
+  }
 
   return (
     <div className="files-list-page">
@@ -30,8 +41,7 @@ export function FavoriteFilesPage() {
               key={attachment.id}
               attachment={attachment}
               currentUserId={currentUser?.id}
-              canUpload={false}
-              canManageFiles={false}
+              {...permissionsFor(attachment)}
               onPreview={setPreviewing}
               showLocation
             />
@@ -44,8 +54,7 @@ export function FavoriteFilesPage() {
           attachment={previewing}
           projectId={previewing.effectiveProjectId}
           currentUserId={currentUser?.id}
-          canUpload={false}
-          canManageFiles={false}
+          {...permissionsFor(previewing)}
           onClose={() => setPreviewing(null)}
         />
       )}

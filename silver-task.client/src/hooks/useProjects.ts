@@ -1,7 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { projectsApi } from '@/api/projectsApi';
 import { adminApi } from '@/api/adminApi';
-import type { AddProjectMemberRequest, CreateProjectRequest, ProjectRole, UpdateProjectRequest } from '@/types/project';
+import type { AddProjectMemberRequest, CreateProjectRequest, Project, ProjectRole, UpdateProjectRequest } from '@/types/project';
 
 const projectsKey = ['projects'] as const;
 const allProjectsKey = ['projects', 'all'] as const;
@@ -30,6 +30,29 @@ export function useProject(id: string | undefined) {
     queryKey: projectKey(id ?? ''),
     queryFn: () => projectsApi.get(id!),
     enabled: Boolean(id),
+  });
+}
+
+/** Fetches every distinct project among `ids` (one GET /api/projects/{id} per unique id, sharing
+ * the same cache entries useProject uses) and combines them into an id -> Project map — used by
+ * cross-project file lists (Favorites, Recent) that need each file's own project-scoped
+ * myPermissions rather than a single page-level permission set. */
+export function useProjectsByIds(ids: string[]): Record<string, Project> {
+  const uniqueIds = Array.from(new Set(ids));
+  return useQueries({
+    queries: uniqueIds.map((id) => ({
+      queryKey: projectKey(id),
+      queryFn: () => projectsApi.get(id),
+    })),
+    combine: (results) => {
+      const byId: Record<string, Project> = {};
+      results.forEach((result, index) => {
+        if (result.data) {
+          byId[uniqueIds[index]] = result.data;
+        }
+      });
+      return byId;
+    },
   });
 }
 
