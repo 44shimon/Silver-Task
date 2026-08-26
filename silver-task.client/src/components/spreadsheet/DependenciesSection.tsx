@@ -26,9 +26,10 @@ interface DependenciesSectionProps {
    * param) — clicking a dependency swaps which task the already-open panel shows, rather than
    * navigating to a second detail view. */
   onOpenDetail: (taskId: string) => void;
+  canEdit: boolean;
 }
 
-export function DependenciesSection({ task, projectId, tasks, onOpenDetail }: DependenciesSectionProps) {
+export function DependenciesSection({ task, projectId, tasks, onOpenDetail, canEdit }: DependenciesSectionProps) {
   const { data: dependsOn } = useTaskDependencies(task.id);
   const { data: blocking } = useTaskDependents(task.id);
   const createDependency = useCreateTaskDependency(task.id, projectId);
@@ -55,17 +56,24 @@ export function DependenciesSection({ task, projectId, tasks, onOpenDetail }: De
     <div className="task-detail-panel__section">
       <div className="dependencies-section__header">
         <h3>Dependencies</h3>
-        <button type="button" className="dependencies-section__add" onClick={() => setShowAddDialog(true)}>
-          <Plus size={13} />
-          <span>Add Dependency</span>
-        </button>
+        {canEdit && (
+          <button type="button" className="dependencies-section__add" onClick={() => setShowAddDialog(true)}>
+            <Plus size={13} />
+            <span>Add Dependency</span>
+          </button>
+        )}
       </div>
 
       <div className="dependencies-section__group">
         <span className="dependencies-section__group-label">Depends On</span>
         {dependsOn?.length === 0 && <p className="dependencies-section__empty">No dependencies.</p>}
         {dependsOn?.map((row) => (
-          <DependencyRow key={row.dependencyId} row={row} onOpen={() => onOpenDetail(row.taskId)} onRemove={() => handleRemove(row, task.id)} />
+          <DependencyRow
+            key={row.dependencyId}
+            row={row}
+            onOpen={() => onOpenDetail(row.taskId)}
+            onRemove={canEdit ? () => handleRemove(row, task.id) : undefined}
+          />
         ))}
       </div>
 
@@ -77,7 +85,7 @@ export function DependenciesSection({ task, projectId, tasks, onOpenDetail }: De
             key={row.dependencyId}
             row={row}
             onOpen={() => onOpenDetail(row.taskId)}
-            onRemove={() => handleRemove(row, row.taskId)}
+            onRemove={canEdit ? () => handleRemove(row, row.taskId) : undefined}
           />
         ))}
       </div>
@@ -100,7 +108,7 @@ export function DependenciesSection({ task, projectId, tasks, onOpenDetail }: De
   );
 }
 
-function DependencyRow({ row, onOpen, onRemove }: { row: TaskDependency; onOpen: () => void; onRemove: () => void }) {
+function DependencyRow({ row, onOpen, onRemove }: { row: TaskDependency; onOpen: () => void; onRemove?: () => void }) {
   return (
     <div className="dependency-row">
       <button type="button" className="dependency-row__main" onClick={onOpen}>
@@ -112,9 +120,11 @@ function DependencyRow({ row, onOpen, onRemove }: { row: TaskDependency; onOpen:
           {row.dueDate && <span className="dependency-row__due">Due {formatDate(row.dueDate)}</span>}
         </div>
       </button>
-      <button type="button" className="icon-button" aria-label={`Remove dependency on ${row.title}`} onClick={onRemove}>
-        <X size={13} />
-      </button>
+      {onRemove && (
+        <button type="button" className="icon-button" aria-label={`Remove dependency on ${row.title}`} onClick={onRemove}>
+          <X size={13} />
+        </button>
+      )}
     </div>
   );
 }

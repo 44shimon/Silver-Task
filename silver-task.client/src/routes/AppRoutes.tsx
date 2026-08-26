@@ -9,6 +9,7 @@ import { ProjectPage } from '@/pages/ProjectPage';
 import { AdminLayout } from '@/pages/admin/AdminLayout';
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
+import { AdminRolesPage } from '@/pages/admin/AdminRolesPage';
 import { AdminProjectsPage } from '@/pages/admin/AdminProjectsPage';
 import { AdminSystemSettingsPage } from '@/pages/admin/AdminSystemSettingsPage';
 import { AdminCustomFieldsPage } from '@/pages/admin/AdminCustomFieldsPage';
@@ -47,6 +48,7 @@ export function AppRoutes() {
                 >
                   <Route index element={<AdminDashboardPage />} />
                   <Route path="users" element={<AdminUsersPage />} />
+                  <Route path="roles" element={<AdminRolesPage />} />
                   <Route path="projects" element={<AdminProjectsPage />} />
                   <Route path="custom-fields" element={<AdminCustomFieldsPage />} />
                   <Route path="settings" element={<AdminSystemSettingsPage />} />

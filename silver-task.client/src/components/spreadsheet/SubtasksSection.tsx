@@ -18,9 +18,10 @@ interface SubtasksSectionProps {
   projectId: string;
   members: UserSummary[];
   onOpenDetail: (taskId: string) => void;
+  canEdit: boolean;
 }
 
-export function SubtasksSection({ task, projectId, members, onOpenDetail }: SubtasksSectionProps) {
+export function SubtasksSection({ task, projectId, members, onOpenDetail, canEdit }: SubtasksSectionProps) {
   const { data: subtasks } = useSubtasks(task.id);
   const createSubtask = useCreateSubtask(projectId);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -33,9 +34,11 @@ export function SubtasksSection({ task, projectId, members, onOpenDetail }: Subt
     <div className="task-detail-panel__section">
       <div className="subtasks-section__header">
         <h3>Subtasks</h3>
-        <button type="button" className="subtasks-section__add" onClick={() => setShowAddForm((v) => !v)}>
-          {showAddForm ? 'Cancel' : '+ Add Subtask'}
-        </button>
+        {canEdit && (
+          <button type="button" className="subtasks-section__add" onClick={() => setShowAddForm((v) => !v)}>
+            {showAddForm ? 'Cancel' : '+ Add Subtask'}
+          </button>
+        )}
       </div>
 
       {total > 0 && (
@@ -53,11 +56,11 @@ export function SubtasksSection({ task, projectId, members, onOpenDetail }: Subt
       <div className="subtasks-section__list">
         {subtasks?.length === 0 && !showAddForm && <p className="dependencies-section__empty">No subtasks yet.</p>}
         {subtasks?.map((subtask) => (
-          <SubtaskRow key={subtask.id} subtask={subtask} projectId={projectId} onOpen={() => onOpenDetail(subtask.id)} />
+          <SubtaskRow key={subtask.id} subtask={subtask} projectId={projectId} onOpen={() => onOpenDetail(subtask.id)} canEdit={canEdit} />
         ))}
       </div>
 
-      {showAddForm && (
+      {showAddForm && canEdit && (
         <AddSubtaskForm
           parentTaskId={task.id}
           members={members}
@@ -79,7 +82,17 @@ export function SubtasksSection({ task, projectId, members, onOpenDetail }: Subt
   );
 }
 
-function SubtaskRow({ subtask, projectId, onOpen }: { subtask: Task; projectId: string; onOpen: () => void }) {
+function SubtaskRow({
+  subtask,
+  projectId,
+  onOpen,
+  canEdit,
+}: {
+  subtask: Task;
+  projectId: string;
+  onOpen: () => void;
+  canEdit: boolean;
+}) {
   const updateTask = useUpdateTask(projectId);
   const isComplete = subtask.status === 'Complete';
 
@@ -95,7 +108,7 @@ function SubtaskRow({ subtask, projectId, onOpen }: { subtask: Task; projectId: 
         className={`subtask-row__checkbox${isComplete ? ' subtask-row__checkbox--checked' : ''}`}
         aria-label={isComplete ? 'Mark as not started' : 'Mark as complete'}
         onClick={toggleComplete}
-        disabled={updateTask.isPending}
+        disabled={!canEdit || updateTask.isPending}
       >
         {isComplete && <Check size={12} />}
       </button>

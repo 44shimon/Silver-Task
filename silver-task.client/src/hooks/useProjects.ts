@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { projectsApi } from '@/api/projectsApi';
 import { adminApi } from '@/api/adminApi';
-import type { AddProjectMemberRequest, CreateProjectRequest, UpdateProjectRequest } from '@/types/project';
+import type { AddProjectMemberRequest, CreateProjectRequest, ProjectRole, UpdateProjectRequest } from '@/types/project';
 
 const projectsKey = ['projects'] as const;
 const allProjectsKey = ['projects', 'all'] as const;
@@ -109,6 +109,17 @@ export function useRemoveProjectMember(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (userId: string) => projectsApi.removeMember(id, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: membersKey(id) });
+    },
+  });
+}
+
+export function useSetProjectMemberRole(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: ProjectRole }) =>
+      projectsApi.setMemberRole(id, userId, role),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: membersKey(id) });
     },

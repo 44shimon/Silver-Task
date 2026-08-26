@@ -31,6 +31,15 @@ export interface AdminStats {
   completedTasks: number;
 }
 
+/** One row of the read-only Admin -> Roles & Permissions matrix (Phase 32) — a role's fixed
+ * permission set plus how many users/memberships currently have it. See PermissionService's own
+ * doc comment (backend) for why this is fixed/code-defined rather than admin-editable. */
+export interface RoleInfo {
+  name: string;
+  permissions: string[];
+  userCount: number;
+}
+
 /** Shown in the delete-user confirmation dialog before an admin can commit to deleting a
  * user — deletion is a soft delete, so nothing here is actually destroyed, but the admin should
  * still see what historical data stays attached to the now-deleted account. */

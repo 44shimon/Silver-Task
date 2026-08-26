@@ -8,9 +8,10 @@ interface EditableDateCellProps {
   task: Task;
   projectId: string;
   field: 'startDate' | 'dueDate';
+  readOnly?: boolean;
 }
 
-export function EditableDateCell({ task, projectId, field }: EditableDateCellProps) {
+export function EditableDateCell({ task, projectId, field, readOnly }: EditableDateCellProps) {
   const updateTask = useUpdateTask(projectId);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -54,6 +55,10 @@ export function EditableDateCell({ task, projectId, field }: EditableDateCellPro
   }
 
   const display = formatDate(value);
+
+  if (readOnly) {
+    return <div className="editable-cell editable-cell--readonly">{display || <span className="editable-cell__placeholder">—</span>}</div>;
+  }
 
   return (
     <div

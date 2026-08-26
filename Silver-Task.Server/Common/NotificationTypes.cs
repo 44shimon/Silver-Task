@@ -32,6 +32,16 @@ namespace Silver_Task.Server.Common
         /// notification in this case, since nobody was actually assigned.</summary>
         public const string RecurringTaskAssigneeInactive = "RecurringTaskAssigneeInactive";
 
+        /// <summary>Phase 32 — fires when a member's per-project role (Manager/Member/Viewer)
+        /// changes, doubling as the closest existing analog to a security-change audit trail (see
+        /// ProjectService.SetMemberRoleAsync's own doc comment on why a second, dedicated audit
+        /// log wasn't added for this phase).</summary>
+        public const string ProjectRoleChanged = "ProjectRoleChanged";
+
+        /// <summary>Phase 32 — fires when an Administrator changes another user's system-wide
+        /// role. Same audit-trail rationale as ProjectRoleChanged.</summary>
+        public const string SystemRoleChanged = "SystemRoleChanged";
+
         public static readonly IReadOnlyList<string> All =
         [
             TaskAssigned,
@@ -47,7 +57,9 @@ namespace Silver_Task.Server.Common
             UserRemovedFromProject,
             ProjectTaskCompleted,
             TaskDependencyCompleted,
-            RecurringTaskAssigneeInactive
+            RecurringTaskAssigneeInactive,
+            ProjectRoleChanged,
+            SystemRoleChanged
         ];
     }
 }

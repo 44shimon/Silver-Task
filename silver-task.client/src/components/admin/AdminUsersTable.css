@@ -18,6 +18,12 @@
   color: var(--text);
 }
 
+.admin-role-badge--viewer {
+  background: var(--bg-subtle);
+  color: var(--text);
+  opacity: 0.8;
+}
+
 .admin-active-toggle {
   padding: 3px 12px;
   border: 1px solid transparent;

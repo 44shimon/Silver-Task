@@ -9,10 +9,11 @@ namespace Silver_Task.Server.Controllers
 {
     [ApiController]
     [Route("api/auth")]
-    public class AuthController(IAuthService authService, IUserService userService) : ControllerBase
+    public class AuthController(IAuthService authService, IUserService userService, IPermissionService permissionService) : ControllerBase
     {
         private readonly IAuthService _authService = authService;
         private readonly IUserService _userService = userService;
+        private readonly IPermissionService _permissionService = permissionService;
 
         [HttpPost("login")]
         [AllowAnonymous]
@@ -27,7 +28,8 @@ namespace Silver_Task.Server.Controllers
             var (user, token, expiresAtUtc) = result.Value;
             SetAuthCookie(token, expiresAtUtc);
 
-            return Ok(user.ToDto());
+            var permissions = await _permissionService.GetSystemPermissionsAsync(user.Role);
+            return Ok(user.ToDto([.. permissions]));
         }
 
         [HttpPost("logout")]
@@ -41,7 +43,8 @@ namespace Silver_Task.Server.Controllers
         public async Task<ActionResult<UserDto>> Me()
         {
             var user = await _userService.GetByIdAsync(User.GetUserId());
-            return Ok(user.ToDto());
+            var permissions = await _permissionService.GetSystemPermissionsAsync(user.Role);
+            return Ok(user.ToDto([.. permissions]));
         }
 
         private void SetAuthCookie(string token, DateTime expiresAtUtc)

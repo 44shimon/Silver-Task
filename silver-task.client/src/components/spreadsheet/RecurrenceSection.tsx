@@ -14,9 +14,10 @@ interface RecurrenceSectionProps {
   projectId: string;
   members: UserSummary[];
   onOpenDetail: (taskId: string) => void;
+  canEdit: boolean;
 }
 
-export function RecurrenceSection({ task, projectId, members, onOpenDetail }: RecurrenceSectionProps) {
+export function RecurrenceSection({ task, projectId, members, onOpenDetail, canEdit }: RecurrenceSectionProps) {
   const { data: rule, isLoading } = useRecurrenceRule(task.id);
   const stopRecurrence = useStopRecurrence(projectId);
   const resumeRecurrence = useResumeRecurrence(projectId);
@@ -27,7 +28,7 @@ export function RecurrenceSection({ task, projectId, members, onOpenDetail }: Re
     <div className="task-detail-panel__section">
       <div className="recurrence-section__header">
         <h3>Recurring Task</h3>
-        {!isLoading && !rule && (
+        {!isLoading && !rule && canEdit && (
           <button type="button" className="subtasks-section__add" onClick={() => setShowForm('create')}>
             Make Recurring
           </button>
@@ -47,28 +48,31 @@ export function RecurrenceSection({ task, projectId, members, onOpenDetail }: Re
             <p className="recurrence-section__next">Next occurrence: {formatDate(rule.nextOccurrenceDate)}</p>
           )}
           <div className="recurrence-section__actions">
-            <button type="button" className="recurrence-section__action" onClick={() => setShowForm('edit')}>
-              Edit Recurrence
-            </button>
-            {rule.isActive ? (
-              <button
-                type="button"
-                className="recurrence-section__action"
-                onClick={() => stopRecurrence.mutate(task.id)}
-                disabled={stopRecurrence.isPending}
-              >
-                {stopRecurrence.isPending ? 'Stopping...' : 'Stop Recurrence'}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="recurrence-section__action"
-                onClick={() => resumeRecurrence.mutate(task.id)}
-                disabled={resumeRecurrence.isPending}
-              >
-                {resumeRecurrence.isPending ? 'Resuming...' : 'Resume Recurrence'}
+            {canEdit && (
+              <button type="button" className="recurrence-section__action" onClick={() => setShowForm('edit')}>
+                Edit Recurrence
               </button>
             )}
+            {canEdit &&
+              (rule.isActive ? (
+                <button
+                  type="button"
+                  className="recurrence-section__action"
+                  onClick={() => stopRecurrence.mutate(task.id)}
+                  disabled={stopRecurrence.isPending}
+                >
+                  {stopRecurrence.isPending ? 'Stopping...' : 'Stop Recurrence'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="recurrence-section__action"
+                  onClick={() => resumeRecurrence.mutate(task.id)}
+                  disabled={resumeRecurrence.isPending}
+                >
+                  {resumeRecurrence.isPending ? 'Resuming...' : 'Resume Recurrence'}
+                </button>
+              ))}
             <button type="button" className="recurrence-section__action" onClick={() => setShowSeries(true)}>
               View Series
             </button>

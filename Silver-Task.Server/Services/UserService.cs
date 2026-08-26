@@ -46,11 +46,16 @@ namespace Silver_Task.Server.Services
         Task DeleteAsync(Guid id, Guid callerId);
     }
 
-    public class UserService(AppDbContext db, IPasswordHasher<User> passwordHasher, ISystemSettingsService systemSettings) : IUserService
+    public class UserService(
+        AppDbContext db,
+        IPasswordHasher<User> passwordHasher,
+        ISystemSettingsService systemSettings,
+        INotificationService notificationService) : IUserService
     {
         private readonly AppDbContext _db = db;
         private readonly IPasswordHasher<User> _passwordHasher = passwordHasher;
         private readonly ISystemSettingsService _systemSettings = systemSettings;
+        private readonly INotificationService _notificationService = notificationService;
 
         // Deleted users never appear in the normal admin list — same "gone from active lists,
         // preserved in historical records" split Phase 25 already established for custom fields.
@@ -110,10 +115,19 @@ namespace Silver_Task.Server.Services
                 }
             }
 
+            var previousRole = user.Role;
+
             user.Name = request.Name.Trim();
             user.Role = request.Role;
             user.IsActive = request.IsActive;
             user.UpdatedAt = DateTime.UtcNow;
+
+            if (previousRole != request.Role)
+            {
+                await _notificationService.NotifyAsync(
+                    user.Id, callerId, NotificationTypes.SystemRoleChanged, "Your role was changed",
+                    $"Your system role was changed to {request.Role}.");
+            }
 
             await _db.SaveChangesAsync();
             return user;

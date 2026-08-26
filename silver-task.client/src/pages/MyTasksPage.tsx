@@ -1,9 +1,11 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMyTasks, useTasks } from '@/hooks/useTasks';
 import { useMyTasksFilters, MY_TASK_SORT_FIELDS, MY_TASK_SORT_FIELD_LABELS } from '@/hooks/useMyTasksFilters';
-import { useProjects, useProjectMembers } from '@/hooks/useProjects';
+import { useProject, useProjects, useProjectMembers } from '@/hooks/useProjects';
 import { useCustomFields } from '@/hooks/useCustomFields';
 import { useCurrentUser } from '@/hooks/useAuth';
+import { useProjectPermissions } from '@/hooks/usePermissions';
+import { Permissions } from '@/types/permissions';
 import { MyTasksSummary } from '@/components/dashboard/MyTasksSummary';
 import { QuickFilterChips } from '@/components/filters/QuickFilterChips';
 import { MyTasksFilterPanel } from '@/components/dashboard/MyTasksFilterPanel';
@@ -49,6 +51,8 @@ export function MyTasksPage() {
   const { data: selectedTaskMembers } = useProjectMembers(selectedTask?.projectId);
   const { data: selectedTaskCustomFields } = useCustomFields(selectedTask?.projectId);
   const { data: selectedProjectTasks } = useTasks(selectedTask?.projectId);
+  const { data: selectedTaskProject } = useProject(selectedTask?.projectId);
+  const { can } = useProjectPermissions(selectedTaskProject);
 
   // A dependency's counterpart task belongs to the same project (enforced server-side) but may
   // not be assigned to the current user, so it might not exist in `tasks` (My Tasks is scoped to
@@ -131,6 +135,7 @@ export function MyTasksPage() {
           currentUserId={currentUser?.id}
           onClose={closeTaskDetail}
           onOpenDetail={openDependencyDetail}
+          canEdit={can(Permissions.TasksEdit)}
         />
       )}
     </div>

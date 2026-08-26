@@ -10,11 +10,12 @@ interface AssignedToDropdownCellProps {
   projectId: string;
   /** Project members only (per spec) — not every system user. */
   members: UserSummary[];
+  readOnly?: boolean;
 }
 
 const UNASSIGNED_VALUE = '';
 
-export function AssignedToDropdownCell({ task, projectId, members }: AssignedToDropdownCellProps) {
+export function AssignedToDropdownCell({ task, projectId, members, readOnly }: AssignedToDropdownCellProps) {
   const updateTask = useUpdateTask(projectId);
 
   function handleChange(event: ChangeEvent<HTMLSelectElement>) {
@@ -37,7 +38,7 @@ export function AssignedToDropdownCell({ task, projectId, members }: AssignedToD
         className={`dropdown-cell dropdown-cell--plain${updateTask.isError ? ' dropdown-cell--error' : ''}`}
         value={task.assignedTo?.id ?? UNASSIGNED_VALUE}
         onChange={handleChange}
-        disabled={updateTask.isPending}
+        disabled={readOnly || updateTask.isPending}
         title={updateTask.isError ? 'Could not save — try again' : undefined}
       >
         <option value={UNASSIGNED_VALUE}>Unassigned</option>

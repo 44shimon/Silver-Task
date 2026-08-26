@@ -6,7 +6,7 @@ import { buildUserUpdateRequest, useUpdateUser } from '@/hooks/useAdminUsers';
 import '@/components/spreadsheet/DropdownCell.css';
 import './AdminUsersTable.css';
 
-const ROLE_OPTIONS: UserRole[] = ['Administrator', 'Manager', 'Member'];
+const ROLE_OPTIONS: UserRole[] = ['Administrator', 'Manager', 'Member', 'Viewer'];
 
 interface UserRoleDropdownCellProps {
   user: AdminUser;

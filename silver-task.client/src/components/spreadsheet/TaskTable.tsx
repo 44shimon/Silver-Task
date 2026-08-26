@@ -41,6 +41,13 @@ interface TaskTableProps {
   onDuplicate: (taskId: string) => void;
   onDelete: (taskId: string) => void;
   onOpenDetail: (taskId: string) => void;
+  /** Phase 32 read-only mode — false hides the New Task/expand-into-edit affordances (still
+   * shows current values) instead of disabling each control individually. Duplicate is also an
+   * edit-tier action (it creates a new task). The backend independently rejects the write either
+   * way; this only avoids offering controls that would fail. */
+  canEdit: boolean;
+  /** Delete is a separate (and often stricter) permission from edit — see Tasks.Delete. */
+  canDelete: boolean;
 }
 
 const columnHelper = legacyCreateColumnHelper<TaskTreeNode>();
@@ -57,6 +64,8 @@ export function TaskTable({
   onDuplicate,
   onDelete,
   onOpenDetail,
+  canEdit,
+  canDelete,
 }: TaskTableProps) {
   // Expanded by default — subtasks should be visible without an extra step the first time a
   // project with hierarchy is opened. Kept in local state (not reloaded from the server), so
@@ -112,7 +121,7 @@ export function TaskTable({
               ) : (
                 <span className="task-table__expand-spacer" />
               )}
-              <EditableTitleCell task={task} projectId={projectId} />
+              <EditableTitleCell task={task} projectId={projectId} readOnly={!canEdit} />
               {task.recurringTaskId && (
                 <span className="task-table__recurring-icon" title="Recurring task">
                   <Repeat size={12} />
@@ -139,7 +148,7 @@ export function TaskTable({
         ),
         size: 150,
         minSize: 130,
-        cell: (info) => <StatusDropdownCell task={info.row.original} projectId={projectId} />,
+        cell: (info) => <StatusDropdownCell task={info.row.original} projectId={projectId} readOnly={!canEdit} />,
       }),
       columnHelper.accessor('priority', {
         header: () => (
@@ -153,7 +162,7 @@ export function TaskTable({
         ),
         size: 130,
         minSize: 110,
-        cell: (info) => <PriorityDropdownCell task={info.row.original} projectId={projectId} />,
+        cell: (info) => <PriorityDropdownCell task={info.row.original} projectId={projectId} readOnly={!canEdit} />,
       }),
       columnHelper.accessor((task) => task.assignedTo?.name ?? '', {
         id: 'assignedTo',
@@ -169,14 +178,14 @@ export function TaskTable({
         size: 170,
         minSize: 130,
         cell: (info) => (
-          <AssignedToDropdownCell task={info.row.original} projectId={projectId} members={members} />
+          <AssignedToDropdownCell task={info.row.original} projectId={projectId} members={members} readOnly={!canEdit} />
         ),
       }),
       columnHelper.accessor('startDate', {
         header: 'Start Date',
         size: 120,
         minSize: 100,
-        cell: (info) => <EditableDateCell task={info.row.original} projectId={projectId} field="startDate" />,
+        cell: (info) => <EditableDateCell task={info.row.original} projectId={projectId} field="startDate" readOnly={!canEdit} />,
       }),
       columnHelper.accessor('dueDate', {
         header: () => (
@@ -190,7 +199,7 @@ export function TaskTable({
         ),
         size: 120,
         minSize: 100,
-        cell: (info) => <EditableDateCell task={info.row.original} projectId={projectId} field="dueDate" />,
+        cell: (info) => <EditableDateCell task={info.row.original} projectId={projectId} field="dueDate" readOnly={!canEdit} />,
       }),
       columnHelper.display({
         id: 'dependencies',
@@ -218,27 +227,31 @@ export function TaskTable({
         enableResizing: false,
         cell: (info) => (
           <div className="task-table__actions">
-            <button
-              type="button"
-              className="icon-button"
-              aria-label="Duplicate task"
-              onClick={() => onDuplicate(info.row.original.id)}
-            >
-              <Copy size={14} />
-            </button>
-            <button
-              type="button"
-              className="icon-button"
-              aria-label="Delete task"
-              onClick={() => onDelete(info.row.original.id)}
-            >
-              <Trash2 size={14} />
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Duplicate task"
+                onClick={() => onDuplicate(info.row.original.id)}
+              >
+                <Copy size={14} />
+              </button>
+            )}
+            {canDelete && (
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Delete task"
+                onClick={() => onDelete(info.row.original.id)}
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
           </div>
         ),
       }),
     ],
-    [projectId, members, customFields, sortField, sortDirection, onSortFieldClick, onDuplicate, onDelete, onOpenDetail],
+    [projectId, members, customFields, sortField, sortDirection, onSortFieldClick, onDuplicate, onDelete, onOpenDetail, canEdit, canDelete],
   );
 
   const table = useLegacyTable({

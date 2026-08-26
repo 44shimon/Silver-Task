@@ -89,7 +89,7 @@ namespace Silver_Task.Server.Services
         public async Task<RecurringTask> CreateAsync(Guid taskId, CreateRecurrenceRequest request, Guid callerId, UserRole callerRole)
         {
             var task = await LoadTaskForPermissionCheckAsync(taskId);
-            await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+            await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
 
             if (task.RecurringTaskId is not null)
             {
@@ -151,7 +151,7 @@ namespace Silver_Task.Server.Services
 
         public async Task<RecurringTask> UpdateAsync(Guid taskId, UpdateRecurrenceRequest request, Guid callerId, UserRole callerRole)
         {
-            var (_, rule) = await LoadTaskAndRuleAsync(taskId, callerId, callerRole);
+            var (_, rule) = await LoadTaskAndRuleAsync(taskId, callerId, callerRole, AccessTier.Edit);
             var recurringTaskId = rule.Id;
 
             ValidateRule(request.Frequency, request.Interval, request.DaysOfWeek, request.DayOfMonth, request.MonthOfYear, request.StartDate, request.EndDate, request.MaxOccurrences);
@@ -243,7 +243,7 @@ namespace Silver_Task.Server.Services
 
         public async Task<RecurringTask> StopAsync(Guid taskId, Guid callerId, UserRole callerRole)
         {
-            var (_, rule) = await LoadTaskAndRuleAsync(taskId, callerId, callerRole);
+            var (_, rule) = await LoadTaskAndRuleAsync(taskId, callerId, callerRole, AccessTier.Edit);
 
             if (rule.IsActive)
             {
@@ -264,7 +264,7 @@ namespace Silver_Task.Server.Services
 
         public async Task<RecurringTask> ResumeAsync(Guid taskId, Guid callerId, UserRole callerRole)
         {
-            var (_, rule) = await LoadTaskAndRuleAsync(taskId, callerId, callerRole);
+            var (_, rule) = await LoadTaskAndRuleAsync(taskId, callerId, callerRole, AccessTier.Edit);
 
             if (!rule.IsActive)
             {
@@ -303,7 +303,7 @@ namespace Silver_Task.Server.Services
 
         public async Task DeleteAsync(Guid taskId, Guid callerId, UserRole callerRole)
         {
-            var (_, rule) = await LoadTaskAndRuleAsync(taskId, callerId, callerRole, manageTier: true);
+            var (_, rule) = await LoadTaskAndRuleAsync(taskId, callerId, callerRole, AccessTier.Manage);
 
             if (rule.TemplateTaskId is Guid templateId)
             {
@@ -683,21 +683,27 @@ namespace Silver_Task.Server.Services
             return project ?? throw new NotFoundException($"Project '{projectId}' was not found.");
         }
 
+        private enum AccessTier { View, Edit, Manage }
+
         /// <summary>Resolves a task to the recurring rule it belongs to (any occurrence works, not
         /// just the template — every generated task carries RecurringTaskId) after checking the
-        /// caller can act on that task's project. manageTier selects EnsureCanManageAsync (Delete)
-        /// over the default EnsureCanParticipateAsync (view/edit/stop/resume/view-series).</summary>
-        private async Task<(TaskItem Task, RecurringTask Rule)> LoadTaskAndRuleAsync(Guid taskId, Guid callerId, UserRole callerRole, bool manageTier = false)
+        /// caller can act on that task's project at the requested tier: View (GetSeriesAsync),
+        /// Edit (Update/Stop/Resume — a Viewer can never reach these), or Manage (Delete).</summary>
+        private async Task<(TaskItem Task, RecurringTask Rule)> LoadTaskAndRuleAsync(Guid taskId, Guid callerId, UserRole callerRole, AccessTier tier = AccessTier.View)
         {
             var task = await LoadTaskForPermissionCheckAsync(taskId);
 
-            if (manageTier)
+            switch (tier)
             {
-                await _projectAccess.EnsureCanManageAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
-            }
-            else
-            {
-                await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+                case AccessTier.Manage:
+                    await _projectAccess.EnsureCanManageAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+                    break;
+                case AccessTier.Edit:
+                    await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+                    break;
+                default:
+                    await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+                    break;
             }
 
             if (task.RecurringTaskId is not Guid recurringTaskId)

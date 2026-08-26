@@ -37,6 +37,11 @@ namespace Silver_Task.Server.Services
         Task<ProjectMember?> AddMemberAsync(Guid projectId, string email, Guid callerId, UserRole callerRole);
 
         Task RemoveMemberAsync(Guid projectId, Guid targetUserId, Guid callerId, UserRole callerRole);
+
+        /// <summary>Changes a member's project-scoped role (Phase 32) — Manage-tier, same as
+        /// adding/removing members. The project owner's own role can't be changed this way (their
+        /// row is always Manager, matching their always-implicit-Manager access).</summary>
+        Task<ProjectMember> SetMemberRoleAsync(Guid projectId, Guid targetUserId, ProjectRole role, Guid callerId, UserRole callerRole);
     }
 
     public class ProjectService(
@@ -76,6 +81,13 @@ namespace Silver_Task.Server.Services
 
         public async Task<Project> CreateAsync(CreateProjectRequest request, Guid ownerId, UserRole ownerRole)
         {
+            // A Viewer can never create a project regardless of the system setting below — that
+            // setting only ever widens Manager/Member, matching how it's never let Viewers act
+            // anywhere else either (see ProjectAccessService.EnsureCanEditAsync's own rule).
+            if (ownerRole == UserRole.Viewer)
+            {
+                throw new ForbiddenException("Viewers cannot create projects.");
+            }
             if (ownerRole != UserRole.Administrator && !await _systemSettings.GetBoolAsync(SystemSettingKeys.AllowUsersToCreateProjects))
             {
                 throw new ForbiddenException("Project creation is currently disabled by an Administrator.");
@@ -102,7 +114,8 @@ namespace Silver_Task.Server.Services
             {
                 Id = Guid.NewGuid(),
                 ProjectId = project.Id,
-                UserId = ownerId
+                UserId = ownerId,
+                Role = ProjectRole.Manager
             };
             _db.ProjectMembers.Add(ownerMembership);
             project.Members.Add(ownerMembership);
@@ -236,6 +249,34 @@ namespace Silver_Task.Server.Services
                 $"You were removed from \"{project.Name}\".", null, project.Id);
 
             await _db.SaveChangesAsync();
+        }
+
+        public async Task<ProjectMember> SetMemberRoleAsync(Guid projectId, Guid targetUserId, ProjectRole role, Guid callerId, UserRole callerRole)
+        {
+            var project = await LoadProjectAsync(projectId);
+            await _projectAccess.EnsureCanManageAsync(project.Id, project.OwnerId, callerId, callerRole);
+
+            if (targetUserId == project.OwnerId)
+            {
+                throw new ConflictException("The project owner is always the project's Manager and can't be changed.");
+            }
+
+            var member = await _db.ProjectMembers.Include(m => m.User)
+                .SingleOrDefaultAsync(m => m.ProjectId == projectId && m.UserId == targetUserId)
+                ?? throw new NotFoundException("That user is not a member of this project.");
+
+            if (member.Role != role)
+            {
+                member.Role = role;
+
+                await _notificationService.NotifyAsync(
+                    targetUserId, callerId, NotificationTypes.ProjectRoleChanged, "Project role changed",
+                    $"Your role in \"{project.Name}\" was changed to {role}.", null, project.Id);
+
+                await _db.SaveChangesAsync();
+            }
+
+            return member;
         }
 
         private async Task<Project> LoadProjectAsync(Guid projectId)

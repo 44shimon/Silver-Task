@@ -6,9 +6,10 @@ import './EditableCell.css';
 interface EditableTitleCellProps {
   task: Task;
   projectId: string;
+  readOnly?: boolean;
 }
 
-export function EditableTitleCell({ task, projectId }: EditableTitleCellProps) {
+export function EditableTitleCell({ task, projectId, readOnly }: EditableTitleCellProps) {
   const updateTask = useUpdateTask(projectId);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(task.title);
@@ -49,6 +50,10 @@ export function EditableTitleCell({ task, projectId }: EditableTitleCellProps) {
         autoFocus
       />
     );
+  }
+
+  if (readOnly) {
+    return <div className="editable-cell editable-cell--readonly">{task.title}</div>;
   }
 
   return (

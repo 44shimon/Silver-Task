@@ -1,3 +1,5 @@
+using Silver_Task.Server.Models.Entities.Enums;
+
 namespace Silver_Task.Server.Models.Entities
 {
     /// <summary>Join entity granting a user access to a project.</summary>
@@ -8,6 +10,12 @@ namespace Silver_Task.Server.Models.Entities
         public Guid ProjectId { get; set; }
 
         public Guid UserId { get; set; }
+
+        /// <summary>Per-project role (Phase 32) — see ProjectRole's own doc comment. Defaults to
+        /// Member for every new membership except the project owner's own row, which is always
+        /// created with Manager. Drives ProjectAccessService.EnsureCanManageAsync/EnsureCanEditAsync,
+        /// independently of the member's system-wide UserRole.</summary>
+        public ProjectRole Role { get; set; } = ProjectRole.Member;
 
         public DateTime CreatedAt { get; set; }
 

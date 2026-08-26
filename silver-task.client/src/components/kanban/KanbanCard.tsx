@@ -10,6 +10,7 @@ interface KanbanCardProps {
   task: Task;
   isDragging: boolean;
   hasError: boolean;
+  canEdit: boolean;
   onDragStart: () => void;
   onDragEnd: () => void;
   onOpenDetail: () => void;
@@ -18,8 +19,12 @@ interface KanbanCardProps {
 // Native HTML5 drag-and-drop (no new dependency) — `draggable` + a click handler coexist fine
 // here since the card has no inline-edit affordance of its own to conflict with (unlike a
 // spreadsheet cell), so clicking anywhere on the card to open its detail is unambiguous.
-export function KanbanCard({ task, isDragging, hasError, onDragStart, onDragEnd, onOpenDetail }: KanbanCardProps) {
+export function KanbanCard({ task, isDragging, hasError, canEdit, onDragStart, onDragEnd, onOpenDetail }: KanbanCardProps) {
   function handleDragStart(event: DragEvent<HTMLDivElement>) {
+    if (!canEdit) {
+      event.preventDefault();
+      return;
+    }
     event.dataTransfer.setData('text/plain', task.id);
     event.dataTransfer.effectAllowed = 'move';
     onDragStart();
@@ -35,7 +40,7 @@ export function KanbanCard({ task, isDragging, hasError, onDragStart, onDragEnd,
   return (
     <div
       className={`kanban-card${isDragging ? ' kanban-card--dragging' : ''}${hasError ? ' kanban-card--error' : ''}`}
-      draggable
+      draggable={canEdit}
       onDragStart={handleDragStart}
       onDragEnd={onDragEnd}
       onClick={onOpenDetail}

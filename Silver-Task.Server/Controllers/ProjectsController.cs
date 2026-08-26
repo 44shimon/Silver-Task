@@ -17,13 +17,15 @@ namespace Silver_Task.Server.Controllers
         ITaskService taskService,
         ICustomFieldService customFieldService,
         ITaskDependencyService dependencyService,
-        IRecurringTaskService recurringTaskService) : ControllerBase
+        IRecurringTaskService recurringTaskService,
+        IPermissionService permissionService) : ControllerBase
     {
         private readonly IProjectService _projectService = projectService;
         private readonly ITaskService _taskService = taskService;
         private readonly ICustomFieldService _customFieldService = customFieldService;
         private readonly ITaskDependencyService _dependencyService = dependencyService;
         private readonly IRecurringTaskService _recurringTaskService = recurringTaskService;
+        private readonly IPermissionService _permissionService = permissionService;
 
         [HttpGet]
         public async Task<ActionResult<IReadOnlyList<ProjectDto>>> GetAll([FromQuery] bool includeArchived = false)
@@ -44,7 +46,8 @@ namespace Silver_Task.Server.Controllers
         public async Task<ActionResult<ProjectDto>> GetById(Guid id)
         {
             var project = await _projectService.GetByIdAsync(id, User.GetUserId(), User.GetRole());
-            return Ok(project.ToDto());
+            var myPermissions = await _permissionService.GetProjectPermissionsAsync(project.Id, project.OwnerId, User.GetUserId(), User.GetRole());
+            return Ok(project.ToDto(myPermissions: [.. myPermissions]));
         }
 
         [HttpPut("{id:guid}")]
@@ -101,6 +104,15 @@ namespace Silver_Task.Server.Controllers
         {
             await _projectService.RemoveMemberAsync(id, userId, User.GetUserId(), User.GetRole());
             return NoContent();
+        }
+
+        /// <summary>Changes a member's project-scoped role (Manager/Member/Viewer) — see
+        /// ProjectMember.Role / ProjectRole. Manage-tier, same as adding/removing members.</summary>
+        [HttpPut("{id:guid}/members/{userId:guid}/role")]
+        public async Task<ActionResult<ProjectMemberDto>> SetMemberRole(Guid id, Guid userId, [FromBody] SetProjectMemberRoleRequest request)
+        {
+            var member = await _projectService.SetMemberRoleAsync(id, userId, request.Role, User.GetUserId(), User.GetRole());
+            return Ok(member.ToDto());
         }
 
         [HttpGet("{id:guid}/tasks")]

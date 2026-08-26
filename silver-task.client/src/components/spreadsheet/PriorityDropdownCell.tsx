@@ -7,9 +7,10 @@ import './DropdownCell.css';
 interface PriorityDropdownCellProps {
   task: Task;
   projectId: string;
+  readOnly?: boolean;
 }
 
-export function PriorityDropdownCell({ task, projectId }: PriorityDropdownCellProps) {
+export function PriorityDropdownCell({ task, projectId, readOnly }: PriorityDropdownCellProps) {
   const updateTask = useUpdateTask(projectId);
 
   function handleChange(event: ChangeEvent<HTMLSelectElement>) {
@@ -25,7 +26,7 @@ export function PriorityDropdownCell({ task, projectId }: PriorityDropdownCellPr
         className={`dropdown-cell dropdown-cell--badge dropdown-cell--priority-${task.priority.toLowerCase()}${updateTask.isError ? ' dropdown-cell--error' : ''}`}
         value={task.priority}
         onChange={handleChange}
-        disabled={updateTask.isPending}
+        disabled={readOnly || updateTask.isPending}
         title={updateTask.isError ? 'Could not save — try again' : undefined}
       >
         {PRIORITY_OPTIONS.map((priority) => (

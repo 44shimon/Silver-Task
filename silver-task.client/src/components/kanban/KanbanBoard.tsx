@@ -12,12 +12,15 @@ interface KanbanBoardProps {
    * within each column since grouping is a plain filter over this already-sorted array. */
   tasks: Task[];
   onOpenDetail: (taskId: string) => void;
+  /** Phase 32 read-only mode — false disables drag-to-change-status (the backend independently
+   * rejects the write either way; this only avoids offering a drag gesture that would fail). */
+  canEdit: boolean;
 }
 
 // Reuses useUpdateTask exactly as every dropdown cell in the Table view does: same optimistic
 // update, same rollback on failure, same underlying PUT /api/tasks/{id} — a drag-drop status
 // change is not a different kind of edit than picking Status from the table's dropdown.
-export function KanbanBoard({ projectId, tasks, onOpenDetail }: KanbanBoardProps) {
+export function KanbanBoard({ projectId, tasks, onOpenDetail, canEdit }: KanbanBoardProps) {
   const updateTask = useUpdateTask(projectId);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
@@ -27,6 +30,9 @@ export function KanbanBoard({ projectId, tasks, onOpenDetail }: KanbanBoardProps
 
   function handleDrop(taskId: string, statusId: string) {
     setDragOverColumnId(null);
+    if (!canEdit) {
+      return;
+    }
     const task = tasks.find((t) => t.id === taskId);
     if (!task || task.status === statusId) {
       return;
@@ -43,6 +49,7 @@ export function KanbanBoard({ projectId, tasks, onOpenDetail }: KanbanBoardProps
           isDragOver={dragOverColumnId === column.id}
           draggingTaskId={draggingTaskId}
           errorTaskId={errorTaskId}
+          canEdit={canEdit}
           onCardDragStart={setDraggingTaskId}
           onCardDragEnd={() => setDraggingTaskId(null)}
           onDragEnter={() => setDragOverColumnId(column.id)}

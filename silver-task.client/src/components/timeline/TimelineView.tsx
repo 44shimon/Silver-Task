@@ -31,12 +31,15 @@ interface TimelineViewProps {
    * whatever the toolbar's current sort is, same as Kanban preserving it within columns. */
   tasks: Task[];
   onOpenDetail: (taskId: string) => void;
+  /** Phase 32 read-only mode — false blocks the drag-move/resize commit handler (the backend
+   * independently rejects the write either way). */
+  canEdit: boolean;
 }
 
 // Drag-to-move/resize reuses useUpdateTask + the taskFieldChange.dateRange helper — same
 // optimistic update, same rollback-on-failure, same PUT /api/tasks/{id} as every other date
 // edit in the app, just driven by a pointer gesture instead of the date-picker inputs.
-export function TimelineView({ projectId, tasks, onOpenDetail }: TimelineViewProps) {
+export function TimelineView({ projectId, tasks, onOpenDetail, canEdit }: TimelineViewProps) {
   const updateTask = useUpdateTask(projectId);
   const { data: dependencyEdges } = useProjectDependencyEdges(projectId);
   const [scale, setScale] = useState<TimelineScale>('week');
@@ -91,6 +94,9 @@ export function TimelineView({ projectId, tasks, onOpenDetail }: TimelineViewPro
   }
 
   function handleBarDragEnd(task: Task, mode: 'move' | 'resize-left' | 'resize-right', deltaDays: number) {
+    if (!canEdit) {
+      return;
+    }
     const { start, end } = displayRange(task);
 
     if (mode === 'move') {

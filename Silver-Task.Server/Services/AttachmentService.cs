@@ -64,7 +64,7 @@ namespace Silver_Task.Server.Services
         public async Task<TaskAttachment> UploadAsync(Guid taskId, IFormFile file, Guid callerId, UserRole callerRole)
         {
             var task = await LoadTaskAsync(taskId);
-            await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+            await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
 
             if (!await _systemSettings.GetBoolAsync(SystemSettingKeys.AllowAttachments))
             {
@@ -149,7 +149,10 @@ namespace Silver_Task.Server.Services
             }
             else
             {
-                await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+                // Still requires edit-tier, not just view-tier — a user demoted to Viewer since
+                // uploading can no longer delete even their own past upload, consistent with
+                // Viewers never being able to write anything.
+                await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
             }
 
             var fullPath = Path.Combine(_storageRoot, attachment.StoragePath);

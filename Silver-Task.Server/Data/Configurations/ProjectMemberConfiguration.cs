@@ -11,6 +11,7 @@ namespace Silver_Task.Server.Data.Configurations
             builder.ToTable("ProjectMembers");
             builder.HasKey(pm => pm.Id);
 
+            builder.Property(pm => pm.Role).HasConversion<string>().HasMaxLength(20).IsRequired();
             builder.Property(pm => pm.CreatedAt).HasDefaultValueSql("timezone('utc', now())");
 
             builder.HasIndex(pm => new { pm.ProjectId, pm.UserId }).IsUnique();

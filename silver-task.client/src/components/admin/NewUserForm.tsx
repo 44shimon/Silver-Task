@@ -5,7 +5,7 @@ import { useCreateUser } from '@/hooks/useAdminUsers';
 import { ApiError } from '@/api/httpClient';
 import './NewUserForm.css';
 
-const ROLE_OPTIONS: UserRole[] = ['Member', 'Manager', 'Administrator'];
+const ROLE_OPTIONS: UserRole[] = ['Member', 'Manager', 'Administrator', 'Viewer'];
 
 export function NewUserForm() {
   const createUser = useCreateUser();

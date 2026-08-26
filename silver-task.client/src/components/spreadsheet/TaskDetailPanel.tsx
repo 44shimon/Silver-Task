@@ -32,9 +32,12 @@ interface TaskDetailPanelProps {
   /** Swaps which task this already-open panel shows (updates the `?task=` param) — reused by
    * DependenciesSection so clicking a dependency opens it in the existing detail component. */
   onOpenDetail: (taskId: string) => void;
+  /** Phase 32 read-only mode — Tasks.Edit tier. Gates every field editor, Move Task, and every
+   * child section's own "add" action (subtasks, dependencies, recurrence, comments). */
+  canEdit: boolean;
 }
 
-export function TaskDetailPanel({ task, projectId, members, customFields, tasks, currentUserId, onClose, onOpenDetail }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, projectId, members, customFields, tasks, currentUserId, onClose, onOpenDetail, canEdit }: TaskDetailPanelProps) {
   const [showMoveDialog, setShowMoveDialog] = useState(false);
 
   useEffect(() => {
@@ -51,16 +54,18 @@ export function TaskDetailPanel({ task, projectId, members, customFields, tasks,
     <div className="task-detail-backdrop" onClick={onClose}>
       <div className="task-detail-panel" onClick={(e) => e.stopPropagation()}>
         <div className="task-detail-panel__header">
-          <TaskTitleField task={task} projectId={projectId} />
-          <button
-            type="button"
-            className="icon-button"
-            aria-label="Move task"
-            title="Move task"
-            onClick={() => setShowMoveDialog(true)}
-          >
-            <ArrowRightLeft size={16} />
-          </button>
+          <TaskTitleField task={task} projectId={projectId} readOnly={!canEdit} />
+          {canEdit && (
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Move task"
+              title="Move task"
+              onClick={() => setShowMoveDialog(true)}
+            >
+              <ArrowRightLeft size={16} />
+            </button>
+          )}
           <button type="button" className="icon-button" aria-label="Close task details" onClick={onClose}>
             <X size={18} />
           </button>
@@ -71,17 +76,17 @@ export function TaskDetailPanel({ task, projectId, members, customFields, tasks,
         <div className="task-detail-panel__body">
           <div className="task-detail-panel__field">
             <span className="task-detail-panel__label">Description</span>
-            <TaskDescriptionField task={task} projectId={projectId} />
+            <TaskDescriptionField task={task} projectId={projectId} readOnly={!canEdit} />
           </div>
 
           <div className="task-detail-panel__row">
             <div className="task-detail-panel__field">
               <span className="task-detail-panel__label">Status</span>
-              <StatusDropdownCell task={task} projectId={projectId} />
+              <StatusDropdownCell task={task} projectId={projectId} readOnly={!canEdit} />
             </div>
             <div className="task-detail-panel__field">
               <span className="task-detail-panel__label">Priority</span>
-              <PriorityDropdownCell task={task} projectId={projectId} />
+              <PriorityDropdownCell task={task} projectId={projectId} readOnly={!canEdit} />
             </div>
           </div>
 
@@ -95,17 +100,17 @@ export function TaskDetailPanel({ task, projectId, members, customFields, tasks,
 
           <div className="task-detail-panel__field">
             <span className="task-detail-panel__label">Assigned To</span>
-            <AssignedToDropdownCell task={task} projectId={projectId} members={members} />
+            <AssignedToDropdownCell task={task} projectId={projectId} members={members} readOnly={!canEdit} />
           </div>
 
           <div className="task-detail-panel__row">
             <div className="task-detail-panel__field">
               <span className="task-detail-panel__label">Start Date</span>
-              <EditableDateCell task={task} projectId={projectId} field="startDate" />
+              <EditableDateCell task={task} projectId={projectId} field="startDate" readOnly={!canEdit} />
             </div>
             <div className="task-detail-panel__field">
               <span className="task-detail-panel__label">Due Date</span>
-              <EditableDateCell task={task} projectId={projectId} field="dueDate" />
+              <EditableDateCell task={task} projectId={projectId} field="dueDate" readOnly={!canEdit} />
             </div>
           </div>
 
@@ -121,11 +126,11 @@ export function TaskDetailPanel({ task, projectId, members, customFields, tasks,
             </div>
           )}
 
-          <RecurrenceSection task={task} projectId={projectId} members={members} onOpenDetail={onOpenDetail} />
-          <SubtasksSection task={task} projectId={projectId} members={members} onOpenDetail={onOpenDetail} />
-          <DependenciesSection task={task} projectId={projectId} tasks={tasks} onOpenDetail={onOpenDetail} />
-          <AttachmentsSection taskId={task.id} />
-          <CommentsSection taskId={task.id} currentUserId={currentUserId} />
+          <RecurrenceSection task={task} projectId={projectId} members={members} onOpenDetail={onOpenDetail} canEdit={canEdit} />
+          <SubtasksSection task={task} projectId={projectId} members={members} onOpenDetail={onOpenDetail} canEdit={canEdit} />
+          <DependenciesSection task={task} projectId={projectId} tasks={tasks} onOpenDetail={onOpenDetail} canEdit={canEdit} />
+          <AttachmentsSection taskId={task.id} canEdit={canEdit} />
+          <CommentsSection taskId={task.id} currentUserId={currentUserId} canEdit={canEdit} />
           <ActivityHistorySection taskId={task.id} />
         </div>
 
@@ -137,7 +142,7 @@ export function TaskDetailPanel({ task, projectId, members, customFields, tasks,
   );
 }
 
-function TaskTitleField({ task, projectId }: { task: Task; projectId: string }) {
+function TaskTitleField({ task, projectId, readOnly }: { task: Task; projectId: string; readOnly?: boolean }) {
   const updateTask = useUpdateTask(projectId);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(task.title);
@@ -176,6 +181,10 @@ function TaskTitleField({ task, projectId }: { task: Task; projectId: string }) 
     );
   }
 
+  if (readOnly) {
+    return <h2 className="task-detail-panel__title">{task.title}</h2>;
+  }
+
   return (
     <h2 className="task-detail-panel__title" onClick={startEditing} title="Click to rename">
       {task.title}
@@ -183,7 +192,7 @@ function TaskTitleField({ task, projectId }: { task: Task; projectId: string }) 
   );
 }
 
-function TaskDescriptionField({ task, projectId }: { task: Task; projectId: string }) {
+function TaskDescriptionField({ task, projectId, readOnly }: { task: Task; projectId: string; readOnly?: boolean }) {
   const updateTask = useUpdateTask(projectId);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -220,6 +229,14 @@ function TaskDescriptionField({ task, projectId }: { task: Task; projectId: stri
         rows={4}
         autoFocus
       />
+    );
+  }
+
+  if (readOnly) {
+    return (
+      <div className="task-detail-panel__description">
+        {task.description || <span className="editable-cell__placeholder">No description.</span>}
+      </div>
     );
   }
 

@@ -4,6 +4,7 @@ import type {
   CreateProjectRequest,
   Project,
   ProjectMember,
+  ProjectRole,
   UpdateProjectRequest,
 } from '@/types/project';
 
@@ -19,4 +20,6 @@ export const projectsApi = {
   addMember: (id: string, request: AddProjectMemberRequest) =>
     httpClient.post<ProjectMember>(`/projects/${id}/members`, request),
   removeMember: (id: string, userId: string) => httpClient.delete<void>(`/projects/${id}/members/${userId}`),
+  setMemberRole: (id: string, userId: string, role: ProjectRole) =>
+    httpClient.put<ProjectMember>(`/projects/${id}/members/${userId}/role`, { role }),
 };

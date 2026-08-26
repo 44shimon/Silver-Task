@@ -86,12 +86,14 @@ namespace Silver_Task.Server.Services
                 var project = await LoadProjectAsync(pid);
 
                 // "Allow users to create custom fields" relaxes the tier from manage down to
-                // participate, the same inversion pattern as TaskService's "allow members to
-                // delete tasks" — field *definitions* otherwise stay a manage-tier action by default.
+                // edit, the same inversion pattern as TaskService's "allow members to delete
+                // tasks" — field *definitions* otherwise stay a manage-tier action by default.
+                // Never relaxes all the way to view-tier — a Viewer can never create a field
+                // definition regardless of this setting.
                 var allowMembersToCreate = await _systemSettings.GetBoolAsync(SystemSettingKeys.AllowUsersToCreateCustomFields);
                 if (allowMembersToCreate)
                 {
-                    await _projectAccess.EnsureCanParticipateAsync(project.Id, project.OwnerId, callerId, callerRole);
+                    await _projectAccess.EnsureCanEditAsync(project.Id, project.OwnerId, callerId, callerRole);
                 }
                 else
                 {

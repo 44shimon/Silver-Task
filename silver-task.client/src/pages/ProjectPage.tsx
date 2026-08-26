@@ -7,8 +7,11 @@ import { useTaskFilters, SORT_FIELDS, SORT_FIELD_LABELS } from '@/hooks/useTaskF
 import { useCustomFields } from '@/hooks/useCustomFields';
 import { useCurrentUser } from '@/hooks/useAuth';
 import { useUserPreferences } from '@/hooks/useUserSettings';
+import { usePermissions, useProjectPermissions } from '@/hooks/usePermissions';
+import { Permissions } from '@/types/permissions';
 import { ProjectViewTabs, type ViewId } from '@/components/project/ProjectViewTabs';
 import { AddMemberSection } from '@/components/project/AddMemberSection';
+import { ProjectMemberRoleSelect } from '@/components/project/ProjectMemberRoleSelect';
 import { NewTaskButton } from '@/components/spreadsheet/NewTaskButton';
 import { TaskTable } from '@/components/spreadsheet/TaskTable';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
@@ -44,6 +47,10 @@ export function ProjectPage() {
   const duplicateTask = useDuplicateTask(projectId ?? '');
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const memberUsers = members?.map((m) => m.user) ?? [];
+  const { can: canGlobally } = usePermissions();
+  const { can } = useProjectPermissions(project);
+  const canEditTasks = can(Permissions.TasksEdit);
+  const canManageProject = can(Permissions.ProjectsManageMembers);
   const {
     filteredTasks,
     isFiltered,
@@ -157,10 +164,12 @@ export function ProjectPage() {
               }}
               autoFocus
             />
-          ) : (
+          ) : can(Permissions.ProjectsEdit) ? (
             <h1 onClick={startEditingName} title="Click to rename">
               {project.name}
             </h1>
+          ) : (
+            <h1>{project.name}</h1>
           )}
         </div>
 
@@ -177,10 +186,12 @@ export function ProjectPage() {
             placeholder="Add a description..."
             autoFocus
           />
-        ) : (
+        ) : can(Permissions.ProjectsEdit) ? (
           <p className="project-page__description" onClick={startEditingDescription} title="Click to edit">
             {project.description || 'Add a description...'}
           </p>
+        ) : (
+          <p className="project-page__description">{project.description || ''}</p>
         )}
       </div>
 
@@ -204,8 +215,8 @@ export function ProjectPage() {
               onFieldChange={setSortField}
               onDirectionChange={setSortDirection}
             />
-            <CustomFieldsPanel projectId={project.id} />
-            <NewTaskButton projectId={project.id} />
+            {can(Permissions.CustomFieldsManage) && <CustomFieldsPanel projectId={project.id} />}
+            {can(Permissions.TasksCreate) && <NewTaskButton projectId={project.id} />}
           </div>
         </div>
         <QuickFilterChips value={quickFilter} onChange={setQuickFilter} />
@@ -214,15 +225,15 @@ export function ProjectPage() {
       {tasksLoading ? (
         <p>Loading tasks...</p>
       ) : view === 'kanban' ? (
-        <KanbanBoard projectId={project.id} tasks={filteredTasks} onOpenDetail={openTaskDetail} />
+        <KanbanBoard projectId={project.id} tasks={filteredTasks} onOpenDetail={openTaskDetail} canEdit={canEditTasks} />
       ) : view === 'calendar' ? (
-        <CalendarView projectId={project.id} tasks={filteredTasks} onOpenDetail={openTaskDetail} />
+        <CalendarView projectId={project.id} tasks={filteredTasks} onOpenDetail={openTaskDetail} canEdit={canEditTasks} />
       ) : view === 'timeline' ? (
-        <TimelineView projectId={project.id} tasks={filteredTasks} onOpenDetail={openTaskDetail} />
+        <TimelineView projectId={project.id} tasks={filteredTasks} onOpenDetail={openTaskDetail} canEdit={canEditTasks} />
       ) : view === 'gantt' ? (
-        <GanttView projectId={project.id} projectName={project.name} tasks={filteredTasks} onOpenDetail={openTaskDetail} />
+        <GanttView projectId={project.id} projectName={project.name} tasks={filteredTasks} onOpenDetail={openTaskDetail} canEdit={canEditTasks} />
       ) : view === 'recurring' ? (
-        <RecurringTasksView projectId={project.id} tasks={tasks ?? []} members={memberUsers} onOpenDetail={openTaskDetail} />
+        <RecurringTasksView projectId={project.id} tasks={tasks ?? []} members={memberUsers} onOpenDetail={openTaskDetail} canEdit={canEditTasks} />
       ) : (
         <TaskTable
           projectId={project.id}
@@ -236,6 +247,8 @@ export function ProjectPage() {
           onDuplicate={(taskId) => duplicateTask.mutate(taskId)}
           onDelete={(taskId) => setDeletingTask(tasks?.find((t) => t.id === taskId) ?? null)}
           onOpenDetail={openTaskDetail}
+          canEdit={canEditTasks}
+          canDelete={can(Permissions.TasksDelete)}
         />
       )}
 
@@ -253,6 +266,7 @@ export function ProjectPage() {
           currentUserId={currentUser?.id}
           onClose={closeTaskDetail}
           onOpenDetail={openTaskDetail}
+          canEdit={canEditTasks}
         />
       )}
 
@@ -269,21 +283,28 @@ export function ProjectPage() {
               </div>
               {member.user.id === project.owner.id ? (
                 <span className="member-row__owner-badge">Owner</span>
+              ) : canManageProject ? (
+                <>
+                  <ProjectMemberRoleSelect projectId={project.id} member={member} />
+                  <button
+                    className="icon-button member-row__remove"
+                    type="button"
+                    aria-label={`Remove ${member.user.name}`}
+                    onClick={() => removeMember.mutate(member.user.id)}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </>
               ) : (
-                <button
-                  className="icon-button member-row__remove"
-                  type="button"
-                  aria-label={`Remove ${member.user.name}`}
-                  onClick={() => removeMember.mutate(member.user.id)}
-                >
-                  <Trash2 size={16} />
-                </button>
+                <span className="member-row__owner-badge">{member.role}</span>
               )}
             </div>
           ))}
         </div>
 
-        <AddMemberSection projectId={project.id} isAdmin={currentUser?.role === 'Administrator'} />
+        {canManageProject && (
+          <AddMemberSection projectId={project.id} isAdmin={canGlobally(Permissions.UsersCreate)} />
+        )}
       </details>
     </div>
   );

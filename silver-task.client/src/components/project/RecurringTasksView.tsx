@@ -14,12 +14,13 @@ interface RecurringTasksViewProps {
   tasks: Task[];
   members: UserSummary[];
   onOpenDetail: (taskId: string) => void;
+  canEdit: boolean;
 }
 
 // Shows recurrence *rules*, not task occurrences — a deliberately separate data source
 // (GET /projects/{id}/recurring-tasks) from the filteredTasks every other view tab shares, since
 // a rule isn't itself a Task the spreadsheet grid knows how to render.
-export function RecurringTasksView({ projectId, tasks, members, onOpenDetail }: RecurringTasksViewProps) {
+export function RecurringTasksView({ projectId, tasks, members, onOpenDetail, canEdit }: RecurringTasksViewProps) {
   const { data: rules, isLoading } = useProjectRecurringTasks(projectId);
   const stopRecurrence = useStopRecurrence(projectId);
   const resumeRecurrence = useResumeRecurrence(projectId);
@@ -78,28 +79,29 @@ export function RecurringTasksView({ projectId, tasks, members, onOpenDetail }: 
                 </td>
                 <td>
                   <div className="recurring-tasks-view__actions">
-                    {templateTask && (
+                    {templateTask && canEdit && (
                       <button type="button" onClick={() => setEditingRule(rule)}>
                         Edit
                       </button>
                     )}
-                    {rule.isActive ? (
-                      <button
-                        type="button"
-                        onClick={() => rule.templateTaskId && stopRecurrence.mutate(rule.templateTaskId)}
-                        disabled={!rule.templateTaskId || stopRecurrence.isPending}
-                      >
-                        Stop
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => rule.templateTaskId && resumeRecurrence.mutate(rule.templateTaskId)}
-                        disabled={!rule.templateTaskId || resumeRecurrence.isPending}
-                      >
-                        Resume
-                      </button>
-                    )}
+                    {canEdit &&
+                      (rule.isActive ? (
+                        <button
+                          type="button"
+                          onClick={() => rule.templateTaskId && stopRecurrence.mutate(rule.templateTaskId)}
+                          disabled={!rule.templateTaskId || stopRecurrence.isPending}
+                        >
+                          Stop
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => rule.templateTaskId && resumeRecurrence.mutate(rule.templateTaskId)}
+                          disabled={!rule.templateTaskId || resumeRecurrence.isPending}
+                        >
+                          Resume
+                        </button>
+                      ))}
                     {rule.templateTaskId && (
                       <button type="button" onClick={() => setViewingSeriesTaskId(rule.templateTaskId)}>
                         View Series

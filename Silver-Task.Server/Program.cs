@@ -98,6 +98,7 @@ builder.Services.AddScoped<ISystemSettingsService, SystemSettingsService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ITaskDependencyService, TaskDependencyService>();
 builder.Services.AddScoped<IRecurringTaskService, RecurringTaskService>();
+builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddHostedService<DueDateNotificationBackgroundService>();
 builder.Services.AddHostedService<RecurringTaskGenerationBackgroundService>();
 

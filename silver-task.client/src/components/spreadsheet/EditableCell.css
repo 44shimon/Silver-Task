@@ -21,6 +21,14 @@
   outline-offset: -1px;
 }
 
+.editable-cell--readonly {
+  cursor: default;
+}
+
+.editable-cell--readonly:hover {
+  background: transparent;
+}
+
 .editable-cell__placeholder {
   color: var(--text);
   opacity: 0.4;

@@ -8,6 +8,7 @@ interface KanbanColumnProps {
   isDragOver: boolean;
   draggingTaskId: string | null;
   errorTaskId: string | null;
+  canEdit: boolean;
   onCardDragStart: (taskId: string) => void;
   onCardDragEnd: () => void;
   onDragEnter: () => void;
@@ -21,6 +22,7 @@ export function KanbanColumn({
   isDragOver,
   draggingTaskId,
   errorTaskId,
+  canEdit,
   onCardDragStart,
   onCardDragEnd,
   onDragEnter,
@@ -30,6 +32,9 @@ export function KanbanColumn({
 }: KanbanColumnProps) {
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
+    if (!canEdit) {
+      return;
+    }
     const taskId = event.dataTransfer.getData('text/plain');
     if (taskId) {
       onDrop(taskId);
@@ -56,6 +61,7 @@ export function KanbanColumn({
             task={task}
             isDragging={draggingTaskId === task.id}
             hasError={errorTaskId === task.id}
+            canEdit={canEdit}
             onDragStart={() => onCardDragStart(task.id)}
             onDragEnd={onCardDragEnd}
             onOpenDetail={() => onOpenDetail(task.id)}

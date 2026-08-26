@@ -23,6 +23,12 @@ export function AdminLayout() {
           Users
         </NavLink>
         <NavLink
+          to="/admin/roles"
+          className={({ isActive }) => `admin-layout__nav-item${isActive ? ' admin-layout__nav-item--active' : ''}`}
+        >
+          Roles &amp; Permissions
+        </NavLink>
+        <NavLink
           to="/admin/projects"
           className={({ isActive }) => `admin-layout__nav-item${isActive ? ' admin-layout__nav-item--active' : ''}`}
         >

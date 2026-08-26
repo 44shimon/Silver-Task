@@ -8,9 +8,10 @@ import './AttachmentsSection.css';
 
 interface AttachmentsSectionProps {
   taskId: string;
+  canEdit: boolean;
 }
 
-export function AttachmentsSection({ taskId }: AttachmentsSectionProps) {
+export function AttachmentsSection({ taskId, canEdit }: AttachmentsSectionProps) {
   const { data: attachments } = useAttachments(taskId);
   const uploadAttachment = useUploadAttachment(taskId);
   const deleteAttachment = useDeleteAttachment(taskId);
@@ -46,36 +47,40 @@ export function AttachmentsSection({ taskId }: AttachmentsSectionProps) {
                 {new Date(attachment.createdAt).toLocaleDateString()}
               </span>
             </div>
-            <button
-              type="button"
-              className="icon-button"
-              aria-label={`Delete ${attachment.fileName}`}
-              onClick={() => deleteAttachment.mutate(attachment.id)}
-            >
-              <Trash2 size={13} />
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={`Delete ${attachment.fileName}`}
+                onClick={() => deleteAttachment.mutate(attachment.id)}
+              >
+                <Trash2 size={13} />
+              </button>
+            )}
           </div>
         ))}
         {attachments?.length === 0 && <p className="attachment-list__empty">No attachments yet.</p>}
       </div>
 
-      <div className="attachment-upload">
-        <input
-          type="file"
-          id={`attachment-upload-${taskId}`}
-          className="attachment-upload__input"
-          onChange={handleFileSelected}
-          disabled={uploadAttachment.isPending}
-        />
-        <label htmlFor={`attachment-upload-${taskId}`} className="attachment-upload__label">
-          {uploadAttachment.isPending ? 'Uploading...' : '+ Add File'}
-        </label>
-        {uploadAttachment.isError && (
-          <p className="form-error">
-            {uploadAttachment.error instanceof ApiError ? uploadAttachment.error.message : 'Could not upload file.'}
-          </p>
-        )}
-      </div>
+      {canEdit && (
+        <div className="attachment-upload">
+          <input
+            type="file"
+            id={`attachment-upload-${taskId}`}
+            className="attachment-upload__input"
+            onChange={handleFileSelected}
+            disabled={uploadAttachment.isPending}
+          />
+          <label htmlFor={`attachment-upload-${taskId}`} className="attachment-upload__label">
+            {uploadAttachment.isPending ? 'Uploading...' : '+ Add File'}
+          </label>
+          {uploadAttachment.isError && (
+            <p className="form-error">
+              {uploadAttachment.error instanceof ApiError ? uploadAttachment.error.message : 'Could not upload file.'}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

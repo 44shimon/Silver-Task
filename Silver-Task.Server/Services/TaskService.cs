@@ -202,7 +202,7 @@ namespace Silver_Task.Server.Services
         public async Task<TaskItem> CreateAsync(Guid projectId, CreateTaskRequest request, Guid callerId, UserRole callerRole)
         {
             var project = await LoadProjectAsync(projectId);
-            await _projectAccess.EnsureCanParticipateAsync(project.Id, project.OwnerId, callerId, callerRole);
+            await _projectAccess.EnsureCanEditAsync(project.Id, project.OwnerId, callerId, callerRole);
             await EnsureCanCreateTasksAsync(project, callerId, callerRole);
 
             var task = await BuildNewTaskAsync(project, parentTaskId: null, request, callerId);
@@ -215,7 +215,7 @@ namespace Silver_Task.Server.Services
         public async Task<TaskItem> CreateSubtaskAsync(Guid parentTaskId, CreateTaskRequest request, Guid callerId, UserRole callerRole)
         {
             var parent = await LoadTaskAsync(parentTaskId);
-            await _projectAccess.EnsureCanParticipateAsync(parent.ProjectId, parent.Project!.OwnerId, callerId, callerRole);
+            await _projectAccess.EnsureCanEditAsync(parent.ProjectId, parent.Project!.OwnerId, callerId, callerRole);
             await EnsureCanCreateTasksAsync(parent.Project!, callerId, callerRole);
             await EnsureDepthWithinLimitAsync(parentTaskId);
 
@@ -282,12 +282,21 @@ namespace Silver_Task.Server.Services
             return task;
         }
 
-        // Plain Members pass EnsureCanParticipateAsync (same as Managers/the owner) — this extra
-        // check is the only place task creation can be narrowed further, to just Manager-tier,
-        // via the "Allow members to create tasks" system setting. Applies identically to subtasks.
+        // Plain project Members pass EnsureCanEditAsync the same as project Managers/the owner —
+        // this extra check is the only place task creation can be narrowed further, to just
+        // Manager-tier, via the "Allow members to create tasks" system setting. Applies
+        // identically to subtasks. Driven by the caller's *project* role (Phase 32), not their
+        // system-wide UserRole — a global Manager who's only a project Member for THIS project is
+        // still subject to this setting the same as anyone else at project-Member tier.
         private async Task EnsureCanCreateTasksAsync(Project project, Guid callerId, UserRole callerRole)
         {
-            if (callerRole == UserRole.Member && callerId != project.OwnerId &&
+            if (callerRole == UserRole.Administrator || callerId == project.OwnerId)
+            {
+                return;
+            }
+
+            var projectRole = await _projectAccess.GetProjectRoleAsync(project.Id, callerId);
+            if (projectRole == ProjectRole.Member &&
                 !await _systemSettings.GetBoolAsync(SystemSettingKeys.AllowMembersToCreateTasks))
             {
                 throw new ForbiddenException("Members are currently not allowed to create tasks.");
@@ -297,7 +306,7 @@ namespace Silver_Task.Server.Services
         public async Task<TaskItem> UpdateAsync(Guid taskId, UpdateTaskRequest request, Guid callerId, UserRole callerRole)
         {
             var task = await LoadTaskAsync(taskId);
-            await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+            await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
 
             // Only validate when the assignee is actually changing — UpdateTaskRequest is a
             // full-resource replace (per the app's established PUT convention), so an edit to
@@ -421,7 +430,7 @@ namespace Silver_Task.Server.Services
         public async Task<TaskItem> SetParentAsync(Guid taskId, Guid? parentTaskId, Guid callerId, UserRole callerRole)
         {
             var task = await LoadTaskAsync(taskId);
-            await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+            await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
 
             if (parentTaskId == task.ParentTaskId)
             {
@@ -486,7 +495,7 @@ namespace Silver_Task.Server.Services
         public async Task<TaskItem> SetSortOrderAsync(Guid taskId, double sortOrder, Guid callerId, UserRole callerRole)
         {
             var task = await LoadTaskAsync(taskId);
-            await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+            await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
 
             task.SortOrder = sortOrder;
             task.UpdatedAt = DateTime.UtcNow;
@@ -598,12 +607,13 @@ namespace Silver_Task.Server.Services
             var task = await LoadTaskAsync(taskId);
 
             // "Allow members to delete tasks" relaxes the tier from manage (Administrator/owner/
-            // Manager-member) down to participate (also plain Members) — the inverse of most
-            // Behavior settings, which narrow an otherwise-open action instead.
+            // project Manager) down to edit (also project Members) — the inverse of most
+            // Behavior settings, which narrow an otherwise-open action instead. Still never a
+            // Viewer, regardless of this setting — EnsureCanEditAsync excludes them unconditionally.
             var allowMembersToDelete = await _systemSettings.GetBoolAsync(SystemSettingKeys.AllowMembersToDeleteTasks);
             if (allowMembersToDelete)
             {
-                await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+                await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
             }
             else
             {
@@ -665,7 +675,7 @@ namespace Silver_Task.Server.Services
         public async Task<TaskItem> DuplicateAsync(Guid taskId, Guid callerId, UserRole callerRole)
         {
             var original = await LoadTaskAsync(taskId);
-            await _projectAccess.EnsureCanParticipateAsync(original.ProjectId, original.Project!.OwnerId, callerId, callerRole);
+            await _projectAccess.EnsureCanEditAsync(original.ProjectId, original.Project!.OwnerId, callerId, callerRole);
 
             var copy = new TaskItem
             {
@@ -911,7 +921,7 @@ namespace Silver_Task.Server.Services
         public async Task<TaskItem> SetCustomValueAsync(Guid taskId, Guid customFieldId, string? value, Guid callerId, UserRole callerRole)
         {
             var task = await LoadTaskAsync(taskId);
-            await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+            await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
 
             var field = await _db.CustomFields
                 .Include(f => f.Options)

@@ -19,12 +19,18 @@ interface CalendarViewProps {
    * visualizations, per the app's view architecture. */
   tasks: Task[];
   onOpenDetail: (taskId: string) => void;
+  /** Phase 32 read-only mode — false blocks the drag-to-reschedule drop handler (the backend
+   * independently rejects the write either way; this is a lighter-touch guard than fully
+   * disabling each chip's `draggable` attribute — cards still visually drag, the drop itself is
+   * just a no-op — a disclosed, bounded simplification given the number of chip components
+   * across Month/Week/Day/NoDueDateTray this would otherwise touch). */
+  canEdit: boolean;
 }
 
 // Drag-to-reschedule reuses useUpdateTask + taskFieldChange.dueDate exactly like
 // EditableDateCell's Due Date editor in the Table view — same optimistic update, same
 // rollback-on-failure, same PUT /api/tasks/{id}, just triggered by a drop instead of typing.
-export function CalendarView({ projectId, tasks, onOpenDetail }: CalendarViewProps) {
+export function CalendarView({ projectId, tasks, onOpenDetail, canEdit }: CalendarViewProps) {
   const updateTask = useUpdateTask(projectId);
   const [mode, setMode] = useState<CalendarMode>('month');
   const [anchor, setAnchor] = useState(new Date());
@@ -57,6 +63,9 @@ export function CalendarView({ projectId, tasks, onOpenDetail }: CalendarViewPro
   /** `dateOnly === null` means "clear the due date" (dropped on the No Due Date tray). */
   function handleDrop(taskId: string, dateOnly: string | null) {
     setDragOverKey(null);
+    if (!canEdit) {
+      return;
+    }
     const task = tasks.find((t) => t.id === taskId);
     if (!task || task.dueDate === dateOnly) {
       return;

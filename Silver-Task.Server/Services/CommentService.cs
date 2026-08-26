@@ -45,7 +45,7 @@ namespace Silver_Task.Server.Services
         public async Task<TaskComment> CreateAsync(Guid taskId, string text, Guid callerId, UserRole callerRole)
         {
             var task = await LoadTaskAsync(taskId);
-            await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+            await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
 
             // A blanket kill-switch — existing comments stay fully visible/readable either way,
             // this only gates *new* ones, checked after the normal participate-tier check so a

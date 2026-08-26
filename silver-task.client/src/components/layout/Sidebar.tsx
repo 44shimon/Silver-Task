@@ -2,12 +2,13 @@ import { useState, type FormEvent } from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutGrid, ListChecks, Plus, ShieldCheck } from 'lucide-react';
 import { useCreateProject, useProjects } from '@/hooks/useProjects';
-import { useCurrentUser } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Permissions } from '@/types/permissions';
 import { ApiError } from '@/api/httpClient';
 
 export function Sidebar() {
   const { data: projects, isLoading } = useProjects();
-  const { data: currentUser } = useCurrentUser();
+  const { can } = usePermissions();
   const createProject = useCreateProject();
   const [isCreating, setIsCreating] = useState(false);
   const [name, setName] = useState('');
@@ -47,7 +48,7 @@ export function Sidebar() {
           <ListChecks size={16} />
           <span>My Tasks</span>
         </NavLink>
-        {currentUser?.role === 'Administrator' && (
+        {can(Permissions.AdministrationAccess) && (
           <NavLink
             to="/admin"
             className={({ isActive }) => `sidebar__nav-item${isActive ? ' sidebar__nav-item--active' : ''}`}
@@ -60,14 +61,16 @@ export function Sidebar() {
 
       <div className="sidebar__header">
         <span className="sidebar__section-title">Projects</span>
-        <button
-          className="icon-button"
-          type="button"
-          aria-label={isCreating ? 'Cancel new project' : 'New project'}
-          onClick={() => (isCreating ? cancelCreate() : setIsCreating(true))}
-        >
-          <Plus size={16} />
-        </button>
+        {can(Permissions.ProjectsCreate) && (
+          <button
+            className="icon-button"
+            type="button"
+            aria-label={isCreating ? 'Cancel new project' : 'New project'}
+            onClick={() => (isCreating ? cancelCreate() : setIsCreating(true))}
+          >
+            <Plus size={16} />
+          </button>
+        )}
       </div>
 
       {isCreating && (

@@ -5,7 +5,7 @@ namespace Silver_Task.Server.Models.DTOs.Projects
 {
     public static class ProjectMappingExtensions
     {
-        public static ProjectDto ToDto(this Project project, int? taskCount = null) => new()
+        public static ProjectDto ToDto(this Project project, int? taskCount = null, List<string>? myPermissions = null) => new()
         {
             Id = project.Id,
             Name = project.Name,
@@ -15,6 +15,7 @@ namespace Silver_Task.Server.Models.DTOs.Projects
             TaskCount = taskCount,
             IsArchived = project.IsArchived,
             ArchivedAt = project.ArchivedAt,
+            MyPermissions = myPermissions,
             CreatedAt = project.CreatedAt,
             UpdatedAt = project.UpdatedAt
         };
@@ -24,6 +25,7 @@ namespace Silver_Task.Server.Models.DTOs.Projects
             Id = member.Id,
             ProjectId = member.ProjectId,
             User = member.User!.ToSummaryDto(),
+            Role = member.Role,
             CreatedAt = member.CreatedAt
         };
     }

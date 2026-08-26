@@ -33,6 +33,8 @@ interface GanttViewProps {
   /** Same filtered/sorted task list every other project view renders. */
   tasks: Task[];
   onOpenDetail: (taskId: string) => void;
+  /** Phase 32 read-only mode — false blocks the drag-move/resize commit handler. */
+  canEdit: boolean;
 }
 
 /**
@@ -47,7 +49,7 @@ interface GanttViewProps {
  * Finish-to-Start connector between two visible bars' positions in `.gantt-view__rows`, offset
  * by the project-header row Timeline doesn't have (see rowOffsetPx below).
  */
-export function GanttView({ projectId, projectName, tasks, onOpenDetail }: GanttViewProps) {
+export function GanttView({ projectId, projectName, tasks, onOpenDetail, canEdit }: GanttViewProps) {
   const updateTask = useUpdateTask(projectId);
   const { data: dependencyEdges } = useProjectDependencyEdges(projectId);
   const [scale, setScale] = useState<TimelineScale>('week');
@@ -141,6 +143,9 @@ export function GanttView({ projectId, projectName, tasks, onOpenDetail }: Gantt
   }
 
   function handleBarDragEnd(task: Task, mode: 'move' | 'resize-left' | 'resize-right', deltaDays: number) {
+    if (!canEdit) {
+      return;
+    }
     const { start, end } = displayRange(task);
 
     if (mode === 'move') {

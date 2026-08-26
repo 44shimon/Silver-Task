@@ -8,9 +8,14 @@ import './CommentsSection.css';
 interface CommentsSectionProps {
   taskId: string;
   currentUserId: string | undefined;
+  /** Gates the "add a comment" form only — editing/deleting your *own* existing comment is
+   * author-only at the backend (no project-tier check at all, a deliberate design decision from
+   * an earlier phase — see CommentService's own doc comment), so it's intentionally not gated
+   * here the same way. */
+  canEdit: boolean;
 }
 
-export function CommentsSection({ taskId, currentUserId }: CommentsSectionProps) {
+export function CommentsSection({ taskId, currentUserId, canEdit }: CommentsSectionProps) {
   const { data: comments } = useComments(taskId);
   const createComment = useCreateComment(taskId);
   const [text, setText] = useState('');
@@ -35,22 +40,24 @@ export function CommentsSection({ taskId, currentUserId }: CommentsSectionProps)
         {comments?.length === 0 && <p className="comment-list__empty">No comments yet.</p>}
       </div>
 
-      <form className="comment-form" onSubmit={handleSubmit}>
-        <textarea
-          placeholder="Add a comment..."
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={2}
-        />
-        <button type="submit" disabled={createComment.isPending || !text.trim()}>
-          Comment
-        </button>
-        {createComment.isError && (
-          <p className="form-error">
-            {createComment.error instanceof ApiError ? createComment.error.message : 'Could not post comment.'}
-          </p>
-        )}
-      </form>
+      {canEdit && (
+        <form className="comment-form" onSubmit={handleSubmit}>
+          <textarea
+            placeholder="Add a comment..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={2}
+          />
+          <button type="submit" disabled={createComment.isPending || !text.trim()}>
+            Comment
+          </button>
+          {createComment.isError && (
+            <p className="form-error">
+              {createComment.error instanceof ApiError ? createComment.error.message : 'Could not post comment.'}
+            </p>
+          )}
+        </form>
+      )}
     </div>
   );
 }

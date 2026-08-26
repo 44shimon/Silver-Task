@@ -1,0 +1,15 @@
+.project-role-badge--manager {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.project-role-badge--member {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.project-role-badge--viewer {
+  background: var(--bg-subtle);
+  color: var(--text);
+  opacity: 0.8;
+}

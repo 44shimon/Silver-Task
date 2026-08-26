@@ -67,7 +67,7 @@ namespace Silver_Task.Server.Services
         public async Task<TaskDependency> CreateAsync(Guid taskId, Guid dependsOnTaskId, Guid callerId, UserRole callerRole)
         {
             var task = await LoadTaskAsync(taskId);
-            await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+            await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
 
             if (taskId == dependsOnTaskId)
             {
@@ -121,7 +121,7 @@ namespace Silver_Task.Server.Services
         public async Task DeleteAsync(Guid taskId, Guid dependencyId, Guid callerId, UserRole callerRole)
         {
             var task = await LoadTaskAsync(taskId);
-            await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+            await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
 
             var dependency = await _db.TaskDependencies
                 .Include(d => d.DependsOnTask)
