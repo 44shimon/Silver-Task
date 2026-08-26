@@ -67,7 +67,16 @@ export function AttachmentsSection({ taskId, projectId, canEdit }: AttachmentsSe
         </button>
       )}
 
-      {previewing && <FilePreviewModal attachment={previewing} onClose={() => setPreviewing(null)} />}
+      {previewing && (
+        <FilePreviewModal
+          attachment={previewing}
+          projectId={projectId}
+          currentUserId={currentUser?.id}
+          canUpload={canUploadFiles}
+          canManageFiles={canManageFiles}
+          onClose={() => setPreviewing(null)}
+        />
+      )}
 
       {showAll && (
         <Modal onClose={() => setShowAll(false)} size="wide">

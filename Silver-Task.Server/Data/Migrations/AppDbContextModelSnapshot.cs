@@ -28,6 +28,9 @@ namespace Silver_Task.Server.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("CommentId")
                         .HasColumnType("uuid");
 
@@ -42,6 +45,10 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Property<Guid?>("DeletedByUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<string>("FileHash")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
@@ -53,6 +60,9 @@ namespace Silver_Task.Server.Data.Migrations
 
                     b.Property<long>("FileSize")
                         .HasColumnType("bigint");
+
+                    b.Property<Guid?>("FolderId")
+                        .HasColumnType("uuid");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -83,7 +93,11 @@ namespace Silver_Task.Server.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CategoryId");
+
                     b.HasIndex("CommentId");
+
+                    b.HasIndex("CreatedAt");
 
                     b.HasIndex("DeletedByUserId");
 
@@ -92,6 +106,8 @@ namespace Silver_Task.Server.Data.Migrations
                     b.HasIndex("TaskId");
 
                     b.HasIndex("UploadedByUserId");
+
+                    b.HasIndex("FolderId", "IsDeleted");
 
                     b.HasIndex("ProjectId", "IsDeleted");
 
@@ -190,6 +206,122 @@ namespace Silver_Task.Server.Data.Migrations
                     b.HasIndex("CustomFieldId", "SortOrder");
 
                     b.ToTable("CustomFieldOptions", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.FileCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.ToTable("FileCategories", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.FileTag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<Guid>("FileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TagId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TagId");
+
+                    b.HasIndex("FileId", "TagId")
+                        .IsUnique();
+
+                    b.ToTable("FileTags", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.Folder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<Guid?>("ParentFolderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("DeletedByUserId");
+
+                    b.HasIndex("ParentFolderId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("ProjectId", "ParentFolderId", "IsDeleted");
+
+                    b.ToTable("Folders", (string)null);
                 });
 
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.Notification", b =>
@@ -492,6 +624,45 @@ namespace Silver_Task.Server.Data.Migrations
                     b.ToTable("SystemSettings", (string)null);
                 });
 
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.Tag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Color")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("IsActive");
+
+                    b.ToTable("Tags", (string)null);
+                });
+
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskActivity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -790,6 +961,33 @@ namespace Silver_Task.Server.Data.Migrations
                     b.ToTable("Users", (string)null);
                 });
 
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.UserFileFavorite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<Guid>("FileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FileId");
+
+                    b.HasIndex("UserId", "FileId")
+                        .IsUnique();
+
+                    b.ToTable("UserFileFavorites", (string)null);
+                });
+
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.UserNotificationSetting", b =>
                 {
                     b.Property<Guid>("Id")
@@ -881,6 +1079,11 @@ namespace Silver_Task.Server.Data.Migrations
 
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.Attachment", b =>
                 {
+                    b.HasOne("Silver_Task.Server.Models.Entities.FileCategory", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Silver_Task.Server.Models.Entities.TaskComment", "Comment")
                         .WithMany("Attachments")
                         .HasForeignKey("CommentId")
@@ -890,6 +1093,11 @@ namespace Silver_Task.Server.Data.Migrations
                         .WithMany()
                         .HasForeignKey("DeletedByUserId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.Folder", "Folder")
+                        .WithMany()
+                        .HasForeignKey("FolderId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Silver_Task.Server.Models.Entities.Project", "Project")
                         .WithMany("Attachments")
@@ -907,9 +1115,13 @@ namespace Silver_Task.Server.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Category");
+
                     b.Navigation("Comment");
 
                     b.Navigation("DeletedByUser");
+
+                    b.Navigation("Folder");
 
                     b.Navigation("Project");
 
@@ -937,6 +1149,58 @@ namespace Silver_Task.Server.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("CustomField");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.FileTag", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.Attachment", "File")
+                        .WithMany("FileTags")
+                        .HasForeignKey("FileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.Tag", "Tag")
+                        .WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("File");
+
+                    b.Navigation("Tag");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.Folder", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.User", "DeletedByUser")
+                        .WithMany()
+                        .HasForeignKey("DeletedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.Folder", "ParentFolder")
+                        .WithMany("Subfolders")
+                        .HasForeignKey("ParentFolderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.Project", "Project")
+                        .WithMany("Folders")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedBy");
+
+                    b.Navigation("DeletedByUser");
+
+                    b.Navigation("ParentFolder");
+
+                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.Notification", b =>
@@ -1053,6 +1317,17 @@ namespace Silver_Task.Server.Data.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("UpdatedByUser");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.Tag", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedBy");
                 });
 
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskActivity", b =>
@@ -1180,6 +1455,25 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Navigation("DeletedByUser");
                 });
 
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.UserFileFavorite", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.Attachment", "File")
+                        .WithMany("FavoritedBy")
+                        .HasForeignKey("FileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("File");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.UserNotificationSetting", b =>
                 {
                     b.HasOne("Silver_Task.Server.Models.Entities.User", "User")
@@ -1209,6 +1503,13 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.Attachment", b =>
+                {
+                    b.Navigation("FavoritedBy");
+
+                    b.Navigation("FileTags");
+                });
+
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.CustomField", b =>
                 {
                     b.Navigation("Options");
@@ -1216,11 +1517,18 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Navigation("Values");
                 });
 
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.Folder", b =>
+                {
+                    b.Navigation("Subfolders");
+                });
+
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.Project", b =>
                 {
                     b.Navigation("Attachments");
 
                     b.Navigation("CustomFields");
+
+                    b.Navigation("Folders");
 
                     b.Navigation("Members");
 

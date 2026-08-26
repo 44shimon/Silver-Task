@@ -41,6 +41,18 @@ export function AdminLayout() {
           Custom Fields
         </NavLink>
         <NavLink
+          to="/admin/tags"
+          className={({ isActive }) => `admin-layout__nav-item${isActive ? ' admin-layout__nav-item--active' : ''}`}
+        >
+          Tags
+        </NavLink>
+        <NavLink
+          to="/admin/file-categories"
+          className={({ isActive }) => `admin-layout__nav-item${isActive ? ' admin-layout__nav-item--active' : ''}`}
+        >
+          File Categories
+        </NavLink>
+        <NavLink
           to="/admin/settings"
           className={({ isActive }) => `admin-layout__nav-item${isActive ? ' admin-layout__nav-item--active' : ''}`}
         >

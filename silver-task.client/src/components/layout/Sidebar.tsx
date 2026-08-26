@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutGrid, ListChecks, Plus, ShieldCheck } from 'lucide-react';
+import { Clock, LayoutGrid, ListChecks, Plus, ShieldCheck, Star } from 'lucide-react';
 import { useCreateProject, useProjects } from '@/hooks/useProjects';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Permissions } from '@/types/permissions';
@@ -47,6 +47,20 @@ export function Sidebar() {
         >
           <ListChecks size={16} />
           <span>My Tasks</span>
+        </NavLink>
+        <NavLink
+          to="/files/favorites"
+          className={({ isActive }) => `sidebar__nav-item${isActive ? ' sidebar__nav-item--active' : ''}`}
+        >
+          <Star size={16} />
+          <span>Favorites</span>
+        </NavLink>
+        <NavLink
+          to="/files/recent"
+          className={({ isActive }) => `sidebar__nav-item${isActive ? ' sidebar__nav-item--active' : ''}`}
+        >
+          <Clock size={16} />
+          <span>Recent Files</span>
         </NavLink>
         {can(Permissions.AdministrationAccess) && (
           <NavLink

@@ -31,8 +31,10 @@ namespace Silver_Task.Server.Controllers
         [HttpGet("{id:guid}/attachments")]
         public async Task<ActionResult<IReadOnlyList<AttachmentDto>>> GetAttachments(Guid id)
         {
-            var attachments = await _attachmentService.GetAllForCommentAsync(id, User.GetUserId(), User.GetRole());
-            return Ok(attachments.Select(a => a.ToDto()));
+            var callerId = User.GetUserId();
+            var attachments = await _attachmentService.GetAllForCommentAsync(id, callerId, User.GetRole());
+            var favoritedIds = await _attachmentService.GetFavoritedFileIdsAsync(callerId, attachments.Select(a => a.Id));
+            return Ok(attachments.Select(a => a.ToDto(favoritedIds.Contains(a.Id))));
         }
 
         [HttpPost("{id:guid}/attachments")]

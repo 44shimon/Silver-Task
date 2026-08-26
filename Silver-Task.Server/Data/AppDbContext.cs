@@ -39,6 +39,16 @@ namespace Silver_Task.Server.Data
 
         public DbSet<RecurringTaskException> RecurringTaskExceptions => Set<RecurringTaskException>();
 
+        public DbSet<Folder> Folders => Set<Folder>();
+
+        public DbSet<FileCategory> FileCategories => Set<FileCategory>();
+
+        public DbSet<Tag> Tags => Set<Tag>();
+
+        public DbSet<FileTag> FileTags => Set<FileTag>();
+
+        public DbSet<UserFileFavorite> UserFileFavorites => Set<UserFileFavorite>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

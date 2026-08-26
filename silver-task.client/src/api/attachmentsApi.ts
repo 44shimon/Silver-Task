@@ -1,5 +1,6 @@
 import { API_BASE, httpClient } from './httpClient';
 import type { Attachment, AttachmentFilter, AttachmentList } from '@/types/attachment';
+import type { Tag } from '@/types/tag';
 
 function buildQuery(filter: AttachmentFilter): string {
   const params = new URLSearchParams();
@@ -13,7 +14,17 @@ function buildQuery(filter: AttachmentFilter): string {
   params.set('sortDescending', String(filter.sortDescending ?? true));
   params.set('page', String(filter.page ?? 1));
   params.set('pageSize', String(filter.pageSize ?? 50));
+  if (filter.folderId) params.set('folderId', filter.folderId);
+  if (filter.includeSubfolders) params.set('includeSubfolders', 'true');
+  if (filter.categoryId) params.set('categoryId', filter.categoryId);
+  if (filter.tagId) params.set('tagId', filter.tagId);
+  if (filter.favoritesOnly) params.set('favoritesOnly', 'true');
   return params.toString();
+}
+
+export interface BulkActionResult {
+  succeededIds: string[];
+  failed: { fileId: string; error: string }[];
 }
 
 export const attachmentsApi = {
@@ -33,9 +44,10 @@ export const attachmentsApi = {
 
   listForProject: (projectId: string, filter: AttachmentFilter = {}) =>
     httpClient.get<AttachmentList>(`/projects/${projectId}/files?${buildQuery(filter)}`),
-  uploadForProject: (projectId: string, file: File, onProgress?: (fraction: number) => void) => {
+  uploadForProject: (projectId: string, file: File, folderId?: string | null, onProgress?: (fraction: number) => void) => {
     const formData = new FormData();
     formData.append('file', file);
+    if (folderId) formData.append('folderId', folderId);
     return httpClient.uploadWithProgress<Attachment>(`/projects/${projectId}/files`, formData, onProgress);
   },
 
@@ -45,4 +57,29 @@ export const attachmentsApi = {
     formData.append('file', file);
     return httpClient.uploadWithProgress<Attachment>(`/comments/${commentId}/attachments`, formData, onProgress);
   },
+
+  move: (id: string, folderId: string | null) => httpClient.post<Attachment>(`/attachments/${id}/move`, { folderId }),
+  updateDescription: (id: string, description: string | null) =>
+    httpClient.put<Attachment>(`/attachments/${id}/description`, { description }),
+  setCategory: (id: string, categoryId: string | null) =>
+    httpClient.put<Attachment>(`/attachments/${id}/category`, { categoryId }),
+
+  getTags: (id: string) => httpClient.get<Tag[]>(`/attachments/${id}/tags`),
+  addTag: (id: string, name: string) => httpClient.post<Tag>(`/attachments/${id}/tags`, { name }),
+  removeTag: (id: string, tagId: string) => httpClient.delete<void>(`/attachments/${id}/tags/${tagId}`),
+
+  favorite: (id: string) => httpClient.post<void>(`/attachments/${id}/favorite`),
+  unfavorite: (id: string) => httpClient.delete<void>(`/attachments/${id}/favorite`),
+  listFavorites: () => httpClient.get<Attachment[]>('/attachments/favorites'),
+  listRecent: (limit = 50) => httpClient.get<Attachment[]>(`/attachments/recent?limit=${limit}`),
+
+  bulkMove: (fileIds: string[], folderId: string | null) =>
+    httpClient.post<BulkActionResult>('/attachments/bulk/move', { fileIds, folderId }),
+  bulkTag: (fileIds: string[], tagName: string) =>
+    httpClient.post<BulkActionResult>('/attachments/bulk/tag', { fileIds, tagName }),
+  bulkUntag: (fileIds: string[], tagId: string) =>
+    httpClient.post<BulkActionResult>('/attachments/bulk/untag', { fileIds, tagId }),
+  bulkDelete: (fileIds: string[]) => httpClient.post<BulkActionResult>('/attachments/bulk/delete', { fileIds }),
+  bulkFavorite: (fileIds: string[], favorite: boolean) =>
+    httpClient.post<BulkActionResult>('/attachments/bulk/favorite', { fileIds, favorite }),
 };

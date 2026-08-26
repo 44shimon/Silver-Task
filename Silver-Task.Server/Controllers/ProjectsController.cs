@@ -5,6 +5,7 @@ using Silver_Task.Server.Models.Common;
 using Silver_Task.Server.Models.DTOs.Attachments;
 using Silver_Task.Server.Models.DTOs.CustomFields;
 using Silver_Task.Server.Models.DTOs.Dependencies;
+using Silver_Task.Server.Models.DTOs.Folders;
 using Silver_Task.Server.Models.DTOs.Projects;
 using Silver_Task.Server.Models.DTOs.Recurrence;
 using Silver_Task.Server.Models.DTOs.Tasks;
@@ -21,7 +22,8 @@ namespace Silver_Task.Server.Controllers
         ITaskDependencyService dependencyService,
         IRecurringTaskService recurringTaskService,
         IPermissionService permissionService,
-        IAttachmentService attachmentService) : ControllerBase
+        IAttachmentService attachmentService,
+        IFolderService folderService) : ControllerBase
     {
         private readonly IProjectService _projectService = projectService;
         private readonly ITaskService _taskService = taskService;
@@ -30,6 +32,7 @@ namespace Silver_Task.Server.Controllers
         private readonly IRecurringTaskService _recurringTaskService = recurringTaskService;
         private readonly IPermissionService _permissionService = permissionService;
         private readonly IAttachmentService _attachmentService = attachmentService;
+        private readonly IFolderService _folderService = folderService;
 
         [HttpGet]
         public async Task<ActionResult<IReadOnlyList<ProjectDto>>> GetAll([FromQuery] bool includeArchived = false)
@@ -167,21 +170,29 @@ namespace Silver_Task.Server.Controllers
         }
 
         /// <summary>Project → Files. onlyDeleted=true (Manage-tier only) backs the Restore UI —
-        /// see IAttachmentService.GetAllForProjectAsync's own doc comment.</summary>
+        /// see IAttachmentService.GetAllForProjectAsync's own doc comment. folderId/includeSubfolders
+        /// drive folder navigation (Phase 34) — omitting folderId means "root level"; pass
+        /// includeSubfolders=true for a whole-project search scope.</summary>
         [HttpGet("{id:guid}/files")]
         public async Task<ActionResult<AttachmentListDto>> GetFiles(
             Guid id, [FromQuery] bool onlyDeleted = false, [FromQuery] int page = 1, [FromQuery] int pageSize = 50,
             [FromQuery] string? search = null, [FromQuery] string? type = null, [FromQuery] Guid? uploadedByUserId = null,
             [FromQuery] DateTime? dateFrom = null, [FromQuery] DateTime? dateTo = null,
-            [FromQuery] string? sortField = null, [FromQuery] bool sortDescending = true)
+            [FromQuery] string? sortField = null, [FromQuery] bool sortDescending = true,
+            [FromQuery] Guid? folderId = null, [FromQuery] bool includeSubfolders = false,
+            [FromQuery] Guid? categoryId = null, [FromQuery] Guid? tagId = null, [FromQuery] bool favoritesOnly = false)
         {
+            var callerId = User.GetUserId();
             var (items, totalCount) = await _attachmentService.GetAllForProjectAsync(
-                id, User.GetUserId(), User.GetRole(), onlyDeleted, page, pageSize,
-                search, type, uploadedByUserId, dateFrom, dateTo, sortField, sortDescending);
+                id, callerId, User.GetRole(), onlyDeleted, page, pageSize,
+                search, type, uploadedByUserId, dateFrom, dateTo, sortField, sortDescending,
+                folderId, includeSubfolders, categoryId, tagId, favoritesOnly);
+
+            var favoritedIds = await _attachmentService.GetFavoritedFileIdsAsync(callerId, items.Select(a => a.Id));
 
             return Ok(new AttachmentListDto
             {
-                Items = [.. items.Select(a => a.ToDto())],
+                Items = [.. items.Select(a => a.ToDto(favoritedIds.Contains(a.Id)))],
                 TotalCount = totalCount,
                 Page = page,
                 PageSize = pageSize
@@ -190,15 +201,32 @@ namespace Silver_Task.Server.Controllers
 
         [HttpPost("{id:guid}/files")]
         [RequestSizeLimit(AttachmentUploadLimits.MaxRequestBodyBytes)]
-        public async Task<ActionResult<AttachmentDto>> UploadFile(Guid id, IFormFile? file)
+        public async Task<ActionResult<AttachmentDto>> UploadFile(Guid id, IFormFile? file, [FromForm] Guid? folderId = null)
         {
             if (file is null)
             {
                 throw new ValidationException("No file was provided.");
             }
 
-            var attachment = await _attachmentService.UploadForProjectAsync(id, file, User.GetUserId(), User.GetRole());
+            var attachment = await _attachmentService.UploadForProjectAsync(id, file, User.GetUserId(), User.GetRole(), folderId);
             return CreatedAtAction(nameof(AttachmentsController.GetById), "Attachments", new { id = attachment.Id }, attachment.ToDto());
+        }
+
+        /// <summary>Flat list (parent-linked, not a nested tree) — the frontend builds the tree/
+        /// breadcrumbs client-side from ParentFolderId, same pattern already established for
+        /// subtask hierarchy (see TaskBreadcrumb/getTaskAncestors).</summary>
+        [HttpGet("{id:guid}/folders")]
+        public async Task<ActionResult<IReadOnlyList<FolderDto>>> GetFolders(Guid id, [FromQuery] bool includeDeleted = false)
+        {
+            var folders = await _folderService.GetAllForProjectAsync(id, User.GetUserId(), User.GetRole(), includeDeleted);
+            return Ok(folders.Select(f => f.ToDto()));
+        }
+
+        [HttpPost("{id:guid}/folders")]
+        public async Task<ActionResult<FolderDto>> CreateFolder(Guid id, [FromBody] CreateFolderRequest request)
+        {
+            var folder = await _folderService.CreateAsync(id, request.Name, request.ParentFolderId, User.GetUserId(), User.GetRole());
+            return CreatedAtAction(nameof(FoldersController.GetById), "Folders", new { id = folder.Id }, folder.ToDto());
         }
     }
 }

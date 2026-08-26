@@ -6,6 +6,8 @@ import { MyTasksPage } from '@/pages/MyTasksPage';
 import { NotificationsPage } from '@/pages/NotificationsPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ProjectPage } from '@/pages/ProjectPage';
+import { FavoriteFilesPage } from '@/pages/files/FavoriteFilesPage';
+import { RecentFilesPage } from '@/pages/files/RecentFilesPage';
 import { AdminLayout } from '@/pages/admin/AdminLayout';
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
@@ -13,6 +15,8 @@ import { AdminRolesPage } from '@/pages/admin/AdminRolesPage';
 import { AdminProjectsPage } from '@/pages/admin/AdminProjectsPage';
 import { AdminSystemSettingsPage } from '@/pages/admin/AdminSystemSettingsPage';
 import { AdminCustomFieldsPage } from '@/pages/admin/AdminCustomFieldsPage';
+import { AdminTagsPage } from '@/pages/admin/AdminTagsPage';
+import { AdminFileCategoriesPage } from '@/pages/admin/AdminFileCategoriesPage';
 import { SettingsLayout } from '@/pages/settings/SettingsLayout';
 import { ProfileSettingsPage } from '@/pages/settings/ProfileSettingsPage';
 import { PreferencesSettingsPage } from '@/pages/settings/PreferencesSettingsPage';
@@ -32,6 +36,8 @@ export function AppRoutes() {
                 <Route path="/" element={<MyTasksPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/projects/:projectId" element={<ProjectPage />} />
+                <Route path="/files/favorites" element={<FavoriteFilesPage />} />
+                <Route path="/files/recent" element={<RecentFilesPage />} />
                 <Route path="/settings" element={<SettingsLayout />}>
                   <Route index element={<ProfileSettingsPage />} />
                   <Route path="preferences" element={<PreferencesSettingsPage />} />
@@ -51,6 +57,8 @@ export function AppRoutes() {
                   <Route path="roles" element={<AdminRolesPage />} />
                   <Route path="projects" element={<AdminProjectsPage />} />
                   <Route path="custom-fields" element={<AdminCustomFieldsPage />} />
+                  <Route path="tags" element={<AdminTagsPage />} />
+                  <Route path="file-categories" element={<AdminFileCategoriesPage />} />
                   <Route path="settings" element={<AdminSystemSettingsPage />} />
                 </Route>
               </Routes>

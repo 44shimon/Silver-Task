@@ -24,6 +24,19 @@ namespace Silver_Task.Server.Models.Entities
 
         public Guid? CommentId { get; set; }
 
+        /// <summary>Logical organization only (Phase 34) — never derived from StoragePath, and
+        /// never required: null means "not filed into a folder yet". Only meaningful for
+        /// Project-scoped attachments in practice (a folder belongs to the same project), but
+        /// nothing stops a task/comment attachment from also being filed under a project folder
+        /// for shared organization, per the spec's "task attachment can reference a project
+        /// folder" example.</summary>
+        public Guid? FolderId { get; set; }
+
+        public Guid? CategoryId { get; set; }
+
+        /// <summary>Optional, searchable free-text description (Phase 34).</summary>
+        public string? Description { get; set; }
+
         /// <summary>Editable via Rename — display name only, never the actual storage path.</summary>
         public required string FileName { get; set; }
 
@@ -63,8 +76,16 @@ namespace Silver_Task.Server.Models.Entities
 
         public TaskComment? Comment { get; set; }
 
+        public Folder? Folder { get; set; }
+
+        public FileCategory? Category { get; set; }
+
         public User? UploadedBy { get; set; }
 
         public User? DeletedByUser { get; set; }
+
+        public ICollection<FileTag> FileTags { get; set; } = [];
+
+        public ICollection<UserFileFavorite> FavoritedBy { get; set; } = [];
     }
 }

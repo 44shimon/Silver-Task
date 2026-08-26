@@ -4,6 +4,141 @@
   gap: 12px;
 }
 
+.project-files-view__body {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.project-files-view__sidebar {
+  flex-shrink: 0;
+  width: 180px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+}
+
+.project-files-view__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.project-files-view__nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.project-files-view__view-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.project-files-view__view-toggle button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  border: none;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.project-files-view__view-toggle button:hover {
+  color: var(--accent);
+}
+
+.project-files-view__view-toggle--active {
+  background: var(--accent-bg) !important;
+  color: var(--accent) !important;
+}
+
+.project-files-view__upload-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.project-files-view__upload-row .file-dropzone {
+  flex: 1;
+}
+
+.project-files-view__new-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.project-files-view__new-folder:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.project-files-view__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+}
+
+.project-files-view__grid-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  cursor: pointer;
+  text-align: center;
+}
+
+.project-files-view__grid-card:hover {
+  border-color: var(--accent-border);
+}
+
+.project-files-view__grid-card img {
+  width: 100%;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.project-files-view__grid-name {
+  width: 100%;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-files-view__grid-size {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.7;
+}
+
 .project-files-view__toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -69,4 +204,16 @@
 .project-files-view__pagination button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* Mobile: the folder tree sidebar collapses — breadcrumbs remain the primary way to navigate
+ * back up, per the spec's "folder navigation should collapse on mobile" note. */
+@media (max-width: 700px) {
+  .project-files-view__body {
+    flex-direction: column;
+  }
+
+  .project-files-view__sidebar {
+    display: none;
+  }
 }

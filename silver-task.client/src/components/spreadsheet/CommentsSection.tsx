@@ -81,6 +81,7 @@ export function CommentsSection({ taskId, projectId, currentUserId, canEdit }: C
           <CommentRow
             key={comment.id}
             taskId={taskId}
+            projectId={projectId}
             comment={comment}
             currentUserId={currentUserId}
             canUploadFiles={canUploadFiles}
@@ -140,13 +141,14 @@ export function CommentsSection({ taskId, projectId, currentUserId, canEdit }: C
 
 interface CommentRowProps {
   taskId: string;
+  projectId: string;
   comment: Comment;
   currentUserId: string | undefined;
   canUploadFiles: boolean;
   canManageFiles: boolean;
 }
 
-function CommentRow({ taskId, comment, currentUserId, canUploadFiles, canManageFiles }: CommentRowProps) {
+function CommentRow({ taskId, projectId, comment, currentUserId, canUploadFiles, canManageFiles }: CommentRowProps) {
   const updateComment = useUpdateComment(taskId);
   const deleteComment = useDeleteComment(taskId);
   const { data: attachments } = useCommentAttachments(comment.id);
@@ -223,7 +225,16 @@ function CommentRow({ taskId, comment, currentUserId, canUploadFiles, canManageF
         )}
       </div>
 
-      {previewing && <FilePreviewModal attachment={previewing} onClose={() => setPreviewing(null)} />}
+      {previewing && (
+        <FilePreviewModal
+          attachment={previewing}
+          projectId={projectId}
+          currentUserId={currentUserId}
+          canUpload={canUploadFiles}
+          canManageFiles={canManageFiles}
+          onClose={() => setPreviewing(null)}
+        />
+      )}
     </div>
   );
 }

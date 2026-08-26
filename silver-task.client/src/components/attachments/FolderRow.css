@@ -1,0 +1,58 @@
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+}
+
+.folder-row--deleted {
+  opacity: 0.6;
+}
+
+.folder-row__icon {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.folder-row__name {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.folder-row__name:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.folder-row__rename-input {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 4px;
+}
+
+.folder-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.folder-row__actions .icon-button {
+  width: 26px;
+  height: 26px;
+}

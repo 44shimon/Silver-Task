@@ -110,8 +110,10 @@ namespace Silver_Task.Server.Controllers
         [HttpGet("{id:guid}/attachments")]
         public async Task<ActionResult<IReadOnlyList<AttachmentDto>>> GetAttachments(Guid id)
         {
-            var attachments = await _attachmentService.GetAllForTaskAsync(id, User.GetUserId(), User.GetRole());
-            return Ok(attachments.Select(a => a.ToDto()));
+            var callerId = User.GetUserId();
+            var attachments = await _attachmentService.GetAllForTaskAsync(id, callerId, User.GetRole());
+            var favoritedIds = await _attachmentService.GetFavoritedFileIdsAsync(callerId, attachments.Select(a => a.Id));
+            return Ok(attachments.Select(a => a.ToDto(favoritedIds.Contains(a.Id))));
         }
 
         // AttachmentUploadLimits.MaxRequestBodyBytes is comfortably above the admin-configurable
