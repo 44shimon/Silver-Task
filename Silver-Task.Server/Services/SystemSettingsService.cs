@@ -163,6 +163,12 @@ namespace Silver_Task.Server.Services
                         throw new ValidationException("Account lockout duration must be between 1 and 1440 minutes.");
                     }
                     break;
+                case SystemSettingKeys.RecurringTaskGenerationWindowDays:
+                    if (value is < 7 or > 180)
+                    {
+                        throw new ValidationException("Recurring task generation window must be between 7 and 180 days.");
+                    }
+                    break;
             }
         }
 

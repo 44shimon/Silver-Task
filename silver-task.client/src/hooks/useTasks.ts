@@ -110,7 +110,7 @@ export function useCreateTask(projectId: string) {
  * rather than tracking exactly which parent(s) were affected. These are relatively infrequent
  * actions compared to a field edit, so the extra invalidation breadth costs little and avoids
  * subtly-stale counts/lists after a move touches two different parents at once. */
-function invalidateTaskHierarchyData(queryClient: ReturnType<typeof useQueryClient>, projectId: string) {
+export function invalidateTaskHierarchyData(queryClient: ReturnType<typeof useQueryClient>, projectId: string) {
   queryClient.invalidateQueries({ queryKey: tasksKey(projectId) });
   queryClient.invalidateQueries({ queryKey: myTasksKey });
   queryClient.invalidateQueries({ predicate: (query) => query.queryKey.includes('subtasks') });

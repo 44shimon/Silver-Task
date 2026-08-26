@@ -2,7 +2,7 @@ import { Filter } from 'lucide-react';
 import { PRIORITY_OPTIONS, STATUS_LABELS, STATUS_OPTIONS } from '@/types/task';
 import type { UserSummary } from '@/types/project';
 import type { TaskFilters } from '@/hooks/useTaskFilters';
-import { DEPENDENCY_STATE_LABELS, type DependencyStateFilter } from '@/utils/taskFilters';
+import { DEPENDENCY_STATE_LABELS, RECURRENCE_STATE_LABELS, type DependencyStateFilter, type RecurrenceStateFilter } from '@/utils/taskFilters';
 import './Toolbar.css';
 
 interface TaskFilterPanelProps {
@@ -88,6 +88,23 @@ export function TaskFilterPanel({ filters, onChange, onClear, activeCount, membe
             {(Object.keys(DEPENDENCY_STATE_LABELS) as DependencyStateFilter[]).map((state) => (
               <option key={state} value={state}>
                 {DEPENDENCY_STATE_LABELS[state]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="toolbar-popover__field">
+          <span>Recurrence</span>
+          <select
+            value={filters.recurrenceState ?? ''}
+            onChange={(e) =>
+              onChange({ ...filters, recurrenceState: (e.target.value || null) as RecurrenceStateFilter | null })
+            }
+          >
+            <option value="">All</option>
+            {(Object.keys(RECURRENCE_STATE_LABELS) as RecurrenceStateFilter[]).map((state) => (
+              <option key={state} value={state}>
+                {RECURRENCE_STATE_LABELS[state]}
               </option>
             ))}
           </select>

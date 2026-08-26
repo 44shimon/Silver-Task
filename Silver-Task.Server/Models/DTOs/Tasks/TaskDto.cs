@@ -57,6 +57,15 @@ namespace Silver_Task.Server.Models.DTOs.Tasks
         /// <summary>Of SubtaskCount, how many direct children have Status == Complete.</summary>
         public int CompletedSubtaskCount { get; set; }
 
+        /// <summary>Non-null on every occurrence of a recurring series (including the first) — the
+        /// frontend uses this alone to decide whether to show the recurring indicator/section; the
+        /// full rule is fetched separately via GET /api/tasks/{id}/recurrence only when needed.</summary>
+        public Guid? RecurringTaskId { get; set; }
+
+        public DateOnly? RecurrenceOccurrenceDate { get; set; }
+
+        public int? OccurrenceNumber { get; set; }
+
         public DateTime CreatedAt { get; set; }
 
         public DateTime UpdatedAt { get; set; }

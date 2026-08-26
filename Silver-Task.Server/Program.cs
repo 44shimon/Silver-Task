@@ -97,7 +97,9 @@ builder.Services.AddScoped<IUserNotificationSettingsService, UserNotificationSet
 builder.Services.AddScoped<ISystemSettingsService, SystemSettingsService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ITaskDependencyService, TaskDependencyService>();
+builder.Services.AddScoped<IRecurringTaskService, RecurringTaskService>();
 builder.Services.AddHostedService<DueDateNotificationBackgroundService>();
+builder.Services.AddHostedService<RecurringTaskGenerationBackgroundService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

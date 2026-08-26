@@ -29,6 +29,9 @@ namespace Silver_Task.Server.Models.DTOs.Tasks
             DependentCount = task.DependentCount,
             SubtaskCount = task.SubtaskCount,
             CompletedSubtaskCount = task.CompletedSubtaskCount,
+            RecurringTaskId = task.RecurringTaskId,
+            RecurrenceOccurrenceDate = task.RecurrenceOccurrenceDate,
+            OccurrenceNumber = task.OccurrenceNumber,
             CreatedAt = task.CreatedAt,
             UpdatedAt = task.UpdatedAt
         };

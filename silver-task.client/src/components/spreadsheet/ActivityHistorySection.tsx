@@ -70,6 +70,30 @@ function describeActivity(activity: TaskActivity): string {
     return `${actor} reordered this task among its siblings`;
   }
 
+  if (activity.action === 'RecurrenceCreated') {
+    return `${actor} set up a recurring task: ${activity.newValue ?? 'schedule set'}`;
+  }
+
+  if (activity.action === 'RecurrenceEdited') {
+    return `${actor} changed the recurrence from "${activity.oldValue ?? '?'}" to "${activity.newValue ?? '?'}"`;
+  }
+
+  if (activity.action === 'RecurrenceStopped') {
+    return `${actor} stopped this recurring series`;
+  }
+
+  if (activity.action === 'RecurrenceResumed') {
+    return `${actor} resumed this recurring series`;
+  }
+
+  if (activity.action === 'RecurrenceDeleted') {
+    return `${actor} deleted this recurring series`;
+  }
+
+  if (activity.action === 'RecurringOccurrenceGenerated') {
+    return `New occurrence generated automatically for "${activity.newValue ?? 'this series'}"`;
+  }
+
   const field = activity.fieldName ?? 'a field';
   const oldDisplay = formatActivityValue(activity.fieldName, activity.oldValue);
   const newDisplay = formatActivityValue(activity.fieldName, activity.newValue);

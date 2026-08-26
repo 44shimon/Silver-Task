@@ -24,6 +24,14 @@ namespace Silver_Task.Server.Common
         /// actually becomes unblocked, not on every prerequisite completion if others still block it.</summary>
         public const string TaskDependencyCompleted = "TaskDependencyCompleted";
 
+        /// <summary>Phase 31 — fires (to the recurring task's creator, not "all admins" — this app
+        /// has no broadcast-to-admins notification pattern) when a newly generated occurrence
+        /// can't be auto-assigned because the configured assignee is no longer an active project
+        /// member. Deliberately distinct from TaskAssigned: this is "please look at this", not a
+        /// per-occurrence assignment notice — the occurrence itself generates zero assignment
+        /// notification in this case, since nobody was actually assigned.</summary>
+        public const string RecurringTaskAssigneeInactive = "RecurringTaskAssigneeInactive";
+
         public static readonly IReadOnlyList<string> All =
         [
             TaskAssigned,
@@ -38,7 +46,8 @@ namespace Silver_Task.Server.Common
             UserAddedToProject,
             UserRemovedFromProject,
             ProjectTaskCompleted,
-            TaskDependencyCompleted
+            TaskDependencyCompleted,
+            RecurringTaskAssigneeInactive
         ];
     }
 }

@@ -15,11 +15,16 @@ namespace Silver_Task.Server.Controllers
     [ApiController]
     [Route("api/admin")]
     [Authorize(Roles = nameof(UserRole.Administrator))]
-    public class AdminController(IAdminService adminService, IProjectService projectService, IUserService userService) : ControllerBase
+    public class AdminController(
+        IAdminService adminService,
+        IProjectService projectService,
+        IUserService userService,
+        IRecurringTaskService recurringTaskService) : ControllerBase
     {
         private readonly IAdminService _adminService = adminService;
         private readonly IProjectService _projectService = projectService;
         private readonly IUserService _userService = userService;
+        private readonly IRecurringTaskService _recurringTaskService = recurringTaskService;
 
         [HttpGet("stats")]
         public async Task<ActionResult<AdminStatsDto>> GetStats()
@@ -54,6 +59,17 @@ namespace Silver_Task.Server.Controllers
         {
             await _userService.DeleteAsync(id, User.GetUserId());
             return NoContent();
+        }
+
+        /// <summary>Manually runs the same sweep RecurringTaskGenerationBackgroundService already
+        /// performs on its own timer — for admins who don't want to wait up to 5 minutes while
+        /// testing/verifying a recurrence rule. Never exposed to non-Administrators: this class's
+        /// [Authorize(Roles=Administrator)] attribute is the enforcement, not just UI hiding.</summary>
+        [HttpPost("recurring-tasks/generate")]
+        public async Task<ActionResult<object>> GenerateRecurringTasks()
+        {
+            var generatedCount = await _recurringTaskService.GenerateDueOccurrencesAsync();
+            return Ok(new { generatedCount });
         }
     }
 }

@@ -18,6 +18,9 @@ namespace Silver_Task.Server.Common
         public const string DefaultTaskStatus = "TaskDefaults.DefaultStatus";
         public const string DefaultTaskPriority = "TaskDefaults.DefaultPriority";
 
+        // Recurring Tasks
+        public const string RecurringTaskGenerationWindowDays = "RecurringTasks.GenerationWindowDays";
+
         // Project Defaults
         public const string RequireProjectDescription = "ProjectDefaults.RequireDescription";
 

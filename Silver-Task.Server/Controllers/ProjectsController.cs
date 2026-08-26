@@ -4,6 +4,7 @@ using Silver_Task.Server.Models.Common;
 using Silver_Task.Server.Models.DTOs.CustomFields;
 using Silver_Task.Server.Models.DTOs.Dependencies;
 using Silver_Task.Server.Models.DTOs.Projects;
+using Silver_Task.Server.Models.DTOs.Recurrence;
 using Silver_Task.Server.Models.DTOs.Tasks;
 using Silver_Task.Server.Services;
 
@@ -15,12 +16,14 @@ namespace Silver_Task.Server.Controllers
         IProjectService projectService,
         ITaskService taskService,
         ICustomFieldService customFieldService,
-        ITaskDependencyService dependencyService) : ControllerBase
+        ITaskDependencyService dependencyService,
+        IRecurringTaskService recurringTaskService) : ControllerBase
     {
         private readonly IProjectService _projectService = projectService;
         private readonly ITaskService _taskService = taskService;
         private readonly ICustomFieldService _customFieldService = customFieldService;
         private readonly ITaskDependencyService _dependencyService = dependencyService;
+        private readonly IRecurringTaskService _recurringTaskService = recurringTaskService;
 
         [HttpGet]
         public async Task<ActionResult<IReadOnlyList<ProjectDto>>> GetAll([FromQuery] bool includeArchived = false)
@@ -136,6 +139,15 @@ namespace Silver_Task.Server.Controllers
         {
             var edges = await _dependencyService.GetProjectEdgesAsync(id, User.GetUserId(), User.GetRole());
             return Ok(edges.Select(e => new TaskDependencyEdgeDto { TaskId = e.TaskId, DependsOnTaskId = e.DependsOnTaskId }));
+        }
+
+        /// <summary>Every recurring rule defined in the project (active and stopped) — backs the
+        /// Recurring Tasks management list.</summary>
+        [HttpGet("{id:guid}/recurring-tasks")]
+        public async Task<ActionResult<IReadOnlyList<RecurrenceRuleDto>>> GetRecurringTasks(Guid id)
+        {
+            var rules = await _recurringTaskService.GetForProjectAsync(id, User.GetUserId(), User.GetRole());
+            return Ok(rules.Select(r => r.ToDto()));
         }
     }
 }

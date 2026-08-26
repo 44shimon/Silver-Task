@@ -35,6 +35,10 @@ namespace Silver_Task.Server.Data
 
         public DbSet<TaskDependency> TaskDependencies => Set<TaskDependency>();
 
+        public DbSet<RecurringTask> RecurringTasks => Set<RecurringTask>();
+
+        public DbSet<RecurringTaskException> RecurringTaskExceptions => Set<RecurringTaskException>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

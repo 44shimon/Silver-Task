@@ -30,6 +30,14 @@ namespace Silver_Task.Server.Data.Configurations
             // doesn't help that query shape since it's keyed on ProjectId, not ParentTaskId.
             builder.HasIndex(t => new { t.ParentTaskId, t.SortOrder });
 
+            // The authoritative duplicate-generation guard (Phase 31) — a database constraint, not
+            // just an application-level check, per the "must not rely only on checking in
+            // application code" requirement. Filtered so ordinary (non-recurring) tasks, which all
+            // have RecurringTaskId=null, are never compared against each other.
+            builder.HasIndex(t => new { t.RecurringTaskId, t.RecurrenceOccurrenceDate })
+                .IsUnique()
+                .HasFilter("\"RecurringTaskId\" IS NOT NULL");
+
             builder.HasOne(t => t.Project)
                 .WithMany(p => p.Tasks)
                 .HasForeignKey(t => t.ProjectId)
@@ -49,6 +57,15 @@ namespace Silver_Task.Server.Data.Configurations
                 .WithMany(t => t.Subtasks)
                 .HasForeignKey(t => t.ParentTaskId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // SetNull — deleting a RecurringTask row (see RecurringTaskConfiguration) must never
+            // cascade into deleting its already-generated tasks; they simply stop being linked to
+            // a series (this is exactly RecurringTaskService.DeleteAsync's "existing generated
+            // tasks remain" contract, enforced at the database level too, not just in the service).
+            builder.HasOne(t => t.RecurringTask)
+                .WithMany(r => r.GeneratedTasks)
+                .HasForeignKey(t => t.RecurringTaskId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

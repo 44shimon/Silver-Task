@@ -14,6 +14,7 @@ import { ActivityHistorySection } from './ActivityHistorySection';
 import { AttachmentsSection } from './AttachmentsSection';
 import { DependenciesSection } from './DependenciesSection';
 import { SubtasksSection } from './SubtasksSection';
+import { RecurrenceSection } from './RecurrenceSection';
 import { TaskBreadcrumb } from './TaskBreadcrumb';
 import { MoveTaskDialog } from './MoveTaskDialog';
 import './TaskDetailPanel.css';
@@ -120,6 +121,7 @@ export function TaskDetailPanel({ task, projectId, members, customFields, tasks,
             </div>
           )}
 
+          <RecurrenceSection task={task} projectId={projectId} members={members} onOpenDetail={onOpenDetail} />
           <SubtasksSection task={task} projectId={projectId} members={members} onOpenDetail={onOpenDetail} />
           <DependenciesSection task={task} projectId={projectId} tasks={tasks} onOpenDetail={onOpenDetail} />
           <AttachmentsSection taskId={task.id} />

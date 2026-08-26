@@ -26,6 +26,7 @@ const EMPTY_FILTERS: TaskFilters = {
   assigneeId: null,
   dueBefore: null,
   dependencyState: null,
+  recurrenceState: null,
 };
 
 export const SORT_FIELD_LABELS: Record<TaskSortField, string> = {
@@ -85,6 +86,7 @@ export function useTaskFilters(tasks: Task[], customFields: CustomField[] = []) 
     filters.assigneeId,
     filters.dueBefore,
     filters.dependencyState,
+    filters.recurrenceState,
   ].filter((value) => value !== null).length;
 
   const today = todayDateOnly();

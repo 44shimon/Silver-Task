@@ -15,6 +15,7 @@ import { KanbanBoard } from '@/components/kanban/KanbanBoard';
 import { CalendarView } from '@/components/calendar/CalendarView';
 import { TimelineView } from '@/components/timeline/TimelineView';
 import { GanttView } from '@/components/gantt/GanttView';
+import { RecurringTasksView } from '@/components/project/RecurringTasksView';
 import { TaskSearchInput } from '@/components/spreadsheet/TaskSearchInput';
 import { TaskFilterPanel } from '@/components/spreadsheet/TaskFilterPanel';
 import { SortMenu } from '@/components/filters/SortMenu';
@@ -220,6 +221,8 @@ export function ProjectPage() {
         <TimelineView projectId={project.id} tasks={filteredTasks} onOpenDetail={openTaskDetail} />
       ) : view === 'gantt' ? (
         <GanttView projectId={project.id} projectName={project.name} tasks={filteredTasks} onOpenDetail={openTaskDetail} />
+      ) : view === 'recurring' ? (
+        <RecurringTasksView projectId={project.id} tasks={tasks ?? []} members={memberUsers} onOpenDetail={openTaskDetail} />
       ) : (
         <TaskTable
           projectId={project.id}

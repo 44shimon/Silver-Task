@@ -1,0 +1,98 @@
+.recurring-tasks-view__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 48px 20px;
+  color: var(--text);
+  opacity: 0.75;
+  text-align: center;
+}
+
+.recurring-tasks-view__table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.recurring-tasks-view__table th {
+  text-align: left;
+  padding: 9px 12px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  color: var(--text-h);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.recurring-tasks-view__table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-h);
+}
+
+.recurring-tasks-view__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.recurring-tasks-view__table tbody tr:hover {
+  background: var(--bg-subtle);
+}
+
+.recurring-tasks-view__link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.recurring-tasks-view__link:hover {
+  text-decoration: underline;
+}
+
+.recurring-tasks-view__status {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--success);
+}
+
+.recurring-tasks-view__status--stopped {
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.recurring-tasks-view__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.recurring-tasks-view__actions button {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-h);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.recurring-tasks-view__actions button:hover {
+  background: var(--bg-subtle);
+  border-color: var(--accent-border);
+}
+
+.recurring-tasks-view__actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

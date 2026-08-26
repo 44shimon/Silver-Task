@@ -6,7 +6,8 @@ namespace Silver_Task.Server.Common
         TaskDefaults,
         ProjectDefaults,
         Security,
-        Behavior
+        Behavior,
+        RecurringTasks
     }
 
     public record SystemSettingDefinition(
@@ -69,7 +70,10 @@ namespace Silver_Task.Server.Common
             new(SystemSettingKeys.AllowComments, SystemSettingSection.Behavior,
                 "true", "bool", "Allow new comments to be posted on tasks."),
             new(SystemSettingKeys.AllowAttachments, SystemSettingSection.Behavior,
-                "true", "bool", "Allow new file attachments to be uploaded to tasks.")
+                "true", "bool", "Allow new file attachments to be uploaded to tasks."),
+
+            new(SystemSettingKeys.RecurringTaskGenerationWindowDays, SystemSettingSection.RecurringTasks,
+                "30", "int", "How many days ahead recurring task occurrences are generated. Missed occurrences older than 7 days are skipped rather than backfilled.")
         ];
 
         public static readonly IReadOnlyDictionary<string, SystemSettingDefinition> ByKey =

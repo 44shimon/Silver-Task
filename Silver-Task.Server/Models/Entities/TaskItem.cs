@@ -42,6 +42,22 @@ namespace Silver_Task.Server.Models.Entities
         /// circular-parent/same-project/depth validation this requires).</summary>
         public Guid? ParentTaskId { get; set; }
 
+        /// <summary>Set on every occurrence of a recurring series, including the first (the task
+        /// the user originally attached recurrence to) — null for an ordinary, non-recurring task.
+        /// See RecurringTask; this is deliberately a plain nullable FK on the existing Task row,
+        /// not a second task system (Phase 31).</summary>
+        public Guid? RecurringTaskId { get; set; }
+
+        /// <summary>The calendar date this occurrence represents, per the recurrence rule — not
+        /// necessarily equal to StartDate/DueDate (a user can freely reschedule a single occurrence
+        /// without changing its place in the series). Combined with RecurringTaskId, this is
+        /// unique — the database-level duplicate-generation guard (see TaskItemConfiguration).</summary>
+        public DateOnly? RecurrenceOccurrenceDate { get; set; }
+
+        /// <summary>1-based position in the series (1 = the template/first occurrence) — display
+        /// only, never used for scheduling logic.</summary>
+        public int? OccurrenceNumber { get; set; }
+
         public DateTime CreatedAt { get; set; }
 
         public DateTime UpdatedAt { get; set; }
@@ -51,6 +67,8 @@ namespace Silver_Task.Server.Models.Entities
         public User? AssignedTo { get; set; }
 
         public TaskItem? ParentTask { get; set; }
+
+        public RecurringTask? RecurringTask { get; set; }
 
         public ICollection<TaskItem> Subtasks { get; set; } = [];
 

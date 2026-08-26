@@ -12,7 +12,7 @@ import {
   useLegacyTable,
   type LegacyColumnDef,
 } from '@tanstack/react-table/legacy';
-import { ChevronDown, ChevronRight, Copy, Maximize2, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy, Maximize2, Repeat, Trash2 } from 'lucide-react';
 import type { Task } from '@/types/task';
 import type { UserSummary } from '@/types/project';
 import type { CustomField } from '@/types/customField';
@@ -113,6 +113,11 @@ export function TaskTable({
                 <span className="task-table__expand-spacer" />
               )}
               <EditableTitleCell task={task} projectId={projectId} />
+              {task.recurringTaskId && (
+                <span className="task-table__recurring-icon" title="Recurring task">
+                  <Repeat size={12} />
+                </span>
+              )}
               {task.subtaskCount > 0 && (
                 <span className="task-table__subtask-count" title={`${task.subtaskCount} subtasks`}>
                   {task.subtaskCount}

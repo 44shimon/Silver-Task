@@ -106,12 +106,24 @@ export const DEPENDENCY_STATE_LABELS: Record<DependencyStateFilter, string> = {
  * Project (My Tasks only — meaningless within a single project's own views) are each layered on
  * top by whichever hook actually needs that one extra dimension, rather than forced into one
  * combined shape. */
+/** Whether a task is part of a recurring series at all — not further split into "active series"
+ * vs. "stopped series" here, since that state lives on the RecurringTask rule, not the Task
+ * itself, and this filter operates over an already-loaded flat task list with no per-task rule
+ * data attached. "Active/stopped" is instead answerable from the Recurring Tasks management list. */
+export type RecurrenceStateFilter = 'recurring' | 'notRecurring';
+
+export const RECURRENCE_STATE_LABELS: Record<RecurrenceStateFilter, string> = {
+  recurring: 'Recurring',
+  notRecurring: 'Not recurring',
+};
+
 export interface CommonTaskFilters {
   status: TaskStatus | null;
   priority: TaskPriority | null;
   /** DateOnly ("YYYY-MM-DD"); matches tasks due strictly before this date. */
   dueBefore: string | null;
   dependencyState: DependencyStateFilter | null;
+  recurrenceState: RecurrenceStateFilter | null;
 }
 
 export function matchesCommonFilters(task: Task, filters: CommonTaskFilters): boolean {
@@ -136,6 +148,14 @@ export function matchesCommonFilters(task: Task, filters: CommonTaskFilters): bo
       break;
     case 'hasDependents':
       if (task.dependentCount === 0) return false;
+      break;
+  }
+  switch (filters.recurrenceState) {
+    case 'recurring':
+      if (task.recurringTaskId === null) return false;
+      break;
+    case 'notRecurring':
+      if (task.recurringTaskId !== null) return false;
       break;
   }
   return true;

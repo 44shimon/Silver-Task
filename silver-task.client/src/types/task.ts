@@ -53,6 +53,14 @@ export interface Task {
   subtaskCount: number;
   /** Of subtaskCount, how many direct children have status === 'Complete'. */
   completedSubtaskCount: number;
+  /** Set on every occurrence of a recurring series, including the first (the task recurrence was
+   * originally attached to) — null for an ordinary task. */
+  recurringTaskId: string | null;
+  /** The calendar date this occurrence represents per the recurrence rule — not necessarily equal
+   * to startDate/dueDate, since a single occurrence can be freely rescheduled. */
+  recurrenceOccurrenceDate: string | null;
+  /** 1-based position in the series (1 = the first/template occurrence). Display only. */
+  occurrenceNumber: number | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -45,6 +45,7 @@ const EMPTY_FILTERS: MyTasksFilters = {
   priority: null,
   dueBefore: null,
   dependencyState: null,
+  recurrenceState: null,
 };
 
 /** Search + quick-filter + detailed-filter + sort over the already-loaded My Tasks list
@@ -75,6 +76,7 @@ export function useMyTasksFilters(tasks: Task[]) {
     filters.priority,
     filters.dueBefore,
     filters.dependencyState,
+    filters.recurrenceState,
   ].filter((value) => value !== null).length;
 
   const today = todayDateOnly();
