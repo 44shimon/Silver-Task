@@ -7,11 +7,14 @@ const activitiesKey = (taskId: string) => ['tasks', taskId, 'activities'] as con
 const projectFilesRootKey = (projectId: string) => ['projects', projectId, 'files'] as const;
 const projectFilesKey = (projectId: string, filter: AttachmentFilter) => [...projectFilesRootKey(projectId), filter] as const;
 const commentAttachmentsKey = (commentId: string) => ['comments', commentId, 'attachments'] as const;
+const attachmentDetailKey = (id: string) => ['attachments', 'detail', id] as const;
 
 /** Every rename/delete/restore mutation below is shared across three different list contexts
  * (task, project, comment) — rather than three near-duplicate hooks per action, each takes the
  * full Attachment (which already carries its own projectId/taskId/commentId) so a single mutation
- * can invalidate exactly the caches it affects. */
+ * can invalidate exactly the caches it affects. Also invalidates the single-attachment detail
+ * cache (see useAttachment) so an open FilePreviewModal always reflects the change instead of
+ * continuing to show whatever snapshot it was opened with. */
 function invalidateForAttachment(queryClient: ReturnType<typeof useQueryClient>, attachment: Attachment) {
   if (attachment.taskId) {
     queryClient.invalidateQueries({ queryKey: taskAttachmentsKey(attachment.taskId) });
@@ -23,6 +26,20 @@ function invalidateForAttachment(queryClient: ReturnType<typeof useQueryClient>,
   if (attachment.commentId) {
     queryClient.invalidateQueries({ queryKey: commentAttachmentsKey(attachment.commentId) });
   }
+  queryClient.invalidateQueries({ queryKey: attachmentDetailKey(attachment.id) });
+}
+
+/** Always-fresh single-file view, used by FilePreviewModal — the various list queries
+ * (task/project/comment/favorites/recent) each cache their own copy of an attachment, so a
+ * mutation invalidating one of them doesn't update whichever snapshot the modal was opened from.
+ * `initialData` is whatever row the user clicked, so the modal never flashes empty while this
+ * fetches. */
+export function useAttachment(id: string, initialData: Attachment) {
+  return useQuery({
+    queryKey: attachmentDetailKey(id),
+    queryFn: () => attachmentsApi.getById(id),
+    initialData,
+  });
 }
 
 export function useTaskAttachments(taskId: string) {
@@ -90,7 +107,10 @@ export function useRenameAttachment() {
   return useMutation({
     mutationFn: ({ attachment, fileName }: { attachment: Attachment; fileName: string }) =>
       attachmentsApi.rename(attachment.id, fileName),
-    onSuccess: (_updated, { attachment }) => invalidateForAttachment(queryClient, attachment),
+    onSuccess: (updated, { attachment }) => {
+      queryClient.setQueryData(attachmentDetailKey(updated.id), updated);
+      invalidateForAttachment(queryClient, attachment);
+    },
   });
 }
 
@@ -115,7 +135,10 @@ export function useMoveAttachment() {
   return useMutation({
     mutationFn: ({ attachment, folderId }: { attachment: Attachment; folderId: string | null }) =>
       attachmentsApi.move(attachment.id, folderId),
-    onSuccess: (_updated, { attachment }) => invalidateForAttachment(queryClient, attachment),
+    onSuccess: (updated, { attachment }) => {
+      queryClient.setQueryData(attachmentDetailKey(updated.id), updated);
+      invalidateForAttachment(queryClient, attachment);
+    },
   });
 }
 
@@ -124,7 +147,10 @@ export function useUpdateAttachmentDescription() {
   return useMutation({
     mutationFn: ({ attachment, description }: { attachment: Attachment; description: string | null }) =>
       attachmentsApi.updateDescription(attachment.id, description),
-    onSuccess: (_updated, { attachment }) => invalidateForAttachment(queryClient, attachment),
+    onSuccess: (updated, { attachment }) => {
+      queryClient.setQueryData(attachmentDetailKey(updated.id), updated);
+      invalidateForAttachment(queryClient, attachment);
+    },
   });
 }
 
@@ -133,7 +159,10 @@ export function useSetAttachmentCategory() {
   return useMutation({
     mutationFn: ({ attachment, categoryId }: { attachment: Attachment; categoryId: string | null }) =>
       attachmentsApi.setCategory(attachment.id, categoryId),
-    onSuccess: (_updated, { attachment }) => invalidateForAttachment(queryClient, attachment),
+    onSuccess: (updated, { attachment }) => {
+      queryClient.setQueryData(attachmentDetailKey(updated.id), updated);
+      invalidateForAttachment(queryClient, attachment);
+    },
   });
 }
 

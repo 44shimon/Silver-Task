@@ -9,6 +9,7 @@ import { useFolders } from '@/hooks/useFolders';
 import { useActiveFileCategories } from '@/hooks/useFileCategories';
 import {
   useAddAttachmentTag,
+  useAttachment,
   useDeleteAttachment,
   useMoveAttachment,
   useRemoveAttachmentTag,
@@ -22,6 +23,9 @@ import { ApiError } from '@/api/httpClient';
 import './FilePreviewModal.css';
 
 interface FilePreviewModalProps {
+  /** The row the user clicked — used only as the initial seed. The modal itself always renders
+   * from useAttachment(id), so edits made inside it are reflected immediately instead of showing
+   * whatever snapshot the list it was opened from happened to have (see that hook's doc comment). */
   attachment: Attachment;
   /** The file's own project — resolved by the caller (every context already knows it), since a
    * task/comment attachment's own `projectId` field is null (see Attachment's own doc comment);
@@ -43,7 +47,8 @@ const PREVIEWABLE = new Set(['pdf', 'image']);
  * than scattering folder-move/tag-management controls across each compact row. No OnlyOffice/
  * office-doc editor exists in this app to preview .doc/.docx/.xls/.xlsx with (confirmed absent —
  * out of scope to build one); those types get metadata + Download only. */
-export function FilePreviewModal({ attachment, projectId, currentUserId, canUpload, canManageFiles, onClose }: FilePreviewModalProps) {
+export function FilePreviewModal({ attachment: initialAttachment, projectId, currentUserId, canUpload, canManageFiles, onClose }: FilePreviewModalProps) {
+  const { data: attachment } = useAttachment(initialAttachment.id, initialAttachment);
   const category = categorizeAttachment(attachment.mimeType);
   const downloadUrl = attachmentsApi.downloadUrl(attachment.id);
   const canEmbedPreview = PREVIEWABLE.has(category) || attachment.mimeType === 'text/plain';
@@ -83,6 +88,11 @@ export function FilePreviewModal({ attachment, projectId, currentUserId, canUplo
     if (trimmed && trimmed !== attachment.fileName) {
       renameAttachment.mutate({ attachment, fileName: trimmed });
     }
+  }
+
+  function startEditingDescription() {
+    setDescriptionDraft(attachment.description ?? '');
+    setIsEditingDescription(true);
   }
 
   function commitDescription() {
@@ -179,7 +189,7 @@ export function FilePreviewModal({ attachment, projectId, currentUserId, canUplo
             autoFocus
           />
         ) : canModify ? (
-          <p className="file-preview-modal__description" onClick={() => setIsEditingDescription(true)}>
+          <p className="file-preview-modal__description" onClick={startEditingDescription}>
             {attachment.description || <span className="editable-cell__placeholder">Add a description...</span>}
           </p>
         ) : (
