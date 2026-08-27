@@ -42,6 +42,53 @@ namespace Silver_Task.Server.Common
             return (start, start.AddMonths(1).AddDays(-1));
         }
 
+        public static (DateOnly Start, DateOnly End) QuarterRange(DateOnly today)
+        {
+            var quarterStartMonth = ((today.Month - 1) / 3 * 3) + 1;
+            var start = new DateOnly(today.Year, quarterStartMonth, 1);
+            return (start, start.AddMonths(3).AddDays(-1));
+        }
+
+        public static (DateOnly Start, DateOnly End) YearRange(DateOnly today)
+        {
+            var start = new DateOnly(today.Year, 1, 1);
+            return (start, new DateOnly(today.Year, 12, 31));
+        }
+
+        /// <summary>Phase 38's report date-range filter — Today/Yesterday/This Week/Last Week/
+        /// This Month/Last Month/This Quarter/This Year/Custom. Custom requires both
+        /// <paramref name="customStart"/> and <paramref name="customEnd"/>; if either is missing
+        /// (or the key is unrecognized), falls back to "This Month" — same "don't 500 on a stray
+        /// param" leniency as UpcomingRange/StatsRange, since a malformed filter should degrade to
+        /// a sensible default, not break the whole report.</summary>
+        public static (DateOnly Start, DateOnly End) ReportDateRange(DateOnly today, string? key, DateOnly? customStart, DateOnly? customEnd)
+        {
+            switch (key)
+            {
+                case "today":
+                    return (today, today);
+                case "yesterday":
+                    return (today.AddDays(-1), today.AddDays(-1));
+                case "thisWeek":
+                    return WeekRange(today);
+                case "lastWeek":
+                    var (thisWeekStart, _) = WeekRange(today);
+                    return (thisWeekStart.AddDays(-7), thisWeekStart.AddDays(-1));
+                case "thisMonth":
+                    return MonthRange(today);
+                case "lastMonth":
+                    return MonthRange(today.AddMonths(-1) is var d && d.Day > DateTime.DaysInMonth(d.Year, d.Month) ? new DateOnly(d.Year, d.Month, DateTime.DaysInMonth(d.Year, d.Month)) : d);
+                case "thisQuarter":
+                    return QuarterRange(today);
+                case "thisYear":
+                    return YearRange(today);
+                case "custom" when customStart is DateOnly cs && customEnd is DateOnly ce && cs <= ce:
+                    return (cs, ce);
+                default:
+                    return MonthRange(today);
+            }
+        }
+
         /// <summary>Resolves the dashboard's "Upcoming" widget range query param
         /// ("today"/"tomorrow"/"7days"/"30days") to a concrete [start, end] window (inclusive).
         /// Unrecognized values fall back to the documented default (7 days) rather than erroring —

@@ -1,4 +1,5 @@
 import type { DashboardLayout, DashboardWidgetId } from '@/types/dashboard';
+import { Permissions } from '@/types/permissions';
 
 interface WidgetDefinition {
   id: DashboardWidgetId;
@@ -8,6 +9,10 @@ interface WidgetDefinition {
    * appears in the customize panel and default layout for a given viewer. */
   requiresAdmin?: boolean;
   requiresManagesAnyProject?: boolean;
+  /** Phase 38 — gates a widget behind an arbitrary Permissions.* code (e.g. Reports Summary
+   * behind Reports.View) rather than a widget-specific boolean flag, since the set of permission-
+   * gated widgets is expected to keep growing beyond just admin/manager checks. */
+  requiresPermission?: string;
 }
 
 // The full known widget set + sensible default layout (spec's own recommended default: Task
@@ -29,6 +34,7 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
   { id: 'recentActivity', label: 'Recent Activity' },
   { id: 'teamWorkload', label: 'Team Workload', requiresManagesAnyProject: true },
   { id: 'adminOverview', label: 'System Overview', requiresAdmin: true },
+  { id: 'reportsSummary', label: 'Reports Summary', requiresPermission: Permissions.ReportsView },
 ];
 
 export const DEFAULT_VISIBLE_WIDGETS: DashboardWidgetId[] = [

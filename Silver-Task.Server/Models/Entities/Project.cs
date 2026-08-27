@@ -31,5 +31,7 @@ namespace Silver_Task.Server.Models.Entities
         public ICollection<Folder> Folders { get; set; } = [];
 
         public ICollection<Automation> Automations { get; set; } = [];
+
+        public ICollection<SavedReport> SavedReports { get; set; } = [];
     }
 }

@@ -16,6 +16,14 @@ using Silver_Task.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// QuestPDF's Community license is free for organizations/individuals under $1M USD annual gross
+// revenue (or non-profit/personal/educational use) — see ReportExportService's own doc comment.
+// This project cannot verify Silver Group NY's revenue against that threshold; PDF export is
+// implemented (it's the spec's own explicit requirement and the best technical fit) behind
+// IReportExportService specifically so this is a contained, disclosed decision the business can
+// revisit, not a silent dependency choice.
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
 // Add services to the container.
 
 // The (sp, options) overload (rather than the plain options-only one this used before Phase 36)
@@ -122,6 +130,9 @@ builder.Services.AddSingleton<AutomationDispatcher>();
 builder.Services.AddSingleton<IAutomationDispatcher>(sp => sp.GetRequiredService<AutomationDispatcher>());
 builder.Services.AddSingleton<IAutomationEventQueue>(sp => sp.GetRequiredService<AutomationDispatcher>());
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IReportingService, ReportingService>();
+builder.Services.AddScoped<IReportExportService, ReportExportService>();
+builder.Services.AddScoped<ISavedReportService, SavedReportService>();
 builder.Services.AddHostedService<DueDateNotificationBackgroundService>();
 builder.Services.AddHostedService<RecurringTaskGenerationBackgroundService>();
 builder.Services.AddHostedService<AutomationQueueBackgroundService>();

@@ -59,6 +59,12 @@ namespace Silver_Task.Server.Data
 
         public DbSet<AutomationExecution> AutomationExecutions => Set<AutomationExecution>();
 
+        public DbSet<SavedReport> SavedReports => Set<SavedReport>();
+
+        public DbSet<SavedReportShare> SavedReportShares => Set<SavedReportShare>();
+
+        public DbSet<UserReportFavorite> UserReportFavorites => Set<UserReportFavorite>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

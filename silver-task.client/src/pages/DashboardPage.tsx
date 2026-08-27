@@ -5,7 +5,7 @@ import { useDashboard, useTeamWorkload } from '@/hooks/useDashboard';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Permissions } from '@/types/permissions';
 import type { DashboardLayout, DashboardWidgetId, StatsRange, UpcomingRange } from '@/types/dashboard';
-import { DEFAULT_LAYOUT, parseDashboardLayout } from '@/components/dashboard/dashboardWidgets';
+import { DEFAULT_LAYOUT, parseDashboardLayout, WIDGET_DEFINITIONS } from '@/components/dashboard/dashboardWidgets';
 import { DashboardGreeting } from '@/components/dashboard/DashboardGreeting';
 import { DashboardCustomizePanel } from '@/components/dashboard/DashboardCustomizePanel';
 import { TaskSummaryWidget } from '@/components/dashboard/TaskSummaryWidget';
@@ -23,6 +23,7 @@ import { RecentActivityWidget } from '@/components/dashboard/RecentActivityWidge
 import { TeamWorkloadWidget } from '@/components/dashboard/TeamWorkloadWidget';
 import { AdminOverviewWidget } from '@/components/dashboard/AdminOverviewWidget';
 import { QuickActionsWidget } from '@/components/dashboard/QuickActionsWidget';
+import { ReportsSummaryWidget } from '@/components/dashboard/ReportsSummaryWidget';
 import './DashboardPage.css';
 
 export function DashboardPage() {
@@ -53,9 +54,15 @@ export function DashboardPage() {
   const visible = new Set(layout.visibleWidgets);
   const orderedVisible = layout.order.filter((id) => visible.has(id) && isWidgetAllowed(id, isAdmin, managesAnyProject));
 
+  // Generic over WidgetDefinition's requiresAdmin/requiresManagesAnyProject/requiresPermission
+  // flags (Phase 38 added the last one for Reports Summary) — a new gated widget just needs an
+  // entry in WIDGET_DEFINITIONS, not a new branch here.
   function isWidgetAllowed(id: DashboardWidgetId, admin: boolean, manages: boolean): boolean {
-    if (id === 'adminOverview') return admin;
-    if (id === 'teamWorkload') return manages;
+    const def = WIDGET_DEFINITIONS.find((w) => w.id === id);
+    if (!def) return true;
+    if (def.requiresAdmin && !admin) return false;
+    if (def.requiresManagesAnyProject && !manages) return false;
+    if (def.requiresPermission && !can(def.requiresPermission)) return false;
     return true;
   }
 
@@ -107,6 +114,8 @@ export function DashboardPage() {
         return <TeamWorkloadWidget />;
       case 'adminOverview':
         return <AdminOverviewWidget />;
+      case 'reportsSummary':
+        return <ReportsSummaryWidget />;
       default:
         return null;
     }
@@ -116,7 +125,7 @@ export function DashboardPage() {
     <div className="dashboard-page">
       <div className="dashboard-page__header">
         <DashboardGreeting name={currentUser?.name ?? ''} />
-        <DashboardCustomizePanel layout={layout} onChange={saveLayout} isAdmin={isAdmin} managesAnyProject={managesAnyProject} />
+        <DashboardCustomizePanel layout={layout} onChange={saveLayout} isAdmin={isAdmin} managesAnyProject={managesAnyProject} can={can} />
       </div>
 
       <QuickActionsWidget />

@@ -1,0 +1,47 @@
+.trend-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trend-chart__svg {
+  width: 100%;
+  height: 160px;
+}
+
+.trend-chart__axis {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.trend-chart__line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.trend-chart__point {
+  fill: var(--accent);
+}
+
+.trend-chart__empty {
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0.75;
+  text-align: center;
+  padding: 20px 8px;
+}
+
+/* Visually hidden but reachable by screen readers — the accessible alternative to the SVG chart
+ * above, not decorative supplementary content. */
+.trend-chart__data-table {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

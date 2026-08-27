@@ -94,7 +94,8 @@ export type DashboardWidgetId =
   | 'recentActivity'
   | 'teamWorkload'
   | 'adminOverview'
-  | 'weekSummary';
+  | 'weekSummary'
+  | 'reportsSummary';
 
 export interface DashboardLayout {
   visibleWidgets: DashboardWidgetId[];

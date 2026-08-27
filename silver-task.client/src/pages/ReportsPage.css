@@ -1,0 +1,218 @@
+.reports-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.reports-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reports-page__header h1 {
+  font-size: 24px;
+  margin: 0;
+}
+
+.reports-page__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+
+.reports-page__tab {
+  padding: 7px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.reports-page__tab:hover {
+  background: var(--bg-subtle);
+  color: var(--text-h);
+}
+
+.reports-page__tab--active {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.reports-page__recent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.reports-page__recent button {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  color: var(--text-h);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.reports-page__content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Shared across every report section component (Task Summary/Overdue/Projects/Workload/Task
+ * Age/Completion Time/Custom/Admin) — defined once here rather than duplicated per file, same
+ * "shared classes live with the layout that always mounts them" precedent as AdminLayout.css. */
+.report-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.report-section__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.report-section__rate {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+  margin: 0 0 12px;
+}
+
+.report-section__breakdowns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.report-section__subheading {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  opacity: 0.75;
+  margin: 0 0 8px;
+}
+
+.report-section__pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.report-section__pagination button {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  color: var(--text-h);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.report-section__pagination button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.report-table th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.report-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-h);
+}
+
+.report-table__row-link {
+  cursor: pointer;
+}
+
+.report-table__row-link:hover td {
+  background: var(--bg-subtle);
+}
+
+.report-health-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.report-health-badge--healthy {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.report-health-badge--atrisk {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.report-health-badge--overdue {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.report-builder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.report-builder button {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  color: var(--text-h);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.report-builder button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 900px) {
+  .report-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}

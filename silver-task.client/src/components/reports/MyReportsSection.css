@@ -1,0 +1,155 @@
+.my-reports__save-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.my-reports__save-form input {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+}
+
+.my-reports__save-form button,
+.my-reports__actions button,
+.my-reports__share-form button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  color: var(--text-h);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.my-reports__save-form button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.my-reports__error {
+  color: #dc2626;
+  font-size: 12px;
+  margin: 0;
+  width: 100%;
+}
+
+.my-reports__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.my-reports__item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.my-reports__item-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.my-reports__favorite {
+  border: none;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+}
+
+.my-reports__name {
+  border: none;
+  background: none;
+  color: var(--text-h);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.my-reports__type,
+.my-reports__project,
+.my-reports__owner {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.8;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+}
+
+.my-reports__description {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.my-reports__shares {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.my-reports__share-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+}
+
+.my-reports__share-chip button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.my-reports__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.my-reports__delete {
+  color: #dc2626;
+}
+
+.my-reports__share-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.my-reports__share-form input {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 12px;
+}

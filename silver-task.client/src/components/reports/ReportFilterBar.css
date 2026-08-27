@@ -1,0 +1,39 @@
+.report-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.report-filter-bar__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.report-filter-bar__field select,
+.report-filter-bar__field input {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+  min-width: 130px;
+}
+
+@media (max-width: 768px) {
+  .report-filter-bar {
+    flex-direction: column;
+  }
+
+  .report-filter-bar__field select,
+  .report-filter-bar__field input {
+    width: 100%;
+  }
+}

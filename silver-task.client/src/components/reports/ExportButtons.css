@@ -1,0 +1,20 @@
+.export-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+}
+
+.export-buttons__link {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  color: var(--text-h);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.export-buttons__link:hover {
+  border-color: var(--accent-border);
+}

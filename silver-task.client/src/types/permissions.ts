@@ -40,6 +40,8 @@ export const Permissions = {
 
   ReportsView: 'Reports.View',
   ReportsExport: 'Reports.Export',
+  ReportsCreate: 'Reports.Create',
+  ReportsManage: 'Reports.Manage',
 
   SettingsView: 'Settings.View',
   SettingsEdit: 'Settings.Edit',
@@ -88,6 +90,8 @@ export const PERMISSION_LABELS: Record<string, string> = {
 
   [Permissions.ReportsView]: 'View Reports',
   [Permissions.ReportsExport]: 'Export Reports',
+  [Permissions.ReportsCreate]: 'Save Reports',
+  [Permissions.ReportsManage]: 'Manage Any Saved Report',
 
   [Permissions.SettingsView]: 'View System Settings',
   [Permissions.SettingsEdit]: 'Edit System Settings',
@@ -119,7 +123,7 @@ export const PERMISSION_GROUPS: Record<string, string[]> = {
     Permissions.AutomationsDelete,
     Permissions.AutomationsExecute,
   ],
-  Reports: [Permissions.ReportsView, Permissions.ReportsExport],
+  Reports: [Permissions.ReportsView, Permissions.ReportsExport, Permissions.ReportsCreate, Permissions.ReportsManage],
   Settings: [Permissions.SettingsView, Permissions.SettingsEdit],
   Administration: [Permissions.AdministrationAccess],
 };

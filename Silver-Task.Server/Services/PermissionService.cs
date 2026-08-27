@@ -54,8 +54,16 @@ namespace Silver_Task.Server.Services
         public IReadOnlyDictionary<UserRole, IReadOnlySet<string>> SystemMatrix { get; } = new Dictionary<UserRole, IReadOnlySet<string>>
         {
             [UserRole.Administrator] = new HashSet<string>(Permissions.All),
-            [UserRole.Manager] = new HashSet<string> { Permissions.ProjectsView, Permissions.ProjectsCreate },
-            [UserRole.Member] = new HashSet<string> { Permissions.ProjectsView, Permissions.ProjectsCreate },
+            [UserRole.Manager] = new HashSet<string>
+            {
+                Permissions.ProjectsView, Permissions.ProjectsCreate,
+                Permissions.ReportsView, Permissions.ReportsExport, Permissions.ReportsCreate
+            },
+            [UserRole.Member] = new HashSet<string>
+            {
+                Permissions.ProjectsView, Permissions.ProjectsCreate,
+                Permissions.ReportsView, Permissions.ReportsExport, Permissions.ReportsCreate
+            },
             [UserRole.Viewer] = new HashSet<string> { Permissions.ProjectsView }
         };
 

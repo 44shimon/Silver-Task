@@ -8,14 +8,18 @@ interface DashboardCustomizePanelProps {
   onChange: (layout: DashboardLayout) => void;
   isAdmin: boolean;
   managesAnyProject: boolean;
+  can: (permission: string) => boolean;
 }
 
 // Simple checkbox-visibility + up/down reordering — deliberately not drag-and-drop, per the
 // spec's own "do not introduce a complicated drag/drop framework if one is not already
 // available" instruction (this app has no DnD library at all today).
-export function DashboardCustomizePanel({ layout, onChange, isAdmin, managesAnyProject }: DashboardCustomizePanelProps) {
+export function DashboardCustomizePanel({ layout, onChange, isAdmin, managesAnyProject, can }: DashboardCustomizePanelProps) {
   const availableWidgets = WIDGET_DEFINITIONS.filter(
-    (w) => (!w.requiresAdmin || isAdmin) && (!w.requiresManagesAnyProject || managesAnyProject),
+    (w) =>
+      (!w.requiresAdmin || isAdmin) &&
+      (!w.requiresManagesAnyProject || managesAnyProject) &&
+      (!w.requiresPermission || can(w.requiresPermission)),
   );
   const orderedAvailable = layout.order.filter((id) => availableWidgets.some((w) => w.id === id));
 

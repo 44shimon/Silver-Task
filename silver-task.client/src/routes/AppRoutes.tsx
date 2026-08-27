@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/auth/RequireAuth';
 import { RequireAdmin } from '@/components/auth/RequireAdmin';
+import { RequireReportsAccess } from '@/components/auth/RequireReportsAccess';
 import { MyTasksPage } from '@/pages/MyTasksPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { LandingRedirect } from '@/pages/LandingRedirect';
@@ -26,6 +27,7 @@ import { PreferencesSettingsPage } from '@/pages/settings/PreferencesSettingsPag
 import { NotificationSettingsPage } from '@/pages/settings/NotificationSettingsPage';
 import { SecuritySettingsPage } from '@/pages/settings/SecuritySettingsPage';
 import { DashboardSettingsPage } from '@/pages/settings/DashboardSettingsPage';
+import { ReportsPage } from '@/pages/ReportsPage';
 
 export function AppRoutes() {
   return (
@@ -44,6 +46,22 @@ export function AppRoutes() {
                 <Route path="/projects/:projectId" element={<ProjectPage />} />
                 <Route path="/files/favorites" element={<FavoriteFilesPage />} />
                 <Route path="/files/recent" element={<RecentFilesPage />} />
+                <Route
+                  path="/reports"
+                  element={
+                    <RequireReportsAccess>
+                      <ReportsPage />
+                    </RequireReportsAccess>
+                  }
+                />
+                <Route
+                  path="/reports/:type"
+                  element={
+                    <RequireReportsAccess>
+                      <ReportsPage />
+                    </RequireReportsAccess>
+                  }
+                />
                 <Route path="/settings" element={<SettingsLayout />}>
                   <Route index element={<ProfileSettingsPage />} />
                   <Route path="preferences" element={<PreferencesSettingsPage />} />
