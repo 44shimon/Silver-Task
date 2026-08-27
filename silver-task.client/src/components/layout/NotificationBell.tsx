@@ -26,7 +26,10 @@ export function NotificationBell() {
 
   return (
     <details className="notification-bell" ref={detailsRef}>
-      <summary className="icon-button notification-bell__trigger" aria-label="Notifications">
+      <summary
+        className="icon-button notification-bell__trigger"
+        aria-label={count > 0 ? `Notifications, ${count} unread` : 'Notifications'}
+      >
         <Bell size={18} />
         {count > 0 && <span className="notification-bell__badge">{badgeLabel}</span>}
       </summary>

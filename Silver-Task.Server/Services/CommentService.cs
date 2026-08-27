@@ -79,7 +79,7 @@ namespace Silver_Task.Server.Services
             _db.TaskComments.Add(comment);
 
             var actor = await _db.Users.FindAsync(callerId);
-            await CreateCommentNotificationsAsync(task, trimmedText, callerId, actor?.Name ?? "Someone");
+            await CreateCommentNotificationsAsync(task, comment.Id, trimmedText, callerId, actor?.Name ?? "Someone");
 
             await _db.SaveChangesAsync();
 
@@ -105,7 +105,7 @@ namespace Silver_Task.Server.Services
             _db.TaskComments.Add(comment);
 
             var actor = await _db.Users.FindAsync(actingUserId);
-            await CreateCommentNotificationsAsync(task, comment.Text, actingUserId, actor?.Name ?? "An automation");
+            await CreateCommentNotificationsAsync(task, comment.Id, comment.Text, actingUserId, actor?.Name ?? "An automation");
 
             await _db.SaveChangesAsync();
 
@@ -119,17 +119,36 @@ namespace Silver_Task.Server.Services
             return comment;
         }
 
-        /// <summary>Notifies the task's assignee (never the comment's own author) and anyone
-        /// @mentioned by name in the comment text — see Common.MentionParser for the plain-text
-        /// mention convention, since the comment system has no existing mention/autocomplete
-        /// support to integrate with.</summary>
-        private async Task CreateCommentNotificationsAsync(TaskItem task, string commentText, Guid authorId, string authorName)
+        /// <summary>Notifies the task's assignee and creator (never the comment's own author,
+        /// and never the same person twice — NotifyAsync itself only dedupes the actor, so
+        /// "assignee == creator" is guarded here) and anyone @mentioned by name in the comment
+        /// text — see Common.MentionParser for the plain-text mention convention, since the
+        /// comment system has no existing mention/autocomplete support to integrate with. Mentions
+        /// get their own higher-priority notification type (MentionedInComment, resolved to
+        /// Important by NotificationPriorities) rather than being folded into CommentAdded.</summary>
+        private async Task CreateCommentNotificationsAsync(TaskItem task, Guid commentId, string commentText, Guid authorId, string authorName)
         {
+            var taskNoun = task.ParentTaskId is null ? "task" : "subtask";
+            var recipients = new HashSet<Guid>();
             if (task.AssignedToUserId is Guid assigneeId)
             {
+                recipients.Add(assigneeId);
+            }
+
+            var creatorId = await _db.TaskActivities
+                .Where(a => a.TaskId == task.Id && a.Action == "Created")
+                .Select(a => a.UserId)
+                .FirstOrDefaultAsync();
+            if (creatorId is Guid creator)
+            {
+                recipients.Add(creator);
+            }
+
+            foreach (var recipientId in recipients)
+            {
                 await _notificationService.NotifyAsync(
-                    assigneeId, authorId, NotificationTypes.CommentAdded, "New comment on your task",
-                    $"{authorName} commented on \"{task.Title}\".", task.Id, task.ProjectId);
+                    recipientId, authorId, NotificationTypes.CommentAdded, $"New comment on your {taskNoun}",
+                    $"{authorName} commented on \"{task.Title}\".", task.Id, task.ProjectId, commentId: commentId);
             }
 
             var members = await _db.ProjectMembers
@@ -145,7 +164,7 @@ namespace Silver_Task.Server.Services
             {
                 await _notificationService.NotifyAsync(
                     mentionedUserId, authorId, NotificationTypes.MentionedInComment, "You were mentioned in a comment",
-                    $"{authorName} mentioned you in a comment on \"{task.Title}\".", task.Id, task.ProjectId);
+                    $"{authorName} mentioned you in a comment on \"{task.Title}\".", task.Id, task.ProjectId, commentId: commentId);
             }
         }
 

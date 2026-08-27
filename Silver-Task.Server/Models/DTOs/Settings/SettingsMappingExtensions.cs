@@ -24,13 +24,18 @@ namespace Silver_Task.Server.Models.DTOs.Settings
             DateFormat = preference.DateFormat,
             TimeFormat = preference.TimeFormat,
             TimeZone = preference.TimeZone,
-            ItemsPerPage = preference.ItemsPerPage
+            ItemsPerPage = preference.ItemsPerPage,
+            DigestFrequency = preference.DigestFrequency,
+            QuietHoursEnabled = preference.QuietHoursEnabled,
+            QuietHoursStart = preference.QuietHoursStart,
+            QuietHoursEnd = preference.QuietHoursEnd
         };
 
         public static NotificationSettingDto ToDto(this UserNotificationSetting setting) => new()
         {
             NotificationType = setting.NotificationType,
-            IsEnabled = setting.IsEnabled
+            InAppEnabled = setting.InAppEnabled,
+            EmailEnabled = setting.EmailEnabled
         };
     }
 }

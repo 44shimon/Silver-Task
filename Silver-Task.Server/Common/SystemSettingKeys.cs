@@ -42,5 +42,11 @@ namespace Silver_Task.Server.Common
         // Attachments (Phase 33)
         public const string MaxAttachmentSizeMb = "Attachments.MaxSizeMb";
         public const string AllowedAttachmentExtensions = "Attachments.AllowedExtensions";
+
+        // Notifications (Phase 36)
+        public const string NotificationRetentionDays = "Notifications.RetentionDays";
+        public const string EmailNotificationsEnabled = "Notifications.EmailNotificationsEnabled";
+        public const string DailyDigestEnabled = "Notifications.DailyDigestEnabled";
+        public const string MaxNotificationBatchSize = "Notifications.MaxBatchSize";
     }
 }

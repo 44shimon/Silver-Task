@@ -4,8 +4,13 @@ namespace Silver_Task.Server.Models.Entities
     /// EAV-style table, deliberately, so a new notification type (see
     /// Common.NotificationTypes) can be introduced later with zero migration, the same reason
     /// CustomFields stores FieldType as free text instead of one column per field type. A user
-    /// with no row for a given type simply defaults to enabled (see
-    /// UserNotificationSettingsService.GetAllAsync) rather than requiring a backfill.</summary>
+    /// with no row for a given type simply defaults to both channels enabled (see
+    /// UserNotificationSettingsService.GetAllAsync) rather than requiring a backfill.
+    ///
+    /// Phase 36 split the original single IsEnabled flag into two independent channels
+    /// (InAppEnabled/EmailEnabled) rather than adding a second EAV table — same row, same
+    /// migration-free extensibility, just one more column, matching the spec's own "users should
+    /// independently control in-app vs. email" requirement.</summary>
     public class UserNotificationSetting
     {
         public Guid Id { get; set; }
@@ -14,7 +19,9 @@ namespace Silver_Task.Server.Models.Entities
 
         public required string NotificationType { get; set; }
 
-        public bool IsEnabled { get; set; } = true;
+        public bool InAppEnabled { get; set; } = true;
+
+        public bool EmailEnabled { get; set; } = true;
 
         public DateTime UpdatedAt { get; set; }
 

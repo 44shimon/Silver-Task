@@ -1,36 +1,102 @@
-import { useNotificationSettings, useUpdateNotificationSettings } from '@/hooks/useUserSettings';
+import { useState } from 'react';
+import {
+  useNotificationSettings,
+  useUpdateNotificationSettings,
+  useUpdatePreferences,
+  useUserPreferences,
+} from '@/hooks/useUserSettings';
+import type { DigestFrequency } from '@/types/settings';
 import { ApiError } from '@/api/httpClient';
 import './SettingsForm.css';
+import './NotificationSettingsPage.css';
 
-// Labels are the only thing hardcoded client-side — the actual set of settings (which types
-// exist, and each one's current value) comes entirely from the API response
+// Labels/groups are the only thing hardcoded client-side — the actual set of settings (which
+// types exist, and each one's current value) comes entirely from the API response
 // (NotificationTypes.All server-side), so a new type shows up here automatically once the
-// backend knows about it; only its label would need adding.
-const LABELS: Record<string, { title: string; description: string }> = {
-  TaskAssigned: { title: 'Task assigned to me', description: 'When someone assigns a task to you.' },
-  TaskReassigned: { title: 'Task reassigned to me', description: 'When a task already assigned to someone else is reassigned to you.' },
-  TaskStatusChanged: { title: 'Task status changed', description: 'When a task assigned to you changes status.' },
-  TaskPriorityChanged: { title: 'Task priority changed', description: 'When a task assigned to you changes priority.' },
-  TaskDueDateChanged: { title: 'Task due date changed', description: 'When the due date on a task assigned to you changes.' },
-  TaskDueSoon: { title: 'Task due soon', description: 'A reminder shortly before a task’s due date.' },
-  TaskOverdue: { title: 'Task overdue', description: 'When a task assigned to you passes its due date.' },
-  CommentAdded: { title: 'Comment added to my task', description: 'When someone comments on a task assigned to you.' },
-  MentionedInComment: { title: 'Mentioned in a comment', description: 'When someone mentions you in a comment.' },
-  UserAddedToProject: { title: 'Added to a project', description: 'When an administrator or manager adds you to a project.' },
-  UserRemovedFromProject: { title: 'Removed from a project', description: 'When you are removed from a project.' },
-  TaskDependencyCompleted: {
-    title: 'Task dependency completed',
-    description: 'When a task blocking one assigned to you is completed and yours is no longer blocked.',
-  },
-  ProjectTaskCompleted: { title: 'Task completed in my project', description: 'When a task is completed in a project you own.' },
+// backend knows about it; only its label/group would need adding.
+const LABELS: Record<string, string> = {
+  TaskAssigned: 'Task assigned to me',
+  TaskReassigned: 'Task reassigned to me',
+  TaskUnassigned: 'Removed from a task',
+  TaskStatusChanged: 'Task status changed',
+  TaskPriorityChanged: 'Task priority changed',
+  TaskDueDateChanged: 'Task due date changed',
+  TaskDueSoon: 'Task due soon',
+  TaskOverdue: 'Task overdue',
+  TaskCompleted: 'Task completed',
+  TaskReopened: 'Task reopened',
+  TaskDependencyCompleted: 'Task dependency completed',
+  RecurringTaskAssigneeInactive: 'Recurring task needs attention',
+  CommentAdded: 'Comments on my tasks',
+  MentionedInComment: 'Someone mentions me',
+  ProjectTaskCompleted: 'Task completed in my project',
+  FileUploaded: 'Files uploaded to my tasks/projects',
+  UserAddedToProject: 'Added to a project',
+  UserRemovedFromProject: 'Removed from a project',
+  ProjectStatusChanged: 'Project archived/restored',
+  ProjectRoleChanged: 'My project role changed',
+  SystemRoleChanged: 'My system role changed',
+  AutomationNotification: 'Automation notifications',
 };
+
+const GROUPS: { title: string; types: string[] }[] = [
+  {
+    title: 'Tasks',
+    types: [
+      'TaskAssigned', 'TaskReassigned', 'TaskUnassigned', 'TaskStatusChanged', 'TaskPriorityChanged',
+      'TaskDueDateChanged', 'TaskDueSoon', 'TaskOverdue', 'TaskCompleted', 'TaskReopened',
+      'TaskDependencyCompleted', 'RecurringTaskAssigneeInactive',
+    ],
+  },
+  { title: 'Comments', types: ['CommentAdded', 'MentionedInComment'] },
+  { title: 'Files', types: ['FileUploaded'] },
+  { title: 'Projects', types: ['UserAddedToProject', 'UserRemovedFromProject', 'ProjectStatusChanged', 'ProjectRoleChanged', 'ProjectTaskCompleted'] },
+  { title: 'Automations', types: ['AutomationNotification'] },
+  { title: 'System', types: ['SystemRoleChanged'] },
+];
 
 export function NotificationSettingsPage() {
   const { data: settings, isLoading, isError } = useNotificationSettings();
   const updateSettings = useUpdateNotificationSettings();
+  const { data: preferences } = useUserPreferences();
+  const updatePreferences = useUpdatePreferences();
 
-  function toggle(notificationType: string, isEnabled: boolean) {
-    updateSettings.mutate([{ notificationType, isEnabled }]);
+  const [digestFrequency, setDigestFrequency] = useState<DigestFrequency>('Immediately');
+  const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
+  const [quietHoursStart, setQuietHoursStart] = useState('20:00');
+  const [quietHoursEnd, setQuietHoursEnd] = useState('07:00');
+  // Same "adjust state during render" seeding pattern as PreferencesSettingsPage — sync once
+  // when the query result first arrives, without an effect that just triggers a second render.
+  const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
+  if (preferences && !hasLoadedPreferences) {
+    setHasLoadedPreferences(true);
+    setDigestFrequency(preferences.digestFrequency);
+    setQuietHoursEnabled(preferences.quietHoursEnabled);
+    setQuietHoursStart(preferences.quietHoursStart?.slice(0, 5) ?? '20:00');
+    setQuietHoursEnd(preferences.quietHoursEnd?.slice(0, 5) ?? '07:00');
+  }
+
+  function toggle(notificationType: string, channel: 'inAppEnabled' | 'emailEnabled', value: boolean) {
+    const current = settings?.find((s) => s.notificationType === notificationType);
+    if (!current) return;
+    updateSettings.mutate([{ ...current, [channel]: value }]);
+  }
+
+  function saveDigestAndQuietHours() {
+    if (!preferences) return;
+    updatePreferences.mutate({
+      theme: preferences.theme,
+      defaultProjectId: preferences.defaultProjectId,
+      defaultTaskView: preferences.defaultTaskView,
+      dateFormat: preferences.dateFormat,
+      timeFormat: preferences.timeFormat,
+      timeZone: preferences.timeZone,
+      itemsPerPage: preferences.itemsPerPage,
+      digestFrequency,
+      quietHoursEnabled,
+      quietHoursStart: quietHoursEnabled ? `${quietHoursStart}:00` : null,
+      quietHoursEnd: quietHoursEnabled ? `${quietHoursEnd}:00` : null,
+    });
   }
 
   if (isLoading) {
@@ -41,33 +107,101 @@ export function NotificationSettingsPage() {
   }
 
   return (
-    <div className="settings-form">
-      {settings.map((setting) => {
-        const label = LABELS[setting.notificationType] ?? { title: setting.notificationType, description: '' };
-        return (
-          <div className="settings-toggle-row" key={setting.notificationType}>
-            <div className="settings-toggle-row__label">
-              <span className="settings-toggle-row__title">{label.title}</span>
-              {label.description && <span className="settings-toggle-row__description">{label.description}</span>}
+    <div className="notification-settings-page">
+      {GROUPS.map((group) => (
+        <div className="notification-settings-page__group" key={group.title}>
+          <h3>{group.title}</h3>
+          <div className="notification-settings-page__grid">
+            <div className="notification-settings-page__grid-header">
+              <span />
+              <span>In-App</span>
+              <span>Email</span>
             </div>
-            <button
-              type="button"
-              className={`settings-toggle${setting.isEnabled ? ' settings-toggle--on' : ''}`}
-              role="switch"
-              aria-checked={setting.isEnabled}
-              aria-label={label.title}
-              disabled={updateSettings.isPending}
-              onClick={() => toggle(setting.notificationType, !setting.isEnabled)}
-            />
+            {group.types.map((type) => {
+              const setting = settings.find((s) => s.notificationType === type);
+              if (!setting) return null;
+              return (
+                <div className="notification-settings-page__grid-row" key={type}>
+                  <span className="notification-settings-page__grid-label">{LABELS[type] ?? type}</span>
+                  <button
+                    type="button"
+                    className={`settings-toggle${setting.inAppEnabled ? ' settings-toggle--on' : ''}`}
+                    role="switch"
+                    aria-checked={setting.inAppEnabled}
+                    aria-label={`${LABELS[type] ?? type} — in-app`}
+                    disabled={updateSettings.isPending}
+                    onClick={() => toggle(type, 'inAppEnabled', !setting.inAppEnabled)}
+                  />
+                  <button
+                    type="button"
+                    className={`settings-toggle${setting.emailEnabled ? ' settings-toggle--on' : ''}`}
+                    role="switch"
+                    aria-checked={setting.emailEnabled}
+                    aria-label={`${LABELS[type] ?? type} — email`}
+                    disabled={updateSettings.isPending}
+                    onClick={() => toggle(type, 'emailEnabled', !setting.emailEnabled)}
+                  />
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
+        </div>
+      ))}
 
       {updateSettings.isError && (
         <p className="form-error">
           {updateSettings.error instanceof ApiError ? updateSettings.error.message : 'Could not save notification settings.'}
         </p>
       )}
+
+      <div className="notification-settings-page__group">
+        <h3>Email Digest &amp; Quiet Hours</h3>
+        <div className="settings-form__field">
+          <label>Email digest frequency</label>
+          <select value={digestFrequency} onChange={(e) => setDigestFrequency(e.target.value as DigestFrequency)}>
+            <option value="Immediately">Immediately — email as each notification happens</option>
+            <option value="Daily">Daily — one summary email per day</option>
+            <option value="Never">Never — no notification emails</option>
+          </select>
+        </div>
+
+        <div className="settings-toggle-row">
+          <div className="settings-toggle-row__label">
+            <span className="settings-toggle-row__title">Quiet hours</span>
+            <span className="settings-toggle-row__description">Suppress notification emails during this window (in-app notifications are always still saved).</span>
+          </div>
+          <button
+            type="button"
+            className={`settings-toggle${quietHoursEnabled ? ' settings-toggle--on' : ''}`}
+            role="switch"
+            aria-checked={quietHoursEnabled}
+            aria-label="Quiet hours"
+            onClick={() => setQuietHoursEnabled((v) => !v)}
+          />
+        </div>
+
+        {quietHoursEnabled && (
+          <div className="notification-settings-page__quiet-hours-row">
+            <div className="settings-form__field">
+              <label>From</label>
+              <input type="time" value={quietHoursStart} onChange={(e) => setQuietHoursStart(e.target.value)} />
+            </div>
+            <div className="settings-form__field">
+              <label>To</label>
+              <input type="time" value={quietHoursEnd} onChange={(e) => setQuietHoursEnd(e.target.value)} />
+            </div>
+          </div>
+        )}
+
+        <button type="button" className="settings-form__save" onClick={saveDigestAndQuietHours} disabled={updatePreferences.isPending || !preferences}>
+          {updatePreferences.isPending ? 'Saving...' : 'Save'}
+        </button>
+        {updatePreferences.isError && (
+          <p className="form-error">
+            {updatePreferences.error instanceof ApiError ? updatePreferences.error.message : 'Could not save digest/quiet hours settings.'}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

@@ -3,11 +3,13 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Silver_Task.Server.Common;
 using Silver_Task.Server.Common.Automation;
 using Silver_Task.Server.Data;
+using Silver_Task.Server.Hubs;
 using Silver_Task.Server.Middleware;
 using Silver_Task.Server.Models.Entities;
 using Silver_Task.Server.Services;
@@ -16,8 +18,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// The (sp, options) overload (rather than the plain options-only one this used before Phase 36)
+// exists specifically so NotificationPushInterceptor can resolve IHubContext<NotificationHub>
+// from DI — see that class's own doc comment for why a SaveChangesInterceptor, not a change to
+// NotificationService.NotifyAsync, is the correct place to fire the real-time push.
+builder.Services.AddDbContext<AppDbContext>((sp, options) =>
+{
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
+    options.AddInterceptors(new NotificationPushInterceptor(sp.GetRequiredService<IHubContext<NotificationHub>>()));
+});
 
 const string FrontendCorsPolicy = "FrontendCorsPolicy";
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
@@ -111,10 +120,18 @@ builder.Services.AddSingleton<IAutomationVariableResolver, AutomationVariableRes
 builder.Services.AddSingleton<AutomationDispatcher>();
 builder.Services.AddSingleton<IAutomationDispatcher>(sp => sp.GetRequiredService<AutomationDispatcher>());
 builder.Services.AddSingleton<IAutomationEventQueue>(sp => sp.GetRequiredService<AutomationDispatcher>());
+builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddHostedService<DueDateNotificationBackgroundService>();
 builder.Services.AddHostedService<RecurringTaskGenerationBackgroundService>();
 builder.Services.AddHostedService<AutomationQueueBackgroundService>();
 builder.Services.AddHostedService<AutomationOverdueCheckBackgroundService>();
+builder.Services.AddHostedService<NotificationRetentionBackgroundService>();
+builder.Services.AddHostedService<NotificationDigestBackgroundService>();
+
+// First-party, ships in the shared framework already — no new server-side package. See
+// NotificationHub's own doc comment for why the existing cookie-based JWT auth authorizes a hub
+// connection with zero extra plumbing.
+builder.Services.AddSignalR();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -161,6 +178,7 @@ app.UseMiddleware<ActiveUserMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.MapFallbackToFile("/index.html");
 

@@ -10,6 +10,28 @@
   background: var(--accent-bg);
 }
 
+.notification-item__checkbox {
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.notification-item__priority-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-top: 8px;
+  flex-shrink: 0;
+  background: var(--border);
+}
+
+.notification-item__priority-dot--important {
+  background: #d97706;
+}
+
+.notification-item__priority-dot--urgent {
+  background: #dc2626;
+}
+
 .notification-item__main {
   display: flex;
   flex-direction: column;
@@ -23,10 +45,27 @@
   cursor: pointer;
 }
 
+.notification-item__main:disabled {
+  cursor: default;
+}
+
+.notification-item__title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  opacity: 0.75;
+}
+
 .notification-item__title {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-h);
+}
+
+.notification-item__unavailable {
+  font-style: italic;
+  opacity: 0.7;
 }
 
 .notification-item__message {

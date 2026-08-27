@@ -4,6 +4,8 @@ namespace Silver_Task.Server.Models.DTOs.Settings
     {
         public required string NotificationType { get; set; }
 
-        public bool IsEnabled { get; set; }
+        public bool InAppEnabled { get; set; }
+
+        public bool EmailEnabled { get; set; }
     }
 }

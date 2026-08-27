@@ -158,6 +158,8 @@ namespace Silver_Task.Server.Services
             project.ArchivedAt = DateTime.UtcNow;
             project.UpdatedAt = DateTime.UtcNow;
 
+            await NotifyMembersOfStatusChangeAsync(project, callerId, "archived");
+
             await _db.SaveChangesAsync();
         }
 
@@ -175,8 +177,27 @@ namespace Silver_Task.Server.Services
             project.ArchivedAt = null;
             project.UpdatedAt = DateTime.UtcNow;
 
+            await NotifyMembersOfStatusChangeAsync(project, callerId, "restored");
+
             await _db.SaveChangesAsync();
             return project;
+        }
+
+        /// <summary>A project-wide event (unlike a per-task change) — notifies every member,
+        /// deliberately excluding only the actor (NotifyAsync's own self-notify guard already
+        /// handles that). Archive/Restore are the only two "project status" transitions this app
+        /// has (see Project.IsArchived) — not every field edit fires this, per the spec's own "do
+        /// not generate unnecessary notifications for every project field update" instruction.</summary>
+        private async Task NotifyMembersOfStatusChangeAsync(Project project, Guid actorId, string statusWord)
+        {
+            var actorName = await _db.Users.Where(u => u.Id == actorId).Select(u => u.Name).FirstOrDefaultAsync() ?? "Someone";
+            var memberIds = project.Members.Select(m => m.UserId).Append(project.OwnerId).Distinct();
+            foreach (var memberId in memberIds)
+            {
+                await _notificationService.NotifyAsync(
+                    memberId, actorId, NotificationTypes.ProjectStatusChanged, "Project status changed",
+                    $"{actorName} {statusWord} \"{project.Name}\".", null, project.Id);
+            }
         }
 
         public async Task DeleteAsync(Guid projectId)

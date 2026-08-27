@@ -29,6 +29,8 @@ namespace Silver_Task.Server.Services
             new(StringComparer.OrdinalIgnoreCase) { "table", "kanban", "calendar", "timeline", "gantt" };
         private static readonly HashSet<string> ValidDateFormats =
             new(StringComparer.OrdinalIgnoreCase) { "MM/dd/yyyy", "dd/MM/yyyy", "yyyy-MM-dd", "dd MMM yyyy" };
+        private static readonly HashSet<string> ValidDigestFrequencies =
+            new(StringComparer.OrdinalIgnoreCase) { "Immediately", "Daily", "Never" };
 
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
@@ -102,6 +104,14 @@ namespace Silver_Task.Server.Services
                     throw new ValidationException("You can only set a default project you have access to.");
                 }
             }
+            if (!ValidDigestFrequencies.Contains(request.DigestFrequency))
+            {
+                throw new ValidationException($"'{request.DigestFrequency}' is not a valid digest frequency.");
+            }
+            if (request.QuietHoursEnabled && (request.QuietHoursStart is null || request.QuietHoursEnd is null))
+            {
+                throw new ValidationException("Quiet hours requires both a start and end time.");
+            }
 
             var preference = await GetOrCreateAsync(userId);
             preference.Theme = request.Theme;
@@ -111,6 +121,10 @@ namespace Silver_Task.Server.Services
             preference.TimeFormat = request.TimeFormat;
             preference.TimeZone = request.TimeZone.Trim();
             preference.ItemsPerPage = request.ItemsPerPage;
+            preference.DigestFrequency = request.DigestFrequency;
+            preference.QuietHoursEnabled = request.QuietHoursEnabled;
+            preference.QuietHoursStart = request.QuietHoursEnabled ? request.QuietHoursStart : null;
+            preference.QuietHoursEnd = request.QuietHoursEnabled ? request.QuietHoursEnd : null;
             preference.UpdatedAt = DateTime.UtcNow;
 
             await _db.SaveChangesAsync();

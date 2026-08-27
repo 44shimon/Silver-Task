@@ -290,10 +290,12 @@ namespace Silver_Task.Server.Services
 
             if (task.AssignedToUserId is Guid assignedOnCreateId)
             {
+                var actorName = await _db.Users.Where(u => u.Id == callerId).Select(u => u.Name).FirstOrDefaultAsync() ?? "Someone";
+                var taskNoun = parentTaskId is null ? "Task" : "Subtask";
                 await _notificationService.NotifyAsync(
                     assignedOnCreateId, callerId, NotificationTypes.TaskAssigned,
-                    "Task assigned to you",
-                    $"\"{task.Title}\" was assigned to you in \"{project.Name}\".",
+                    $"{taskNoun} assigned to you",
+                    $"{actorName} assigned you \"{task.Title}\" in \"{project.Name}\".",
                     task.Id, project.Id);
             }
 
@@ -339,6 +341,12 @@ namespace Silver_Task.Server.Services
             var wasComplete = task.Status == TaskItemStatus.Complete;
             var willBeComplete = request.Status == TaskItemStatus.Complete;
 
+            // Resolved once and reused for every notification this single edit might raise below
+            // (a PUT can change several fields at once) rather than a fresh lookup per
+            // notification — one extra indexed lookup per task update, not per notification.
+            var actorName = await _db.Users.Where(u => u.Id == callerId).Select(u => u.Name).FirstOrDefaultAsync() ?? "Someone";
+            var taskNoun = task.ParentTaskId is null ? "Task" : "Subtask";
+
             // SortOrder deliberately isn't diffed here — reordering isn't a meaningful
             // change for a human reading the activity feed, unlike every field below.
             var activities = new List<TaskActivity>();
@@ -369,15 +377,24 @@ namespace Silver_Task.Server.Services
                 activities.Add(BuildActivity(taskId, callerId, "Assigned", "Assigned To", task.AssignedTo?.Name, newAssigneeName));
 
                 // TaskAssigned when there was no previous assignee, TaskReassigned when there
-                // was a *different* one — unassigning (new value null) notifies no one.
+                // was a *different* one, TaskUnassigned (to the *previous* assignee) when the new
+                // value is null — each of the three is a distinct audience/message, not one type
+                // with three phrasings.
                 if (request.AssignedToUserId is Guid newlyAssignedId)
                 {
                     var (type, notifTitle) = previousAssigneeId is null
-                        ? (NotificationTypes.TaskAssigned, "Task assigned to you")
-                        : (NotificationTypes.TaskReassigned, "Task reassigned to you");
+                        ? (NotificationTypes.TaskAssigned, $"{taskNoun} assigned to you")
+                        : (NotificationTypes.TaskReassigned, $"{taskNoun} reassigned to you");
                     await _notificationService.NotifyAsync(
                         newlyAssignedId, callerId, type, notifTitle,
-                        $"\"{trimmedTitle}\" was assigned to you in \"{task.Project!.Name}\".",
+                        $"{actorName} assigned you \"{trimmedTitle}\" in \"{task.Project!.Name}\".",
+                        task.Id, task.ProjectId);
+                }
+                else if (previousAssigneeId is Guid removedAssigneeId)
+                {
+                    await _notificationService.NotifyAsync(
+                        removedAssigneeId, callerId, NotificationTypes.TaskUnassigned, $"Removed from {taskNoun.ToLowerInvariant()}",
+                        $"You were removed from \"{trimmedTitle}\" in \"{task.Project!.Name}\".",
                         task.Id, task.ProjectId);
                 }
             }
@@ -387,26 +404,26 @@ namespace Silver_Task.Server.Services
                 if (previousStatus != request.Status)
                 {
                     await _notificationService.NotifyAsync(
-                        currentAssigneeId, callerId, NotificationTypes.TaskStatusChanged, "Task status changed",
-                        $"\"{trimmedTitle}\" status changed from {previousStatus} to {request.Status}.",
+                        currentAssigneeId, callerId, NotificationTypes.TaskStatusChanged, $"{taskNoun} status changed",
+                        $"\"{trimmedTitle}\" changed to {request.Status}.",
                         task.Id, task.ProjectId);
                 }
 
                 if (previousPriority != request.Priority)
                 {
                     await _notificationService.NotifyAsync(
-                        currentAssigneeId, callerId, NotificationTypes.TaskPriorityChanged, "Task priority changed",
-                        $"\"{trimmedTitle}\" priority changed from {previousPriority} to {request.Priority}.",
+                        currentAssigneeId, callerId, NotificationTypes.TaskPriorityChanged, $"{taskNoun} priority changed",
+                        $"\"{trimmedTitle}\" priority changed to {request.Priority}.",
                         task.Id, task.ProjectId);
                 }
 
                 if (previousDueDate != request.DueDate)
                 {
                     var dueDateMessage = request.DueDate is DateOnly newDueDate
-                        ? $"\"{trimmedTitle}\" due date changed to {DateLabel(newDueDate)}."
+                        ? $"\"{trimmedTitle}\" is now due {DateLabel(newDueDate)}."
                         : $"\"{trimmedTitle}\" no longer has a due date.";
                     await _notificationService.NotifyAsync(
-                        currentAssigneeId, callerId, NotificationTypes.TaskDueDateChanged, "Task due date changed",
+                        currentAssigneeId, callerId, NotificationTypes.TaskDueDateChanged, $"{taskNoun} due date changed",
                         dueDateMessage, task.Id, task.ProjectId);
                 }
             }
@@ -433,16 +450,33 @@ namespace Silver_Task.Server.Services
             {
                 task.CompletedAt = DateTime.UtcNow;
 
+                // Two distinct audiences, independently controllable — the project owner (always,
+                // pre-existing ProjectTaskCompleted behavior) and, separately, the task's own
+                // assignee (new in Phase 36; a no-op if they're the same person as the owner or
+                // the one completing it, since NotifyAsync already never notifies the actor).
                 await _notificationService.NotifyAsync(
                     task.Project!.OwnerId, callerId, NotificationTypes.ProjectTaskCompleted, "Task completed",
-                    $"\"{trimmedTitle}\" was marked complete in \"{task.Project.Name}\".",
+                    $"{actorName} marked \"{trimmedTitle}\" complete in \"{task.Project.Name}\".",
                     task.Id, task.ProjectId);
+                if (task.AssignedToUserId is Guid completedAssigneeId)
+                {
+                    await _notificationService.NotifyAsync(
+                        completedAssigneeId, callerId, NotificationTypes.TaskCompleted, $"{taskNoun} completed",
+                        $"\"{trimmedTitle}\" was marked complete.", task.Id, task.ProjectId);
+                }
 
                 await NotifyUnblockedDependentsAsync(task, callerId);
             }
             else if (!willBeComplete && wasComplete)
             {
                 task.CompletedAt = null;
+
+                if (task.AssignedToUserId is Guid reopenedAssigneeId)
+                {
+                    await _notificationService.NotifyAsync(
+                        reopenedAssigneeId, callerId, NotificationTypes.TaskReopened, $"{taskNoun} reopened",
+                        $"\"{trimmedTitle}\" was reopened.", task.Id, task.ProjectId);
+                }
             }
 
             _db.TaskActivities.AddRange(activities);

@@ -1,0 +1,59 @@
+.notification-settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 520px;
+}
+
+.notification-settings-page__group h3 {
+  font-size: 14px;
+  margin: 0 0 10px;
+  color: var(--text-h);
+}
+
+.notification-settings-page__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.notification-settings-page__grid-header,
+.notification-settings-page__grid-row {
+  display: grid;
+  grid-template-columns: 1fr 60px 60px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.notification-settings-page__grid-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text);
+  opacity: 0.6;
+  text-align: center;
+}
+
+.notification-settings-page__grid-header span:first-child {
+  text-align: left;
+}
+
+.notification-settings-page__grid-row {
+  border-top: 1px solid var(--border);
+}
+
+.notification-settings-page__grid-label {
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.notification-settings-page__grid-row .settings-toggle {
+  justify-self: center;
+}
+
+.notification-settings-page__quiet-hours-row {
+  display: flex;
+  gap: 16px;
+}

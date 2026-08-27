@@ -48,6 +48,31 @@ namespace Silver_Task.Server.Common
         /// notification feed without a type-per-automation explosion).</summary>
         public const string AutomationNotification = "AutomationNotification";
 
+        /// <summary>Phase 36 — fires when a task's assignee is cleared (set to null) without a
+        /// replacement; distinct from TaskReassigned (which fires for the *new* assignee when one
+        /// is set in the same edit). Notifies the person who was removed, not anyone else.</summary>
+        public const string TaskUnassigned = "TaskUnassigned";
+
+        /// <summary>Phase 36 — fires for the task's own assignee when it's marked Complete,
+        /// distinct from ProjectTaskCompleted (which notifies the *project owner*, not the
+        /// assignee, and already existed before this phase). Deliberately not merged with it: an
+        /// assignee and a project owner are different audiences who may want this independently
+        /// controlled via their own notification preference.</summary>
+        public const string TaskCompleted = "TaskCompleted";
+
+        /// <summary>Phase 36 — fires for the task's assignee when a previously-Complete task is
+        /// reopened (status changed away from Complete).</summary>
+        public const string TaskReopened = "TaskReopened";
+
+        /// <summary>Phase 36 — fires when a file is uploaded to a task (notifies the assignee) or
+        /// a project (notifies the owner) — deliberately not "every project member for every
+        /// file" per the spec's own "do not notify everyone unless configured" instruction.</summary>
+        public const string FileUploaded = "FileUploaded";
+
+        /// <summary>Phase 36 — fires when a project is archived or restored, notifying every
+        /// project member (a project-wide event, unlike a per-task change).</summary>
+        public const string ProjectStatusChanged = "ProjectStatusChanged";
+
         public static readonly IReadOnlyList<string> All =
         [
             TaskAssigned,
@@ -66,7 +91,12 @@ namespace Silver_Task.Server.Common
             RecurringTaskAssigneeInactive,
             ProjectRoleChanged,
             SystemRoleChanged,
-            AutomationNotification
+            AutomationNotification,
+            TaskUnassigned,
+            TaskCompleted,
+            TaskReopened,
+            FileUploaded,
+            ProjectStatusChanged
         ];
     }
 }

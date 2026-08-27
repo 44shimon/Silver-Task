@@ -1,5 +1,6 @@
 export type Theme = 'Light' | 'Dark' | 'System';
 export type TimeFormat = '12h' | '24h';
+export type DigestFrequency = 'Immediately' | 'Daily' | 'Never';
 
 export interface UserPreferences {
   theme: Theme;
@@ -10,6 +11,14 @@ export interface UserPreferences {
   timeFormat: TimeFormat;
   timeZone: string;
   itemsPerPage: number;
+  /** Immediately (default): each eligible email sends as it happens. Daily: batched into one
+   * digest email (Urgent notifications, e.g. overdue, still send immediately regardless). Never:
+   * no notification email at all. Purely an email-channel setting — in-app is unaffected. */
+  digestFrequency: DigestFrequency;
+  quietHoursEnabled: boolean;
+  /** "HH:mm:ss" (TimeOnly on the wire) — only meaningful when quietHoursEnabled is true. */
+  quietHoursStart: string | null;
+  quietHoursEnd: string | null;
 }
 
 export type UpdatePreferencesRequest = UserPreferences;
@@ -26,14 +35,23 @@ export interface ChangePasswordRequest {
 }
 
 /** The full type union now lives in @/types/notification (Phase 28) — the notification
- * *preference* rows here just carry whichever type string the backend returns. */
+ * *preference* rows here just carry whichever type string the backend returns. In-app and
+ * email are independently controllable per type (Phase 36). */
 export interface NotificationSetting {
   notificationType: string;
-  isEnabled: boolean;
+  inAppEnabled: boolean;
+  emailEnabled: boolean;
 }
 
 /** Mirrors Common/SystemSettingDefinitions.cs's SystemSettingSection enum server-side. */
-export type SystemSettingSection = 'General' | 'TaskDefaults' | 'ProjectDefaults' | 'Security' | 'Behavior' | 'Attachments';
+export type SystemSettingSection =
+  | 'General'
+  | 'TaskDefaults'
+  | 'ProjectDefaults'
+  | 'Security'
+  | 'Behavior'
+  | 'Attachments'
+  | 'Notifications';
 
 /** Every value is a string on the wire (the EAV Key/Value store) — ValueType tells the UI how
  * to render/parse it ("bool" | "int" | "string"), but the server is still the sole source of

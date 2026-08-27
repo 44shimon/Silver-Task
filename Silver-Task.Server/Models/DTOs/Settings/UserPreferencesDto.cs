@@ -15,5 +15,13 @@ namespace Silver_Task.Server.Models.DTOs.Settings
         public string TimeZone { get; set; } = "UTC";
 
         public int ItemsPerPage { get; set; } = 25;
+
+        public string DigestFrequency { get; set; } = "Immediately";
+
+        public bool QuietHoursEnabled { get; set; }
+
+        public TimeOnly? QuietHoursStart { get; set; }
+
+        public TimeOnly? QuietHoursEnd { get; set; }
     }
 }

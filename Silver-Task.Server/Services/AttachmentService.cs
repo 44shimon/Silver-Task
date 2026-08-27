@@ -129,6 +129,7 @@ namespace Silver_Task.Server.Services
         ISystemSettingsService systemSettings,
         ITagService tagService,
         IAutomationDispatcher automationDispatcher,
+        INotificationService notificationService,
         IConfiguration configuration,
         IWebHostEnvironment environment) : IAttachmentService
     {
@@ -137,6 +138,7 @@ namespace Silver_Task.Server.Services
         private readonly ISystemSettingsService _systemSettings = systemSettings;
         private readonly ITagService _tagService = tagService;
         private readonly IAutomationDispatcher _automationDispatcher = automationDispatcher;
+        private readonly INotificationService _notificationService = notificationService;
         private readonly string _storageRoot = ResolveStorageRoot(configuration, environment);
 
         private IQueryable<Attachment> WithDisplayIncludes(IQueryable<Attachment> query) =>
@@ -170,6 +172,16 @@ namespace Silver_Task.Server.Services
                 Action = "AttachmentAdded",
                 NewValue = attachment.FileName
             });
+
+            if (task.AssignedToUserId is Guid assigneeId)
+            {
+                var actorName = await _db.Users.Where(u => u.Id == callerId).Select(u => u.Name).FirstOrDefaultAsync() ?? "Someone";
+                await _notificationService.NotifyAsync(
+                    assigneeId, callerId, NotificationTypes.FileUploaded, "File uploaded",
+                    $"{actorName} uploaded {attachment.FileName} to \"{task.Title}\".",
+                    taskId, task.ProjectId, fileId: attachment.Id, eventId: attachment.Id);
+            }
+
             await SaveWithCleanupAsync(attachment);
 
             await _automationDispatcher.DispatchAsync(new FileUploadedEvent(attachment.Id, task.ProjectId, taskId, callerId, DateTime.UtcNow));
@@ -311,6 +323,15 @@ namespace Silver_Task.Server.Services
 
             var attachment = await BuildAndWriteAttachmentAsync(file, "projects", projectId, callerId, projectId: projectId, taskId: null, commentId: null);
             attachment.FolderId = folderId;
+
+            // Only the project owner — not every member — per the spec's own "do not notify
+            // every project member for every file unless configured" instruction.
+            var actorName = await _db.Users.Where(u => u.Id == callerId).Select(u => u.Name).FirstOrDefaultAsync() ?? "Someone";
+            await _notificationService.NotifyAsync(
+                project.OwnerId, callerId, NotificationTypes.FileUploaded, "File uploaded",
+                $"{actorName} added {attachment.FileName} to \"{project.Name}\".",
+                null, projectId, fileId: attachment.Id, eventId: attachment.Id);
+
             await SaveWithCleanupAsync(attachment);
 
             await _automationDispatcher.DispatchAsync(new FileUploadedEvent(attachment.Id, projectId, null, callerId, DateTime.UtcNow));
@@ -346,6 +367,16 @@ namespace Silver_Task.Server.Services
                 Action = "AttachmentAdded",
                 NewValue = attachment.FileName
             });
+
+            if (task.AssignedToUserId is Guid assigneeId)
+            {
+                var actorName = await _db.Users.Where(u => u.Id == callerId).Select(u => u.Name).FirstOrDefaultAsync() ?? "Someone";
+                await _notificationService.NotifyAsync(
+                    assigneeId, callerId, NotificationTypes.FileUploaded, "File uploaded",
+                    $"{actorName} uploaded {attachment.FileName} to \"{task.Title}\".",
+                    task.Id, task.ProjectId, commentId: commentId, fileId: attachment.Id, eventId: attachment.Id);
+            }
+
             await SaveWithCleanupAsync(attachment);
 
             await _automationDispatcher.DispatchAsync(new FileUploadedEvent(attachment.Id, task.ProjectId, task.Id, callerId, DateTime.UtcNow));

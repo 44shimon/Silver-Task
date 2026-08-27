@@ -175,6 +175,18 @@ namespace Silver_Task.Server.Services
                         throw new ValidationException("Maximum attachment size must be between 1 and 500 MB.");
                     }
                     break;
+                case SystemSettingKeys.NotificationRetentionDays:
+                    if (value is < 7 or > 3650)
+                    {
+                        throw new ValidationException("Notification retention must be between 7 and 3650 days.");
+                    }
+                    break;
+                case SystemSettingKeys.MaxNotificationBatchSize:
+                    if (value is < 10 or > 10000)
+                    {
+                        throw new ValidationException("Maximum notification batch size must be between 10 and 10000.");
+                    }
+                    break;
             }
         }
 

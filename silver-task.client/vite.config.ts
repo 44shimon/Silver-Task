@@ -50,6 +50,13 @@ export default defineConfig({
             '^/api': {
                 target,
                 secure: false
+            },
+            // SignalR (Phase 36) — ws: true so the proxy upgrades the negotiate connection to a
+            // real WebSocket instead of treating /hubs/* as a plain HTTP passthrough.
+            '^/hubs': {
+                target,
+                secure: false,
+                ws: true
             }
         },
         port: parseInt(env.DEV_SERVER_PORT || '42665'),

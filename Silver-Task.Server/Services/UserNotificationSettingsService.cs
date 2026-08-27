@@ -10,8 +10,9 @@ namespace Silver_Task.Server.Services
     public interface IUserNotificationSettingsService
     {
         /// <summary>Always returns one entry per NotificationTypes.All, not just the ones the
-        /// user has explicitly saved — a type with no stored row defaults to enabled, so adding
-        /// a new notification type later doesn't require backfilling every existing user.</summary>
+        /// user has explicitly saved — a type with no stored row defaults to both channels
+        /// enabled, so adding a new notification type later doesn't require backfilling every
+        /// existing user.</summary>
         Task<IReadOnlyList<UserNotificationSetting>> GetAllAsync(Guid userId);
 
         Task<IReadOnlyList<UserNotificationSetting>> UpdateAsync(Guid userId, UpdateNotificationSettingsRequest request);
@@ -30,7 +31,7 @@ namespace Silver_Task.Server.Services
             return NotificationTypes.All
                 .Select(type => stored.TryGetValue(type, out var existing)
                     ? existing
-                    : new UserNotificationSetting { UserId = userId, NotificationType = type, IsEnabled = true })
+                    : new UserNotificationSetting { UserId = userId, NotificationType = type, InAppEnabled = true, EmailEnabled = true })
                 .ToList();
         }
 
@@ -53,7 +54,8 @@ namespace Silver_Task.Server.Services
             {
                 if (existing.TryGetValue(setting.NotificationType, out var row))
                 {
-                    row.IsEnabled = setting.IsEnabled;
+                    row.InAppEnabled = setting.InAppEnabled;
+                    row.EmailEnabled = setting.EmailEnabled;
                     row.UpdatedAt = DateTime.UtcNow;
                 }
                 else
@@ -63,7 +65,8 @@ namespace Silver_Task.Server.Services
                         Id = Guid.NewGuid(),
                         UserId = userId,
                         NotificationType = setting.NotificationType,
-                        IsEnabled = setting.IsEnabled
+                        InAppEnabled = setting.InAppEnabled,
+                        EmailEnabled = setting.EmailEnabled
                     });
                 }
             }

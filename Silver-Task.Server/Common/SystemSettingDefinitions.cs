@@ -8,7 +8,8 @@ namespace Silver_Task.Server.Common
         Security,
         Behavior,
         RecurringTasks,
-        Attachments
+        Attachments,
+        Notifications
     }
 
     public record SystemSettingDefinition(
@@ -83,7 +84,20 @@ namespace Silver_Task.Server.Common
                 "25", "int", "Maximum size, in MB, for a single file attachment."),
             new(SystemSettingKeys.AllowedAttachmentExtensions, SystemSettingSection.Attachments,
                 ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.gif,.webp,.zip", "string",
-                "Comma-separated list of allowed file extensions for attachments, including the leading dot.")
+                "Comma-separated list of allowed file extensions for attachments, including the leading dot."),
+
+            new(SystemSettingKeys.NotificationRetentionDays, SystemSettingSection.Notifications,
+                "90", "int", "Notifications older than this many days are automatically deleted."),
+            // Off by default: this environment ships no SMTP configuration out of the box (see
+            // Services/EmailService's own doc comment) — an Administrator turns this on only
+            // after configuring real SMTP settings, so no user silently expects emails that can
+            // never actually be delivered.
+            new(SystemSettingKeys.EmailNotificationsEnabled, SystemSettingSection.Notifications,
+                "false", "bool", "Global switch for outgoing notification emails. Off by default until SMTP is configured."),
+            new(SystemSettingKeys.DailyDigestEnabled, SystemSettingSection.Notifications,
+                "true", "bool", "Allow users to receive a daily email digest instead of individual emails (still gated by the switch above)."),
+            new(SystemSettingKeys.MaxNotificationBatchSize, SystemSettingSection.Notifications,
+                "100", "int", "Maximum notifications processed per background sweep/digest run, to bound worst-case load.")
         ];
 
         public static readonly IReadOnlyDictionary<string, SystemSettingDefinition> ByKey =
