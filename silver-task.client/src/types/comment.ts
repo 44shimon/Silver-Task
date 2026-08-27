@@ -5,6 +5,10 @@ export interface Comment {
   taskId: string;
   user: UserSummary;
   text: string;
+  /** True for comments an Automation's "Add Comment" action posted — the UI marks these with an
+   * "⚙ Automation" badge rather than blending them in as if a person typed them. */
+  isAutomated: boolean;
+  automationId: string | null;
   createdAt: string;
   updatedAt: string;
 }

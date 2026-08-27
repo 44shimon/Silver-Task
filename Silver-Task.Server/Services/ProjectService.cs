@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Silver_Task.Server.Common;
+using Silver_Task.Server.Common.Automation;
 using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.DTOs.Projects;
@@ -48,12 +49,14 @@ namespace Silver_Task.Server.Services
         AppDbContext db,
         IProjectAccessService projectAccess,
         ISystemSettingsService systemSettings,
-        INotificationService notificationService) : IProjectService
+        INotificationService notificationService,
+        IAutomationDispatcher automationDispatcher) : IProjectService
     {
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
         private readonly ISystemSettingsService _systemSettings = systemSettings;
         private readonly INotificationService _notificationService = notificationService;
+        private readonly IAutomationDispatcher _automationDispatcher = automationDispatcher;
 
         public async Task<IReadOnlyList<Project>> GetAllForUserAsync(Guid callerId, UserRole callerRole, bool includeArchived = false)
         {
@@ -121,6 +124,8 @@ namespace Silver_Task.Server.Services
             project.Members.Add(ownerMembership);
 
             await _db.SaveChangesAsync();
+
+            await _automationDispatcher.DispatchAsync(new ProjectCreatedEvent(project.Id, ownerId, DateTime.UtcNow));
 
             project.Owner = await _db.Users.FindAsync(ownerId);
             return project;

@@ -6,6 +6,7 @@ using Silver_Task.Server.Models.DTOs.Attachments;
 using Silver_Task.Server.Models.DTOs.Comments;
 using Silver_Task.Server.Models.DTOs.Dependencies;
 using Silver_Task.Server.Models.DTOs.Recurrence;
+using Silver_Task.Server.Models.DTOs.Tags;
 using Silver_Task.Server.Models.DTOs.Tasks;
 using Silver_Task.Server.Services;
 
@@ -252,6 +253,29 @@ namespace Silver_Task.Server.Controllers
         {
             var series = await _recurringTaskService.GetSeriesAsync(id, User.GetUserId(), User.GetRole());
             return Ok(series.Select(t => t.ToDto()));
+        }
+
+        /// <summary>"Labels" (Phase 35) — reuses the same global Tag vocabulary Phase 34
+        /// introduced for files (see TaskTag's own doc comment).</summary>
+        [HttpGet("{id:guid}/labels")]
+        public async Task<ActionResult<IReadOnlyList<TagDto>>> GetLabels(Guid id)
+        {
+            var labels = await _taskService.GetLabelsAsync(id, User.GetUserId(), User.GetRole());
+            return Ok(labels.Select(t => t.ToDto()));
+        }
+
+        [HttpPost("{id:guid}/labels")]
+        public async Task<ActionResult<TagDto>> AddLabel(Guid id, [FromBody] AddTagRequest request)
+        {
+            var tag = await _taskService.AddLabelAsync(id, request.Name, User.GetUserId(), User.GetRole());
+            return Ok(tag.ToDto());
+        }
+
+        [HttpDelete("{id:guid}/labels/{tagId:guid}")]
+        public async Task<IActionResult> RemoveLabel(Guid id, Guid tagId)
+        {
+            await _taskService.RemoveLabelAsync(id, tagId, User.GetUserId(), User.GetRole());
+            return NoContent();
         }
     }
 }

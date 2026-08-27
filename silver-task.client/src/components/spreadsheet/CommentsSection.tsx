@@ -177,6 +177,7 @@ function CommentRow({ taskId, projectId, comment, currentUserId, canUploadFiles,
       <div className="comment-row__body">
         <div className="comment-row__meta">
           <span className="comment-row__author">{comment.user.name}</span>
+          {comment.isAutomated && <span className="comment-row__automation-badge">⚙ Automation</span>}
           <span className="comment-row__date">{new Date(comment.createdAt).toLocaleString()}</span>
         </div>
 
@@ -213,7 +214,7 @@ function CommentRow({ taskId, projectId, comment, currentUserId, canUploadFiles,
           </div>
         )}
 
-        {isOwn && !isEditing && (
+        {isOwn && !isEditing && !comment.isAutomated && (
           <div className="comment-row__actions">
             <button type="button" onClick={startEditing}>
               Edit

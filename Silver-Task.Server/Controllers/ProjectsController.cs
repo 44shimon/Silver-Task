@@ -3,12 +3,14 @@ using Silver_Task.Server.Common;
 using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Models.Common;
 using Silver_Task.Server.Models.DTOs.Attachments;
+using Silver_Task.Server.Models.DTOs.Automations;
 using Silver_Task.Server.Models.DTOs.CustomFields;
 using Silver_Task.Server.Models.DTOs.Dependencies;
 using Silver_Task.Server.Models.DTOs.Folders;
 using Silver_Task.Server.Models.DTOs.Projects;
 using Silver_Task.Server.Models.DTOs.Recurrence;
 using Silver_Task.Server.Models.DTOs.Tasks;
+using Silver_Task.Server.Models.Entities.Enums;
 using Silver_Task.Server.Services;
 
 namespace Silver_Task.Server.Controllers
@@ -23,7 +25,8 @@ namespace Silver_Task.Server.Controllers
         IRecurringTaskService recurringTaskService,
         IPermissionService permissionService,
         IAttachmentService attachmentService,
-        IFolderService folderService) : ControllerBase
+        IFolderService folderService,
+        IAutomationService automationService) : ControllerBase
     {
         private readonly IProjectService _projectService = projectService;
         private readonly ITaskService _taskService = taskService;
@@ -33,6 +36,7 @@ namespace Silver_Task.Server.Controllers
         private readonly IPermissionService _permissionService = permissionService;
         private readonly IAttachmentService _attachmentService = attachmentService;
         private readonly IFolderService _folderService = folderService;
+        private readonly IAutomationService _automationService = automationService;
 
         [HttpGet]
         public async Task<ActionResult<IReadOnlyList<ProjectDto>>> GetAll([FromQuery] bool includeArchived = false)
@@ -227,6 +231,27 @@ namespace Silver_Task.Server.Controllers
         {
             var folder = await _folderService.CreateAsync(id, request.Name, request.ParentFolderId, User.GetUserId(), User.GetRole());
             return CreatedAtAction(nameof(FoldersController.GetById), "Folders", new { id = folder.Id }, folder.ToDto());
+        }
+
+        /// <summary>Project → Automations. Viewable by any project member (including a Viewer,
+        /// per Automations.View — see PermissionService's ProjectMatrix); creating one still
+        /// requires Manage-tier (enforced inside AutomationService, not here).</summary>
+        [HttpGet("{id:guid}/automations")]
+        public async Task<ActionResult<IReadOnlyList<AutomationDto>>> GetAutomations(
+            Guid id, [FromQuery] string? search = null, [FromQuery] AutomationTriggerType? triggerType = null,
+            [FromQuery] bool? isActive = null, [FromQuery] Guid? createdByUserId = null)
+        {
+            var automations = await _automationService.GetAllForProjectAsync(
+                id, User.GetUserId(), User.GetRole(), search, triggerType, isActive, createdByUserId);
+            return Ok(automations.Select(a => a.ToDto()));
+        }
+
+        [HttpPost("{id:guid}/automations")]
+        public async Task<ActionResult<AutomationDto>> CreateAutomation(Guid id, [FromBody] SaveAutomationRequest request)
+        {
+            request.ProjectId = id;
+            var automation = await _automationService.CreateAsync(request, User.GetUserId(), User.GetRole());
+            return CreatedAtAction(nameof(AutomationsController.GetById), "Automations", new { id = automation.Id }, automation.ToDto());
         }
     }
 }

@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Silver_Task.Server.Common;
+using Silver_Task.Server.Common.Automation;
 using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.DTOs.Tasks;
@@ -66,18 +67,31 @@ namespace Silver_Task.Server.Services
         Task<TaskItem> SetParentAsync(Guid taskId, Guid? parentTaskId, Guid callerId, UserRole callerRole);
 
         Task<TaskItem> SetSortOrderAsync(Guid taskId, double sortOrder, Guid callerId, UserRole callerRole);
+
+        /// <summary>"Labels" (Phase 35) — reuses the same global Tag vocabulary Phase 34
+        /// introduced for files (see TaskTag's own doc comment), rather than a second label
+        /// system. Get-or-create by name, same as AttachmentService.AddTagAsync.</summary>
+        Task<IReadOnlyList<Tag>> GetLabelsAsync(Guid taskId, Guid callerId, UserRole callerRole);
+
+        Task<Tag> AddLabelAsync(Guid taskId, string tagName, Guid callerId, UserRole callerRole);
+
+        Task RemoveLabelAsync(Guid taskId, Guid tagId, Guid callerId, UserRole callerRole);
     }
 
     public class TaskService(
         AppDbContext db,
         IProjectAccessService projectAccess,
         ISystemSettingsService systemSettings,
-        INotificationService notificationService) : ITaskService
+        INotificationService notificationService,
+        ITagService tagService,
+        IAutomationDispatcher automationDispatcher) : ITaskService
     {
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
         private readonly ISystemSettingsService _systemSettings = systemSettings;
         private readonly INotificationService _notificationService = notificationService;
+        private readonly ITagService _tagService = tagService;
+        private readonly IAutomationDispatcher _automationDispatcher = automationDispatcher;
 
         public async Task<IReadOnlyList<TaskItem>> GetAllForProjectAsync(Guid projectId, Guid callerId, UserRole callerRole)
         {
@@ -208,6 +222,8 @@ namespace Silver_Task.Server.Services
             var task = await BuildNewTaskAsync(project, parentTaskId: null, request, callerId);
             await _db.SaveChangesAsync();
 
+            await _automationDispatcher.DispatchAsync(new TaskCreatedEvent(task.Id, project.Id, callerId, DateTime.UtcNow));
+
             task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
             return task;
         }
@@ -231,6 +247,8 @@ namespace Silver_Task.Server.Services
             });
 
             await _db.SaveChangesAsync();
+
+            await _automationDispatcher.DispatchAsync(new TaskCreatedEvent(subtask.Id, parent.ProjectId, callerId, DateTime.UtcNow));
 
             subtask.AssignedTo = subtask.AssignedToUserId is null ? null : await _db.Users.FindAsync(subtask.AssignedToUserId);
             return subtask;
@@ -403,6 +421,14 @@ namespace Silver_Task.Server.Services
             task.SortOrder = request.SortOrder;
             task.UpdatedAt = DateTime.UtcNow;
 
+            // A changed due date always clears the overdue-automation guard (Phase 35) — whether
+            // it moved into the future (should be able to become overdue again later) or just
+            // changed to a different past/near date (the sweep re-evaluates it fresh next tick).
+            if (previousDueDate != request.DueDate)
+            {
+                task.OverdueAutomationProcessedAt = null;
+            }
+
             if (willBeComplete && !wasComplete)
             {
                 task.CompletedAt = DateTime.UtcNow;
@@ -422,9 +448,55 @@ namespace Silver_Task.Server.Services
             _db.TaskActivities.AddRange(activities);
             await _db.SaveChangesAsync();
 
+            await DispatchUpdateEventsAsync(
+                task, previousStatus, request.Status, previousAssigneeId, request.AssignedToUserId,
+                wasComplete, willBeComplete, callerId);
+
             task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
             await AttachTaskSummariesAsync([task]);
             return task;
+        }
+
+        /// <summary>Fires every automation event UpdateAsync's own diff (computed above, not
+        /// re-derived here) makes applicable — a single PUT can raise several at once (e.g.
+        /// status AND assignee both changed), which is fine since each automation subscribes to
+        /// exactly one AutomationTriggerType and simply ignores events of any other type. Called
+        /// only after SaveChangesAsync succeeds, so a dispatched event always reflects committed
+        /// state.</summary>
+        private async Task DispatchUpdateEventsAsync(
+            TaskItem task, TaskItemStatus previousStatus, TaskItemStatus newStatus,
+            Guid? previousAssigneeId, Guid? newAssigneeId, bool wasComplete, bool willBeComplete, Guid callerId)
+        {
+            var now = DateTime.UtcNow;
+
+            // Status changes are covered by the unconditional TaskUpdatedEvent above, not a
+            // separate dispatch — there is no distinct AutomationTriggerType for "status changed"
+            // (the spec's trigger list has no such entry), so a second event here would just
+            // collide with TaskUpdatedEvent under the same trigger type and double-execute every
+            // TaskUpdated automation whenever status changes. "Task.Status" is still available as
+            // a condition field for automations that want to react specifically to it.
+            await _automationDispatcher.DispatchAsync(new TaskUpdatedEvent(task.Id, task.ProjectId, callerId, now));
+
+            if (previousAssigneeId != newAssigneeId)
+            {
+                await _automationDispatcher.DispatchAsync(
+                    new TaskAssignedEvent(task.Id, task.ProjectId, previousAssigneeId, newAssigneeId, callerId, now));
+            }
+
+            if (willBeComplete && !wasComplete)
+            {
+                await _automationDispatcher.DispatchAsync(new TaskCompletedEvent(task.Id, task.ProjectId, callerId, now));
+
+                if (task.ParentTaskId is Guid parentTaskId)
+                {
+                    await _automationDispatcher.DispatchAsync(
+                        new SubtaskCompletedEvent(task.Id, parentTaskId, task.ProjectId, callerId, now));
+                }
+            }
+            else if (!willBeComplete && wasComplete)
+            {
+                await _automationDispatcher.DispatchAsync(new TaskReopenedEvent(task.Id, task.ProjectId, callerId, now));
+            }
         }
 
         public async Task<TaskItem> SetParentAsync(Guid taskId, Guid? parentTaskId, Guid callerId, UserRole callerRole)
@@ -513,6 +585,53 @@ namespace Silver_Task.Server.Services
             task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
             await AttachTaskSummariesAsync([task]);
             return task;
+        }
+
+        public async Task<IReadOnlyList<Tag>> GetLabelsAsync(Guid taskId, Guid callerId, UserRole callerRole)
+        {
+            var task = await LoadTaskAsync(taskId);
+            await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+
+            return await _db.TaskTags.Where(tt => tt.TaskId == taskId).Select(tt => tt.Tag!).OrderBy(t => t.Name).ToListAsync();
+        }
+
+        public async Task<Tag> AddLabelAsync(Guid taskId, string tagName, Guid callerId, UserRole callerRole)
+        {
+            var task = await LoadTaskAsync(taskId);
+            await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+
+            var tag = await _tagService.GetOrCreateAsync(tagName, callerId);
+
+            var alreadyLinked = await _db.TaskTags.AnyAsync(tt => tt.TaskId == taskId && tt.TagId == tag.Id);
+            if (alreadyLinked)
+            {
+                return tag;
+            }
+
+            _db.TaskTags.Add(new TaskTag { Id = Guid.NewGuid(), TaskId = taskId, TagId = tag.Id });
+            task.UpdatedAt = DateTime.UtcNow;
+            _db.TaskActivities.Add(BuildActivity(taskId, callerId, "Labeled", null, null, tag.Name));
+
+            await _db.SaveChangesAsync();
+            return tag;
+        }
+
+        public async Task RemoveLabelAsync(Guid taskId, Guid tagId, Guid callerId, UserRole callerRole)
+        {
+            var task = await LoadTaskAsync(taskId);
+            await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+
+            var link = await _db.TaskTags.Include(tt => tt.Tag).FirstOrDefaultAsync(tt => tt.TaskId == taskId && tt.TagId == tagId);
+            if (link is null)
+            {
+                return;
+            }
+
+            _db.TaskTags.Remove(link);
+            task.UpdatedAt = DateTime.UtcNow;
+            _db.TaskActivities.Add(BuildActivity(taskId, callerId, "Unlabeled", null, link.Tag?.Name, null));
+
+            await _db.SaveChangesAsync();
         }
 
         private const int MaxNestingDepth = 10;

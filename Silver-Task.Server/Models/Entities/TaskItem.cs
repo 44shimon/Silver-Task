@@ -62,6 +62,14 @@ namespace Silver_Task.Server.Models.Entities
 
         public DateTime UpdatedAt { get; set; }
 
+        /// <summary>Set the first time the overdue-check sweep (Phase 35) dispatches a
+        /// TaskOverdueEvent for this task — prevents re-firing that trigger every sweep interval
+        /// for the same overdue transition. Cleared whenever DueDate changes or the task leaves
+        /// the overdue state (completed/reopened with a future date), so a task can become
+        /// overdue, get fixed, and later become overdue again without the trigger going stale
+        /// forever. See AutomationOverdueCheckBackgroundService's own doc comment.</summary>
+        public DateTime? OverdueAutomationProcessedAt { get; set; }
+
         public Project? Project { get; set; }
 
         public User? AssignedTo { get; set; }
@@ -79,6 +87,8 @@ namespace Silver_Task.Server.Models.Entities
         public ICollection<Attachment> Attachments { get; set; } = [];
 
         public ICollection<TaskCustomValue> CustomValues { get; set; } = [];
+
+        public ICollection<TaskTag> TaskTags { get; set; } = [];
 
         /// <summary>Not persisted — populated in bulk (one aggregate query per task list, never
         /// per-task) by TaskService whenever it loads tasks, so TaskDto can show dependency

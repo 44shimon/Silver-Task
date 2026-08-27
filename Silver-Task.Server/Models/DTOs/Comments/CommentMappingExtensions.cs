@@ -11,6 +11,8 @@ namespace Silver_Task.Server.Models.DTOs.Comments
             TaskId = comment.TaskId,
             User = comment.User!.ToSummaryDto(),
             Text = comment.Text,
+            IsAutomated = comment.IsAutomated,
+            AutomationId = comment.AutomationId,
             CreatedAt = comment.CreatedAt,
             UpdatedAt = comment.UpdatedAt
         };

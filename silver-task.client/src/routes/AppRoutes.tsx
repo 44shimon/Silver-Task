@@ -17,6 +17,7 @@ import { AdminSystemSettingsPage } from '@/pages/admin/AdminSystemSettingsPage';
 import { AdminCustomFieldsPage } from '@/pages/admin/AdminCustomFieldsPage';
 import { AdminTagsPage } from '@/pages/admin/AdminTagsPage';
 import { AdminFileCategoriesPage } from '@/pages/admin/AdminFileCategoriesPage';
+import { AdminAutomationsPage } from '@/pages/admin/AdminAutomationsPage';
 import { SettingsLayout } from '@/pages/settings/SettingsLayout';
 import { ProfileSettingsPage } from '@/pages/settings/ProfileSettingsPage';
 import { PreferencesSettingsPage } from '@/pages/settings/PreferencesSettingsPage';
@@ -59,6 +60,7 @@ export function AppRoutes() {
                   <Route path="custom-fields" element={<AdminCustomFieldsPage />} />
                   <Route path="tags" element={<AdminTagsPage />} />
                   <Route path="file-categories" element={<AdminFileCategoriesPage />} />
+                  <Route path="automations" element={<AdminAutomationsPage />} />
                   <Route path="settings" element={<AdminSystemSettingsPage />} />
                 </Route>
               </Routes>

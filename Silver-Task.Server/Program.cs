@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Silver_Task.Server.Common;
+using Silver_Task.Server.Common.Automation;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Middleware;
 using Silver_Task.Server.Models.Entities;
@@ -102,8 +103,18 @@ builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IFolderService, FolderService>();
 builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<IFileCategoryService, FileCategoryService>();
+builder.Services.AddScoped<IAutomationService, AutomationService>();
+builder.Services.AddSingleton<IAutomationVariableResolver, AutomationVariableResolver>();
+// Singleton, registered once and shared behind both interfaces — see AutomationDispatcher's own
+// doc comment for why a single Channel-backed instance must back both the producer (services
+// dispatching events) and consumer (the queue background service) sides.
+builder.Services.AddSingleton<AutomationDispatcher>();
+builder.Services.AddSingleton<IAutomationDispatcher>(sp => sp.GetRequiredService<AutomationDispatcher>());
+builder.Services.AddSingleton<IAutomationEventQueue>(sp => sp.GetRequiredService<AutomationDispatcher>());
 builder.Services.AddHostedService<DueDateNotificationBackgroundService>();
 builder.Services.AddHostedService<RecurringTaskGenerationBackgroundService>();
+builder.Services.AddHostedService<AutomationQueueBackgroundService>();
+builder.Services.AddHostedService<AutomationOverdueCheckBackgroundService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

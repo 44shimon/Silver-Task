@@ -29,6 +29,14 @@ namespace Silver_Task.Server.Data.Configurations
                 .WithMany()
                 .HasForeignKey(c => c.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // SetNull — deleting the Automation that posted a comment must never delete the
+            // comment itself (see the spec's own "prefer retaining execution history" guidance,
+            // applied here to the trail an automation left in the comment feed too).
+            builder.HasOne(c => c.Automation)
+                .WithMany()
+                .HasForeignKey(c => c.AutomationId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

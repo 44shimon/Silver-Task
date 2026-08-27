@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Silver_Task.Server.Common;
+using Silver_Task.Server.Common.Automation;
 using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.Entities;
@@ -127,6 +128,7 @@ namespace Silver_Task.Server.Services
         IProjectAccessService projectAccess,
         ISystemSettingsService systemSettings,
         ITagService tagService,
+        IAutomationDispatcher automationDispatcher,
         IConfiguration configuration,
         IWebHostEnvironment environment) : IAttachmentService
     {
@@ -134,6 +136,7 @@ namespace Silver_Task.Server.Services
         private readonly IProjectAccessService _projectAccess = projectAccess;
         private readonly ISystemSettingsService _systemSettings = systemSettings;
         private readonly ITagService _tagService = tagService;
+        private readonly IAutomationDispatcher _automationDispatcher = automationDispatcher;
         private readonly string _storageRoot = ResolveStorageRoot(configuration, environment);
 
         private IQueryable<Attachment> WithDisplayIncludes(IQueryable<Attachment> query) =>
@@ -168,6 +171,8 @@ namespace Silver_Task.Server.Services
                 NewValue = attachment.FileName
             });
             await SaveWithCleanupAsync(attachment);
+
+            await _automationDispatcher.DispatchAsync(new FileUploadedEvent(attachment.Id, task.ProjectId, taskId, callerId, DateTime.UtcNow));
 
             attachment.UploadedBy = await _db.Users.FindAsync(callerId);
             return attachment;
@@ -308,6 +313,8 @@ namespace Silver_Task.Server.Services
             attachment.FolderId = folderId;
             await SaveWithCleanupAsync(attachment);
 
+            await _automationDispatcher.DispatchAsync(new FileUploadedEvent(attachment.Id, projectId, null, callerId, DateTime.UtcNow));
+
             attachment.UploadedBy = await _db.Users.FindAsync(callerId);
             return attachment;
         }
@@ -340,6 +347,8 @@ namespace Silver_Task.Server.Services
                 NewValue = attachment.FileName
             });
             await SaveWithCleanupAsync(attachment);
+
+            await _automationDispatcher.DispatchAsync(new FileUploadedEvent(attachment.Id, task.ProjectId, task.Id, callerId, DateTime.UtcNow));
 
             attachment.UploadedBy = await _db.Users.FindAsync(callerId);
             return attachment;
@@ -669,6 +678,10 @@ namespace Silver_Task.Server.Services
             }
 
             await _db.SaveChangesAsync();
+
+            await _automationDispatcher.DispatchAsync(
+                new FileTaggedEvent(attachment.Id, projectId, attachment.TaskId ?? attachment.Comment?.TaskId, tag.Name, callerId, DateTime.UtcNow));
+
             return tag;
         }
 

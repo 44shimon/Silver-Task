@@ -42,6 +42,12 @@ namespace Silver_Task.Server.Common
         /// role. Same audit-trail rationale as ProjectRoleChanged.</summary>
         public const string SystemRoleChanged = "SystemRoleChanged";
 
+        /// <summary>Phase 35 — the "Send Notification" automation action's own notification type,
+        /// covering every automation regardless of which one sent it (the title always includes
+        /// the specific automation's name, so this one type is enough to distinguish them in the
+        /// notification feed without a type-per-automation explosion).</summary>
+        public const string AutomationNotification = "AutomationNotification";
+
         public static readonly IReadOnlyList<string> All =
         [
             TaskAssigned,
@@ -59,7 +65,8 @@ namespace Silver_Task.Server.Common
             TaskDependencyCompleted,
             RecurringTaskAssigneeInactive,
             ProjectRoleChanged,
-            SystemRoleChanged
+            SystemRoleChanged,
+            AutomationNotification
         ];
     }
 }

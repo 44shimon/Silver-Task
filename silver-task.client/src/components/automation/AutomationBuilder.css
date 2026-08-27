@@ -1,0 +1,98 @@
+.automation-builder__active-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.automation-builder__section {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+.automation-builder__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.automation-builder__section-header h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.automation-builder__add {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.automation-builder__hint {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.65;
+  margin: 6px 0;
+}
+
+.automation-builder__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.automation-builder__row select,
+.automation-builder__row input[type='text'],
+.automation-builder__row input[type='date'],
+.automation-builder__row input[type='number'] {
+  flex: 1;
+  min-width: 120px;
+}
+
+.automation-builder__action-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.automation-builder__action-card textarea,
+.automation-builder__action-card input[type='text'] {
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.automation-builder__field-label {
+  font-size: 11px;
+  opacity: 0.7;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.automation-builder__inline-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.automation-builder__test-result {
+  background: var(--bg-subtle);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.automation-builder__test-result p {
+  margin: 2px 0;
+}

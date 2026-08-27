@@ -12,6 +12,10 @@ namespace Silver_Task.Server.Models.DTOs.Comments
 
         public required string Text { get; set; }
 
+        public bool IsAutomated { get; set; }
+
+        public Guid? AutomationId { get; set; }
+
         public DateTime CreatedAt { get; set; }
 
         public DateTime UpdatedAt { get; set; }

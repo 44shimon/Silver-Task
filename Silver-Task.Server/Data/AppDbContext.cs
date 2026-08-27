@@ -49,6 +49,16 @@ namespace Silver_Task.Server.Data
 
         public DbSet<UserFileFavorite> UserFileFavorites => Set<UserFileFavorite>();
 
+        public DbSet<TaskTag> TaskTags => Set<TaskTag>();
+
+        public DbSet<Automation> Automations => Set<Automation>();
+
+        public DbSet<AutomationCondition> AutomationConditions => Set<AutomationCondition>();
+
+        public DbSet<AutomationAction> AutomationActions => Set<AutomationAction>();
+
+        public DbSet<AutomationExecution> AutomationExecutions => Set<AutomationExecution>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

@@ -52,6 +52,18 @@ namespace Silver_Task.Server.Common
         // Custom Fields (project-scoped; definition changes are Manage-tier)
         public const string CustomFieldsManage = "CustomFields.Manage";
 
+        // Automations (Phase 35; project-scoped — View is available to every project role
+        // (including Viewer) for transparency into what runs against their project; Create/Edit/
+        // Delete/Execute are Manage-tier only, deliberately not relaxed for the automation's own
+        // creator — see AutomationService's own doc comment on why this is uniformly stricter than
+        // Files.Upload/Delete's creator-or-manager model. Execute covers Test and Retry, the only
+        // two ways a user can manually trigger automation logic outside of its own event.)
+        public const string AutomationsView = "Automations.View";
+        public const string AutomationsCreate = "Automations.Create";
+        public const string AutomationsEdit = "Automations.Edit";
+        public const string AutomationsDelete = "Automations.Delete";
+        public const string AutomationsExecute = "Automations.Execute";
+
         // Reports (system-level; no dedicated reports feature exists yet beyond Admin stats)
         public const string ReportsView = "Reports.View";
         public const string ReportsExport = "Reports.Export";
@@ -72,6 +84,7 @@ namespace Silver_Task.Server.Common
             FilesUpload, FilesDelete,
             DependenciesManage, RecurringTasksManage,
             CustomFieldsManage,
+            AutomationsView, AutomationsCreate, AutomationsEdit, AutomationsDelete, AutomationsExecute,
             ReportsView, ReportsExport,
             SettingsView, SettingsEdit,
             AdministrationAccess
@@ -88,6 +101,7 @@ namespace Silver_Task.Server.Common
             ["Files"] = [FilesUpload, FilesDelete],
             ["Dependencies & Recurring Tasks"] = [DependenciesManage, RecurringTasksManage],
             ["Custom Fields"] = [CustomFieldsManage],
+            ["Automations"] = [AutomationsView, AutomationsCreate, AutomationsEdit, AutomationsDelete, AutomationsExecute],
             ["Reports"] = [ReportsView, ReportsExport],
             ["Settings"] = [SettingsView, SettingsEdit],
             ["Administration"] = [AdministrationAccess]

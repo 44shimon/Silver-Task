@@ -32,6 +32,12 @@ export const Permissions = {
 
   CustomFieldsManage: 'CustomFields.Manage',
 
+  AutomationsView: 'Automations.View',
+  AutomationsCreate: 'Automations.Create',
+  AutomationsEdit: 'Automations.Edit',
+  AutomationsDelete: 'Automations.Delete',
+  AutomationsExecute: 'Automations.Execute',
+
   ReportsView: 'Reports.View',
   ReportsExport: 'Reports.Export',
 
@@ -74,6 +80,12 @@ export const PERMISSION_LABELS: Record<string, string> = {
 
   [Permissions.CustomFieldsManage]: 'Manage Custom Fields',
 
+  [Permissions.AutomationsView]: 'View Automations',
+  [Permissions.AutomationsCreate]: 'Create Automations',
+  [Permissions.AutomationsEdit]: 'Edit Automations',
+  [Permissions.AutomationsDelete]: 'Delete Automations',
+  [Permissions.AutomationsExecute]: 'Test/Retry Automations',
+
   [Permissions.ReportsView]: 'View Reports',
   [Permissions.ReportsExport]: 'Export Reports',
 
@@ -100,6 +112,13 @@ export const PERMISSION_GROUPS: Record<string, string[]> = {
   Files: [Permissions.FilesUpload, Permissions.FilesDelete],
   'Dependencies & Recurring Tasks': [Permissions.DependenciesManage, Permissions.RecurringTasksManage],
   'Custom Fields': [Permissions.CustomFieldsManage],
+  Automations: [
+    Permissions.AutomationsView,
+    Permissions.AutomationsCreate,
+    Permissions.AutomationsEdit,
+    Permissions.AutomationsDelete,
+    Permissions.AutomationsExecute,
+  ],
   Reports: [Permissions.ReportsView, Permissions.ReportsExport],
   Settings: [Permissions.SettingsView, Permissions.SettingsEdit],
   Administration: [Permissions.AdministrationAccess],

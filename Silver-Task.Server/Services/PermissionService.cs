@@ -68,7 +68,9 @@ namespace Silver_Task.Server.Services
                 Permissions.CommentsCreate, Permissions.CommentsDelete,
                 Permissions.FilesUpload, Permissions.FilesDelete,
                 Permissions.DependenciesManage, Permissions.RecurringTasksManage,
-                Permissions.CustomFieldsManage
+                Permissions.CustomFieldsManage,
+                Permissions.AutomationsView, Permissions.AutomationsCreate, Permissions.AutomationsEdit,
+                Permissions.AutomationsDelete, Permissions.AutomationsExecute
             },
             [ProjectRole.Member] = new HashSet<string>
             {
@@ -76,12 +78,14 @@ namespace Silver_Task.Server.Services
                 Permissions.TasksView, Permissions.TasksCreate, Permissions.TasksEdit, Permissions.TasksAssign,
                 Permissions.CommentsCreate,
                 Permissions.FilesUpload,
-                Permissions.DependenciesManage, Permissions.RecurringTasksManage
+                Permissions.DependenciesManage, Permissions.RecurringTasksManage,
+                Permissions.AutomationsView
             },
             [ProjectRole.Viewer] = new HashSet<string>
             {
                 Permissions.ProjectsView,
-                Permissions.TasksView
+                Permissions.TasksView,
+                Permissions.AutomationsView
             }
         };
 

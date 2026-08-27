@@ -20,6 +20,8 @@ import { TimelineView } from '@/components/timeline/TimelineView';
 import { GanttView } from '@/components/gantt/GanttView';
 import { RecurringTasksView } from '@/components/project/RecurringTasksView';
 import { ProjectFilesView } from '@/components/project/ProjectFilesView';
+import { AutomationList } from '@/components/automation/AutomationList';
+import { useProjectAutomations } from '@/hooks/useAutomations';
 import { TaskSearchInput } from '@/components/spreadsheet/TaskSearchInput';
 import { TaskFilterPanel } from '@/components/spreadsheet/TaskFilterPanel';
 import { SortMenu } from '@/components/filters/SortMenu';
@@ -41,6 +43,7 @@ export function ProjectPage() {
   const { data: members } = useProjectMembers(projectId);
   const { data: tasks, isLoading: tasksLoading } = useTasks(projectId);
   const { data: customFields } = useCustomFields(projectId);
+  const { data: automations, isLoading: automationsLoading } = useProjectAutomations(projectId);
   const { data: currentUser } = useCurrentUser();
   const { data: preferences } = useUserPreferences();
   const updateProject = useUpdateProject(projectId ?? '');
@@ -241,6 +244,15 @@ export function ProjectPage() {
           members={memberUsers}
           canUploadFiles={can(Permissions.FilesUpload)}
           canManageFiles={can(Permissions.FilesDelete)}
+        />
+      ) : view === 'automations' ? (
+        <AutomationList
+          automations={automations ?? []}
+          isLoading={automationsLoading}
+          projectId={project.id}
+          users={memberUsers}
+          customFields={customFields ?? []}
+          canManage={can(Permissions.AutomationsCreate)}
         />
       ) : (
         <TaskTable

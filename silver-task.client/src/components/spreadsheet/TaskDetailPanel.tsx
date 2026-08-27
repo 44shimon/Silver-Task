@@ -9,6 +9,7 @@ import { PriorityDropdownCell } from './PriorityDropdownCell';
 import { AssignedToDropdownCell } from './AssignedToDropdownCell';
 import { EditableDateCell } from './EditableDateCell';
 import { CustomFieldCell } from './CustomFieldCell';
+import { LabelsSection } from './LabelsSection';
 import { CommentsSection } from './CommentsSection';
 import { ActivityHistorySection } from './ActivityHistorySection';
 import { AttachmentsSection } from './AttachmentsSection';
@@ -113,6 +114,8 @@ export function TaskDetailPanel({ task, projectId, members, customFields, tasks,
               <EditableDateCell task={task} projectId={projectId} field="dueDate" readOnly={!canEdit} />
             </div>
           </div>
+
+          <LabelsSection taskId={task.id} canEdit={canEdit} />
 
           {customFields.length > 0 && (
             <div className="task-detail-panel__section">

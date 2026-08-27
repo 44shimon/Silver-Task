@@ -1,0 +1,54 @@
+.automation-runs-dialog__empty {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.automation-runs-dialog__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.automation-runs-dialog__table th,
+.automation-runs-dialog__table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.automation-runs-dialog__result {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.automation-runs-dialog__status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.automation-runs-dialog__status--success {
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.12);
+}
+
+.automation-runs-dialog__status--failed {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.12);
+}
+
+.automation-runs-dialog__status--skipped {
+  color: #6b7280;
+  background: rgba(107, 114, 128, 0.12);
+}
+
+.automation-runs-dialog__pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 12px;
+}

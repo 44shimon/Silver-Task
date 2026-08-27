@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Silver_Task.Server.Common;
+using Silver_Task.Server.Common.Automation;
 using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.Entities;
@@ -17,18 +18,29 @@ namespace Silver_Task.Server.Services
         Task<TaskComment> UpdateAsync(Guid commentId, string text, Guid callerId);
 
         Task DeleteAsync(Guid commentId, Guid callerId);
+
+        /// <summary>Posted by an Automation's "Add Comment" action (Phase 35) — authored as
+        /// actingUserId (the automation's own creator, re-checked for edit access like any other
+        /// automation-driven change; see AutomationService's own doc comment), but flagged
+        /// IsAutomated so the frontend can show the "⚙ Automation" badge the spec asks for.
+        /// Deliberately bypasses the AllowComments kill-switch — an automation an admin/manager
+        /// explicitly configured shouldn't silently stop working because comments were disabled
+        /// for ordinary users; disable the automation itself instead.</summary>
+        Task<TaskComment> CreateAutomatedAsync(Guid taskId, string text, Guid automationId, Guid actingUserId);
     }
 
     public class CommentService(
         AppDbContext db,
         IProjectAccessService projectAccess,
         ISystemSettingsService systemSettings,
-        INotificationService notificationService) : ICommentService
+        INotificationService notificationService,
+        IAutomationDispatcher automationDispatcher) : ICommentService
     {
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
         private readonly ISystemSettingsService _systemSettings = systemSettings;
         private readonly INotificationService _notificationService = notificationService;
+        private readonly IAutomationDispatcher _automationDispatcher = automationDispatcher;
 
         public async Task<IReadOnlyList<TaskComment>> GetAllForTaskAsync(Guid taskId, Guid callerId, UserRole callerRole)
         {
@@ -70,6 +82,38 @@ namespace Silver_Task.Server.Services
             await CreateCommentNotificationsAsync(task, trimmedText, callerId, actor?.Name ?? "Someone");
 
             await _db.SaveChangesAsync();
+
+            await _automationDispatcher.DispatchAsync(new CommentAddedEvent(comment.Id, taskId, task.ProjectId, callerId, DateTime.UtcNow));
+
+            comment.User = actor;
+            return comment;
+        }
+
+        public async Task<TaskComment> CreateAutomatedAsync(Guid taskId, string text, Guid automationId, Guid actingUserId)
+        {
+            var task = await LoadTaskAsync(taskId);
+
+            var comment = new TaskComment
+            {
+                Id = Guid.NewGuid(),
+                TaskId = taskId,
+                UserId = actingUserId,
+                Text = text.Trim(),
+                IsAutomated = true,
+                AutomationId = automationId
+            };
+            _db.TaskComments.Add(comment);
+
+            var actor = await _db.Users.FindAsync(actingUserId);
+            await CreateCommentNotificationsAsync(task, comment.Text, actingUserId, actor?.Name ?? "An automation");
+
+            await _db.SaveChangesAsync();
+
+            // Dispatched the same as a normal comment — a chained "when an automated comment is
+            // posted, also do X" is legitimate, intended behavior, not a bug; runaway self-loops
+            // are capped by chain depth (AutomationExecutionContext), not by suppressing events
+            // for automation-originated changes.
+            await _automationDispatcher.DispatchAsync(new CommentAddedEvent(comment.Id, taskId, task.ProjectId, actingUserId, DateTime.UtcNow));
 
             comment.User = actor;
             return comment;

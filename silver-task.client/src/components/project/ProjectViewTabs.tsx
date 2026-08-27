@@ -1,7 +1,7 @@
-import { Calendar, Files, GanttChart, GanttChartSquare, KanbanSquare, Repeat, Table } from 'lucide-react';
+import { Calendar, Files, GanttChart, GanttChartSquare, KanbanSquare, Repeat, Table, Zap } from 'lucide-react';
 import './ProjectViewTabs.css';
 
-export type ViewId = 'table' | 'kanban' | 'calendar' | 'timeline' | 'gantt' | 'recurring' | 'files';
+export type ViewId = 'table' | 'kanban' | 'calendar' | 'timeline' | 'gantt' | 'recurring' | 'files' | 'automations';
 
 interface ProjectViewTabsProps {
   active: ViewId;
@@ -22,6 +22,7 @@ const VIEWS: { id: ViewId; label: string; icon: typeof Table }[] = [
   { id: 'gantt', label: 'Gantt', icon: GanttChartSquare },
   { id: 'recurring', label: 'Recurring', icon: Repeat },
   { id: 'files', label: 'Files', icon: Files },
+  { id: 'automations', label: 'Automations', icon: Zap },
 ];
 
 export function ProjectViewTabs({ active, onChange }: ProjectViewTabsProps) {

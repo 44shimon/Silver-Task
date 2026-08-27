@@ -29,5 +29,7 @@ namespace Silver_Task.Server.Models.Entities
         public ICollection<Attachment> Attachments { get; set; } = [];
 
         public ICollection<Folder> Folders { get; set; } = [];
+
+        public ICollection<Automation> Automations { get; set; } = [];
     }
 }

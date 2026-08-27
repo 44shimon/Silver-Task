@@ -53,6 +53,12 @@ export function AdminLayout() {
           File Categories
         </NavLink>
         <NavLink
+          to="/admin/automations"
+          className={({ isActive }) => `admin-layout__nav-item${isActive ? ' admin-layout__nav-item--active' : ''}`}
+        >
+          Automations
+        </NavLink>
+        <NavLink
           to="/admin/settings"
           className={({ isActive }) => `admin-layout__nav-item${isActive ? ' admin-layout__nav-item--active' : ''}`}
         >

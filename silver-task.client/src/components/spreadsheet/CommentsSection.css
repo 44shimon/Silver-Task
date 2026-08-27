@@ -56,6 +56,16 @@
   opacity: 0.6;
 }
 
+.comment-row__automation-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  letter-spacing: 0.02em;
+}
+
 .comment-row__text {
   margin: 0;
   font-size: 13px;

@@ -119,6 +119,194 @@ namespace Silver_Task.Server.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.Automation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime?>("LastRunAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("RunCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TriggerType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("DeletedByUserId");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("ProjectId", "TriggerType", "IsActive", "IsDeleted");
+
+                    b.ToTable("Automations", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.AutomationAction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActionType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("AutomationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ParametersJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AutomationId");
+
+                    b.ToTable("AutomationActions", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.AutomationCondition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AutomationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Field")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Operator")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Value")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AutomationId");
+
+                    b.ToTable("AutomationConditions", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.AutomationExecution", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AutomationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ChainDepth")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("DurationMs")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("EntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("ResultSummary")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid?>("RetryOfExecutionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TriggerEventId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("TriggerEventId");
+
+                    b.HasIndex("AutomationId", "StartedAt");
+
+                    b.ToTable("AutomationExecutions", (string)null);
+                });
+
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.CustomField", b =>
                 {
                     b.Property<Guid>("Id")
@@ -712,10 +900,16 @@ namespace Silver_Task.Server.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("AutomationId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<bool>("IsAutomated")
+                        .HasColumnType("boolean");
 
                     b.Property<Guid>("TaskId")
                         .HasColumnType("uuid");
@@ -733,6 +927,8 @@ namespace Silver_Task.Server.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AutomationId");
 
                     b.HasIndex("TaskId");
 
@@ -839,6 +1035,9 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Property<int?>("OccurrenceNumber")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("OverdueAutomationProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid?>("ParentTaskId")
                         .HasColumnType("uuid");
 
@@ -896,6 +1095,33 @@ namespace Silver_Task.Server.Data.Migrations
                         .HasFilter("\"RecurringTaskId\" IS NOT NULL");
 
                     b.ToTable("Tasks", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskTag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<Guid>("TagId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TagId");
+
+                    b.HasIndex("TaskId", "TagId")
+                        .IsUnique();
+
+                    b.ToTable("TaskTags", (string)null);
                 });
 
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.User", b =>
@@ -1130,6 +1356,64 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Navigation("UploadedBy");
                 });
 
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.Automation", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.User", "DeletedByUser")
+                        .WithMany()
+                        .HasForeignKey("DeletedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.Project", "Project")
+                        .WithMany("Automations")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("CreatedBy");
+
+                    b.Navigation("DeletedByUser");
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.AutomationAction", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.Automation", "Automation")
+                        .WithMany("Actions")
+                        .HasForeignKey("AutomationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Automation");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.AutomationCondition", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.Automation", "Automation")
+                        .WithMany("Conditions")
+                        .HasForeignKey("AutomationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Automation");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.AutomationExecution", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.Automation", "Automation")
+                        .WithMany()
+                        .HasForeignKey("AutomationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Automation");
+                });
+
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.CustomField", b =>
                 {
                     b.HasOne("Silver_Task.Server.Models.Entities.Project", "Project")
@@ -1350,6 +1634,11 @@ namespace Silver_Task.Server.Data.Migrations
 
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskComment", b =>
                 {
+                    b.HasOne("Silver_Task.Server.Models.Entities.Automation", "Automation")
+                        .WithMany()
+                        .HasForeignKey("AutomationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Silver_Task.Server.Models.Entities.TaskItem", "Task")
                         .WithMany("Comments")
                         .HasForeignKey("TaskId")
@@ -1361,6 +1650,8 @@ namespace Silver_Task.Server.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Automation");
 
                     b.Navigation("Task");
 
@@ -1445,6 +1736,25 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Navigation("RecurringTask");
                 });
 
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskTag", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.Tag", "Tag")
+                        .WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.TaskItem", "Task")
+                        .WithMany("TaskTags")
+                        .HasForeignKey("TaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tag");
+
+                    b.Navigation("Task");
+                });
+
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.User", b =>
                 {
                     b.HasOne("Silver_Task.Server.Models.Entities.User", "DeletedByUser")
@@ -1510,6 +1820,13 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Navigation("FileTags");
                 });
 
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.Automation", b =>
+                {
+                    b.Navigation("Actions");
+
+                    b.Navigation("Conditions");
+                });
+
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.CustomField", b =>
                 {
                     b.Navigation("Options");
@@ -1525,6 +1842,8 @@ namespace Silver_Task.Server.Data.Migrations
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.Project", b =>
                 {
                     b.Navigation("Attachments");
+
+                    b.Navigation("Automations");
 
                     b.Navigation("CustomFields");
 
@@ -1558,6 +1877,8 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Navigation("CustomValues");
 
                     b.Navigation("Subtasks");
+
+                    b.Navigation("TaskTags");
                 });
 
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.User", b =>
