@@ -210,7 +210,10 @@ export type ReportType =
   | 'TaskAge'
   | 'OldTasks'
   | 'CompletionTime'
-  | 'Custom';
+  | 'Custom'
+  | 'Dependency'
+  | 'BlockedTasks'
+  | 'Bottlenecks';
 
 export const REPORT_TYPE_LABELS: Record<ReportType, string> = {
   TaskSummary: 'Task Summary',
@@ -225,6 +228,9 @@ export const REPORT_TYPE_LABELS: Record<ReportType, string> = {
   OldTasks: 'Old Tasks',
   CompletionTime: 'Completion Time',
   Custom: 'Custom Report',
+  Dependency: 'Dependencies',
+  BlockedTasks: 'Blocked Tasks',
+  Bottlenecks: 'Workflow Bottlenecks',
 };
 
 /** Deserialized shape of a SavedReport's Configuration JSON — mirrors
@@ -265,3 +271,62 @@ export interface SaveReportRequest {
 }
 
 export type ExportFormat = 'csv' | 'excel' | 'pdf';
+
+// ---------- Phase 39: dependency / workflow reports ----------
+
+export interface DependencyReport {
+  totalDependencies: number;
+  blockedTasks: number;
+  readyTasks: number;
+  tasksBlockingOthers: number;
+  dependencyOverrides: number;
+}
+
+export interface BlockedTaskRow {
+  taskId: string;
+  taskTitle: string;
+  projectId: string;
+  projectName: string;
+  assigneeName: string | null;
+  blockedBy: string[];
+  /** A real, non-fabricated LOWER BOUND on how long the task has been blocked (earliest
+   * unsatisfied dependency's creation date) — not a precise "days blocked" duration, since this
+   * app doesn't track blocked/unblocked state transitions historically. */
+  blockedSince: string | null;
+  priority: TaskPriority;
+}
+
+export interface BlockedTaskReport {
+  items: BlockedTaskRow[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface BottleneckRow {
+  taskId: string;
+  taskTitle: string;
+  projectId: string;
+  projectName: string;
+  blocksCount: number;
+}
+
+export interface WorkflowBottlenecksReport {
+  items: BottleneckRow[];
+}
+
+export interface DependencyChainNode {
+  taskId: string;
+  taskTitle: string;
+  status: TaskStatus;
+}
+
+/** Labeled "Longest Dependency Chain", not "Critical Path" — see the backend DTO's own doc
+ * comment for why: this app's StartDate/DueDate are optional/frequently-null, so a duration-
+ * weighted CPM calculation would be misleading. This is instead an honest graph-topological
+ * longest path (by task count). */
+export interface LongestDependencyChainReport {
+  projectId: string;
+  projectName: string;
+  chain: DependencyChainNode[];
+}

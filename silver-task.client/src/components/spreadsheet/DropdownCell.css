@@ -47,6 +47,39 @@
   border-color: var(--danger) !important;
 }
 
+/* Phase 39 — the dependency-blocked banner that appears under a status cell after a rejected
+ * status change, with an inline Override action for authorized users. Absolutely positioned so
+ * it doesn't change table row height. */
+.dropdown-cell__dependency-error {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dropdown-cell__dependency-error button {
+  padding: 2px 8px;
+  border: 1px solid var(--danger);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 /* Badge-style variant: Status/Priority */
 
 .dropdown-cell--badge {

@@ -284,4 +284,110 @@ namespace Silver_Task.Server.Models.DTOs.Reports
 
         public int TotalFiles { get; set; }
     }
+
+    /// <summary>Phase 39 — "Circular Dependency Attempts" from the spec's own suggested metric
+    /// list is deliberately omitted: a rejected circular-dependency request fails validation
+    /// before anything is written anywhere, so there is no persisted record of the attempt to
+    /// count (this app has no request-level audit log, only entity-change history) — inventing one
+    /// would mean fabricating data, which the existing reporting conventions explicitly avoid.</summary>
+    public class DependencyReportDto
+    {
+        public int TotalDependencies { get; set; }
+
+        public int BlockedTasks { get; set; }
+
+        public int ReadyTasks { get; set; }
+
+        public int TasksBlockingOthers { get; set; }
+
+        public int DependencyOverrides { get; set; }
+    }
+
+    public class BlockedTaskRowDto
+    {
+        public Guid TaskId { get; set; }
+
+        public required string TaskTitle { get; set; }
+
+        public Guid ProjectId { get; set; }
+
+        public required string ProjectName { get; set; }
+
+        public string? AssigneeName { get; set; }
+
+        public required List<string> BlockedBy { get; set; }
+
+        /// <summary>The earliest CreatedAt among this task's currently-unsatisfied dependency
+        /// edges — a real, non-fabricated LOWER BOUND on how long the task has been blocked (the
+        /// prerequisite could have been unsatisfied since the edge was created, or could have
+        /// become unsatisfied again later after a status change — this app doesn't track that
+        /// transition history, see this DTO's own doc comment on why true "Days Blocked" isn't
+        /// implemented). Null only if BlockedBy is somehow empty (shouldn't happen for a row in
+        /// this report).</summary>
+        public DateTime? BlockedSince { get; set; }
+
+        public required string Priority { get; set; }
+    }
+
+    /// <summary>The spec's "Blocked Time" / "Average Blocked Time" metric is deliberately omitted
+    /// — computing it accurately requires recording the actual moment a task became blocked and
+    /// the moment it became unblocked (TaskBlockedAt/TaskUnblockedAt), which this app does not
+    /// track anywhere (TaskActivity logs dependency ADD/REMOVE events, not continuous blocked-
+    /// state transitions). BlockedSince above is offered instead as an honest, clearly-labeled
+    /// lower-bound proxy, per the spec's own "do not invent historical blocked timestamps"
+    /// instruction.</summary>
+    public class BlockedTaskReportDto
+    {
+        public required List<BlockedTaskRowDto> Items { get; set; }
+
+        public int TotalCount { get; set; }
+
+        public int Page { get; set; }
+
+        public int PageSize { get; set; }
+    }
+
+    public class BottleneckRowDto
+    {
+        public Guid TaskId { get; set; }
+
+        public required string TaskTitle { get; set; }
+
+        public Guid ProjectId { get; set; }
+
+        public required string ProjectName { get; set; }
+
+        public int BlocksCount { get; set; }
+    }
+
+    public class WorkflowBottlenecksReportDto
+    {
+        public required List<BottleneckRowDto> Items { get; set; }
+    }
+
+    public class DependencyChainNodeDto
+    {
+        public Guid TaskId { get; set; }
+
+        public required string TaskTitle { get; set; }
+
+        public required string Status { get; set; }
+    }
+
+    /// <summary>Deliberately labeled "Longest Dependency Chain", not "Critical Path" — a true
+    /// Critical Path calculation needs reliable task DURATION data (start + due date) for every
+    /// task along every candidate path, and StartDate/DueDate are optional, frequently-null fields
+    /// in this app; computing a duration-weighted path over partially-missing data would produce a
+    /// misleading result (per the spec's own explicit "do not implement misleading critical-path
+    /// results" instruction). This is instead an honest, purely graph-topological longest path
+    /// (by number of tasks, not calendar time) through the project's real dependency edges — still
+    /// genuinely useful for spotting the deepest workflow chain, just not a schedule-based CPM.</summary>
+    public class LongestDependencyChainReportDto
+    {
+        public Guid ProjectId { get; set; }
+
+        public required string ProjectName { get; set; }
+
+        public required List<DependencyChainNodeDto> Chain { get; set; }
+    }
 }

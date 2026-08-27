@@ -21,6 +21,7 @@ interface WidgetDefinition {
 // server-side (UserPreference.DashboardLayout), so this list is the only place that needs updating.
 export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
   { id: 'taskSummary', label: 'Task Summary' },
+  { id: 'workflow', label: 'Workflow' },
   { id: 'overdue', label: 'Overdue' },
   { id: 'dueToday', label: 'Due Today' },
   { id: 'upcoming', label: 'Upcoming' },
@@ -39,6 +40,7 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
 
 export const DEFAULT_VISIBLE_WIDGETS: DashboardWidgetId[] = [
   'taskSummary',
+  'workflow',
   'overdue',
   'dueToday',
   'upcoming',

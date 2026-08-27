@@ -64,6 +64,26 @@ export function useCustomReport(filter: ReportFilters, groupBy: ReportGroupByFie
   return useQuery({ queryKey: ['reports', 'custom', filter, groupBy], queryFn: () => reportsApi.custom(filter, groupBy) });
 }
 
+export function useDependencyReport(filter: ReportFilters) {
+  return useQuery({ queryKey: ['reports', 'dependencies', filter], queryFn: () => reportsApi.dependencies(filter) });
+}
+
+export function useBlockedTaskReport(filter: ReportFilters) {
+  return useQuery({ queryKey: ['reports', 'blocked-tasks', filter], queryFn: () => reportsApi.blockedTasks(filter) });
+}
+
+export function useWorkflowBottlenecksReport(filter: ReportFilters) {
+  return useQuery({ queryKey: ['reports', 'bottlenecks', filter], queryFn: () => reportsApi.bottlenecks(filter) });
+}
+
+export function useLongestDependencyChain(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ['reports', 'dependency-chain', projectId ?? ''],
+    queryFn: () => reportsApi.dependencyChain(projectId!),
+    enabled: Boolean(projectId),
+  });
+}
+
 export function useSavedReports() {
   return useQuery({ queryKey: savedReportsKey, queryFn: savedReportsApi.list });
 }

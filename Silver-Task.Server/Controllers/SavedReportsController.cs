@@ -123,6 +123,9 @@ namespace Silver_Task.Server.Controllers
                 ReportTypes.OldTasks => await _reportingService.GetOldTasksAsync(callerId, callerRole, filter, 30),
                 ReportTypes.CompletionTime => await _reportingService.GetCompletionTimeAsync(callerId, callerRole, filter),
                 ReportTypes.Custom => await _reportingService.GetCustomReportAsync(callerId, callerRole, filter, config.GroupBy ?? "Project"),
+                ReportTypes.Dependency => await _reportingService.GetDependencyReportAsync(callerId, callerRole, filter),
+                ReportTypes.BlockedTasks => await _reportingService.GetBlockedTaskReportAsync(callerId, callerRole, filter),
+                ReportTypes.Bottlenecks => await _reportingService.GetWorkflowBottlenecksAsync(callerId, callerRole, filter),
                 _ => throw new Common.Exceptions.ValidationException("Unrecognized report type.")
             };
 

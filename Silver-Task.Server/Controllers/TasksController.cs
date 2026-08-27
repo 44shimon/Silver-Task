@@ -152,7 +152,8 @@ namespace Silver_Task.Server.Controllers
         [HttpPost("{id:guid}/dependencies")]
         public async Task<ActionResult<TaskDependencyDto>> CreateDependency(Guid id, [FromBody] CreateTaskDependencyRequest request)
         {
-            var dependency = await _dependencyService.CreateAsync(id, request.DependsOnTaskId, User.GetUserId(), User.GetRole());
+            var dependency = await _dependencyService.CreateAsync(
+                id, request.DependsOnTaskId, request.ResolvedDependencyType, User.GetUserId(), User.GetRole());
             return CreatedAtAction(nameof(GetDependencies), new { id }, dependency.ToDependsOnDto());
         }
 

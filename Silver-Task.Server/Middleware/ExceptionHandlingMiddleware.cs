@@ -31,6 +31,7 @@ namespace Silver_Task.Server.Middleware
                 var (statusCode, message, logAsError) = ex switch
                 {
                     NotFoundException => (HttpStatusCode.NotFound, ex.Message, false),
+                    DependencyBlockedException => (HttpStatusCode.Conflict, ex.Message, false),
                     ConflictException => (HttpStatusCode.Conflict, ex.Message, false),
                     ForbiddenException => (HttpStatusCode.Forbidden, ex.Message, false),
                     ValidationException => (HttpStatusCode.BadRequest, ex.Message, false),
@@ -52,7 +53,10 @@ namespace Silver_Task.Server.Middleware
                 var response = new ApiErrorResponse
                 {
                     Message = message,
-                    TraceId = context.TraceIdentifier
+                    TraceId = context.TraceIdentifier,
+                    Errors = ex is DependencyBlockedException blocked
+                        ? new Dictionary<string, string[]> { ["blockedBy"] = [.. blocked.BlockingTaskTitles] }
+                        : null
                 };
 
                 await context.Response.WriteAsync(JsonSerializer.Serialize(response, JsonOptions));

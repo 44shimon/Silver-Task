@@ -209,6 +209,52 @@
   cursor: default;
 }
 
+.dependency-chain {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dependency-chain__node {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.dependency-chain__node:not(:first-child)::before {
+  content: '↓';
+  display: block;
+  margin: 0 0 4px 14px;
+  color: var(--text);
+  opacity: 0.5;
+  font-size: 14px;
+}
+
+.dependency-chain__node button {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dependency-chain__node--complete button {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.dependency-chain__node--blocked button {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 @media (max-width: 900px) {
   .report-table {
     display: block;

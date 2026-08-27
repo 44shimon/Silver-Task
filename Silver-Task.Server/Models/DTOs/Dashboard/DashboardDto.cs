@@ -135,4 +135,15 @@ namespace Silver_Task.Server.Models.DTOs.Dashboard
 
         public int OpenTaskCount { get; set; }
     }
+
+    /// <summary>Phase 39 — backs the Workflow dashboard widget (Blocked/Ready/Due Today over the
+    /// caller's own open assigned tasks).</summary>
+    public class WorkflowSummaryDto
+    {
+        public int Blocked { get; set; }
+
+        public int Ready { get; set; }
+
+        public int DueToday { get; set; }
+    }
 }

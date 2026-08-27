@@ -100,4 +100,50 @@ namespace Silver_Task.Server.Common.Automation
         public AutomationTriggerType TriggerType => AutomationTriggerType.ProjectCreated;
         Guid? IAutomationEvent.ProjectId => ProjectId;
     }
+
+    // ---------- Phase 39: dependency / workflow events ----------
+
+    public record TaskBecameReadyEvent(Guid TaskId, Guid ProjectId, Guid ChangedByUserId, DateTime Timestamp) : IAutomationEvent
+    {
+        public AutomationTriggerType TriggerType => AutomationTriggerType.TaskBecameReady;
+        Guid? IAutomationEvent.ProjectId => ProjectId;
+    }
+
+    public record TaskBecameBlockedEvent(Guid TaskId, Guid ProjectId, Guid ChangedByUserId, DateTime Timestamp) : IAutomationEvent
+    {
+        public AutomationTriggerType TriggerType => AutomationTriggerType.TaskBecameBlocked;
+        Guid? IAutomationEvent.ProjectId => ProjectId;
+    }
+
+    public record DependencyAddedEvent(Guid TaskId, Guid DependsOnTaskId, Guid ProjectId, Guid ChangedByUserId, DateTime Timestamp)
+        : IAutomationEvent
+    {
+        public AutomationTriggerType TriggerType => AutomationTriggerType.DependencyAdded;
+        Guid? IAutomationEvent.ProjectId => ProjectId;
+    }
+
+    public record DependencyRemovedEvent(Guid TaskId, Guid DependsOnTaskId, Guid ProjectId, Guid ChangedByUserId, DateTime Timestamp)
+        : IAutomationEvent
+    {
+        public AutomationTriggerType TriggerType => AutomationTriggerType.DependencyRemoved;
+        Guid? IAutomationEvent.ProjectId => ProjectId;
+    }
+
+    /// <summary>DependentTaskId (not the completed prerequisite) is "the task in context" — this
+    /// fires once per dependent, from the perspective of "one of your prerequisites just
+    /// completed", matching TaskBecameReady's own framing.</summary>
+    public record DependencyCompletedEvent(
+        Guid DependentTaskId, Guid CompletedPrerequisiteTaskId, Guid ProjectId, Guid ChangedByUserId, DateTime Timestamp)
+        : IAutomationEvent
+    {
+        public AutomationTriggerType TriggerType => AutomationTriggerType.DependencyCompleted;
+        Guid? IAutomationEvent.ProjectId => ProjectId;
+    }
+
+    public record DependencyOverriddenEvent(Guid TaskId, Guid ProjectId, Guid OverriddenByUserId, string Reason, DateTime Timestamp)
+        : IAutomationEvent
+    {
+        public AutomationTriggerType TriggerType => AutomationTriggerType.DependencyOverridden;
+        Guid? IAutomationEvent.ProjectId => ProjectId;
+    }
 }

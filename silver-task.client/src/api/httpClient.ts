@@ -2,16 +2,21 @@ export const API_BASE = '/api';
 
 export class ApiError extends Error {
   status: number;
+  /** Structured field-level errors, when the backend provides them (e.g. DependencyBlockedException's
+   * `errors.blockedBy` — the list of blocking task titles, see Phase 39's Override Dependency flow). */
+  errors?: Record<string, string[]>;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, errors?: Record<string, string[]>) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.errors = errors;
   }
 }
 
 interface ApiErrorBody {
   message?: string;
+  errors?: Record<string, string[]>;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -29,15 +34,17 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`;
+    let errors: Record<string, string[]> | undefined;
     try {
       const body = (await response.json()) as ApiErrorBody;
       if (body.message) {
         message = body.message;
       }
+      errors = body.errors ?? undefined;
     } catch {
       // Response had no JSON body; fall back to the generic message above.
     }
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, errors);
   }
 
   if (response.status === 204) {

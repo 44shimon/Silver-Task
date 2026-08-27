@@ -36,9 +36,23 @@ interface TaskDetailPanelProps {
   /** Phase 32 read-only mode — Tasks.Edit tier. Gates every field editor, Move Task, and every
    * child section's own "add" action (subtasks, dependencies, recurrence, comments). */
   canEdit: boolean;
+  /** Phase 39 — Permissions.DependenciesOverride for this project; offers the Override option
+   * when a status change is rejected as dependency-blocked. */
+  canOverrideDependencies?: boolean;
 }
 
-export function TaskDetailPanel({ task, projectId, members, customFields, tasks, currentUserId, onClose, onOpenDetail, canEdit }: TaskDetailPanelProps) {
+export function TaskDetailPanel({
+  task,
+  projectId,
+  members,
+  customFields,
+  tasks,
+  currentUserId,
+  onClose,
+  onOpenDetail,
+  canEdit,
+  canOverrideDependencies,
+}: TaskDetailPanelProps) {
   const [showMoveDialog, setShowMoveDialog] = useState(false);
 
   useEffect(() => {
@@ -83,7 +97,7 @@ export function TaskDetailPanel({ task, projectId, members, customFields, tasks,
           <div className="task-detail-panel__row">
             <div className="task-detail-panel__field">
               <span className="task-detail-panel__label">Status</span>
-              <StatusDropdownCell task={task} projectId={projectId} readOnly={!canEdit} />
+              <StatusDropdownCell task={task} projectId={projectId} readOnly={!canEdit} canOverride={canOverrideDependencies} />
             </div>
             <div className="task-detail-panel__field">
               <span className="task-detail-panel__label">Priority</span>

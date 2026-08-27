@@ -75,7 +75,7 @@ namespace Silver_Task.Server.Services
                 Permissions.TasksView, Permissions.TasksCreate, Permissions.TasksEdit, Permissions.TasksDelete, Permissions.TasksAssign,
                 Permissions.CommentsCreate, Permissions.CommentsDelete,
                 Permissions.FilesUpload, Permissions.FilesDelete,
-                Permissions.DependenciesManage, Permissions.RecurringTasksManage,
+                Permissions.DependenciesManage, Permissions.DependenciesOverride, Permissions.RecurringTasksManage,
                 Permissions.CustomFieldsManage,
                 Permissions.AutomationsView, Permissions.AutomationsCreate, Permissions.AutomationsEdit,
                 Permissions.AutomationsDelete, Permissions.AutomationsExecute

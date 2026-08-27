@@ -2,10 +2,13 @@ import { API_BASE, httpClient } from './httpClient';
 import type {
   AdminSystemReport,
   AutomationReport,
+  BlockedTaskReport,
   CompletionTimeReport,
+  DependencyReport,
   ExportFormat,
   FileReport,
   LabeledCount,
+  LongestDependencyChainReport,
   NotificationReport,
   OldTaskReport,
   OverdueReport,
@@ -19,6 +22,7 @@ import type {
   TaskSummaryReport,
   TrendReport,
   UserWorkloadReport,
+  WorkflowBottlenecksReport,
 } from '@/types/reports';
 
 function buildQuery(filter: ReportFilters, extra?: Record<string, string | number | undefined>): string {
@@ -64,6 +68,11 @@ export const reportsApi = {
   adminSystem: () => httpClient.get<AdminSystemReport>('/reports/admin-system'),
   custom: (filter: ReportFilters, groupBy: ReportGroupByField) =>
     httpClient.get<LabeledCount[]>(`/reports/custom${buildQuery(filter, { groupBy })}`),
+  dependencies: (filter: ReportFilters) => httpClient.get<DependencyReport>(`/reports/dependencies${buildQuery(filter)}`),
+  blockedTasks: (filter: ReportFilters) => httpClient.get<BlockedTaskReport>(`/reports/blocked-tasks${buildQuery(filter)}`),
+  bottlenecks: (filter: ReportFilters) => httpClient.get<WorkflowBottlenecksReport>(`/reports/bottlenecks${buildQuery(filter)}`),
+  dependencyChain: (projectId: string) =>
+    httpClient.get<LongestDependencyChainReport>(`/reports/dependency-chain?projectId=${projectId}`),
   /** Not a fetch — builds a direct, same-origin download URL for an <a>/window.open, same
    * pattern as attachmentsApi.downloadUrl. */
   exportUrl: (reportType: ReportType, filter: ReportFilters, format: ExportFormat, extra?: Record<string, string | number | undefined>) =>

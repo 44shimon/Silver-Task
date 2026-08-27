@@ -13,7 +13,13 @@ export type AutomationTriggerType =
   | 'FileUploaded'
   | 'FileTagged'
   | 'SubtaskCompleted'
-  | 'ProjectCreated';
+  | 'ProjectCreated'
+  | 'TaskBecameReady'
+  | 'TaskBecameBlocked'
+  | 'DependencyAdded'
+  | 'DependencyRemoved'
+  | 'DependencyCompleted'
+  | 'DependencyOverridden';
 
 export const TRIGGER_TYPE_OPTIONS: AutomationTriggerType[] = [
   'TaskCreated',
@@ -27,6 +33,12 @@ export const TRIGGER_TYPE_OPTIONS: AutomationTriggerType[] = [
   'FileTagged',
   'SubtaskCompleted',
   'ProjectCreated',
+  'TaskBecameReady',
+  'TaskBecameBlocked',
+  'DependencyAdded',
+  'DependencyRemoved',
+  'DependencyCompleted',
+  'DependencyOverridden',
 ];
 
 export const TRIGGER_TYPE_LABELS: Record<AutomationTriggerType, string> = {
@@ -41,6 +53,12 @@ export const TRIGGER_TYPE_LABELS: Record<AutomationTriggerType, string> = {
   FileTagged: 'File Tagged',
   SubtaskCompleted: 'Subtask Completed',
   ProjectCreated: 'Project Created',
+  TaskBecameReady: 'Task Became Ready',
+  TaskBecameBlocked: 'Task Became Blocked',
+  DependencyAdded: 'Dependency Added',
+  DependencyRemoved: 'Dependency Removed',
+  DependencyCompleted: 'Dependency Completed',
+  DependencyOverridden: 'Dependency Overridden',
 };
 
 /** Mirrors AutomationConditionOperator.cs — Before/After are offered as separate, clearer

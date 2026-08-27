@@ -1,6 +1,6 @@
 import { useRef, useState, type FocusEvent, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, X } from 'lucide-react';
+import { Lock, Search, X } from 'lucide-react';
 import { useTaskSearch } from '@/hooks/useTasks';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { STATUS_LABELS } from '@/types/task';
@@ -78,9 +78,13 @@ export function GlobalSearch() {
                 className="global-search__result"
                 onClick={() => openTask(task.id, task.projectId)}
               >
-                <span className="global-search__result-title">{task.title}</span>
+                <span className="global-search__result-title">
+                  {task.blockedByCount > 0 && <Lock size={11} className="global-search__result-blocked-icon" aria-hidden="true" />}
+                  {task.title}
+                </span>
                 <span className="global-search__result-meta">
                   {task.projectName ?? 'Unknown project'} · {STATUS_LABELS[task.status]}
+                  {task.blockedByCount > 0 && ` · Blocked by ${task.blockedByCount}`}
                 </span>
               </button>
             ))}

@@ -45,5 +45,11 @@ namespace Silver_Task.Server.Controllers
             var activity = await _dashboardService.GetRecentActivityAsync(User.GetUserId(), User.GetRole(), mineOnly, limit);
             return Ok(activity);
         }
+
+        [HttpGet("workflow")]
+        public async Task<ActionResult<WorkflowSummaryDto>> GetWorkflowSummary()
+        {
+            return Ok(await _dashboardService.GetWorkflowSummaryAsync(User.GetUserId(), User.GetRole()));
+        }
     }
 }

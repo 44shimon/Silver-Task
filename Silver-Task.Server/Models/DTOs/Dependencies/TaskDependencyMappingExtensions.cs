@@ -1,5 +1,6 @@
 using Silver_Task.Server.Models.DTOs.Users;
 using Silver_Task.Server.Models.Entities;
+using Silver_Task.Server.Services;
 
 namespace Silver_Task.Server.Models.DTOs.Dependencies
 {
@@ -13,6 +14,7 @@ namespace Silver_Task.Server.Models.DTOs.Dependencies
             {
                 DependencyId = dependency.Id,
                 DependencyType = dependency.DependencyType,
+                IsSatisfied = TaskDependencyService.IsRelationshipSatisfied(dependency.DependencyType, prerequisite.Status),
                 CreatedAt = dependency.CreatedAt,
                 TaskId = prerequisite.Id,
                 Title = prerequisite.Title,
@@ -23,7 +25,9 @@ namespace Silver_Task.Server.Models.DTOs.Dependencies
             };
         }
 
-        /// <summary>For the "Blocking" list — describes the dependent (Task).</summary>
+        /// <summary>For the "Blocking" list — describes the dependent (Task). IsSatisfied here
+        /// describes the dependent's own relationship condition (relative to THIS task, the
+        /// prerequisite) — i.e. "is this a reason the dependent is currently blocked".</summary>
         public static TaskDependencyDto ToDependentDto(this TaskDependency dependency)
         {
             var dependent = dependency.Task!;
@@ -31,6 +35,7 @@ namespace Silver_Task.Server.Models.DTOs.Dependencies
             {
                 DependencyId = dependency.Id,
                 DependencyType = dependency.DependencyType,
+                IsSatisfied = TaskDependencyService.IsRelationshipSatisfied(dependency.DependencyType, dependency.DependsOnTask!.Status),
                 CreatedAt = dependency.CreatedAt,
                 TaskId = dependent.Id,
                 Title = dependent.Title,

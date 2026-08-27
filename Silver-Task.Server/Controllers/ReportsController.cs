@@ -158,6 +158,34 @@ namespace Silver_Task.Server.Controllers
             return Ok(await _reportingService.GetCustomReportAsync(User.GetUserId(), User.GetRole(), filter, groupBy));
         }
 
+        [HttpGet("dependencies")]
+        public async Task<ActionResult<DependencyReportDto>> GetDependencyReport([FromQuery] ReportFilterRequest filter)
+        {
+            await EnsureCanViewReportsAsync();
+            return Ok(await _reportingService.GetDependencyReportAsync(User.GetUserId(), User.GetRole(), filter));
+        }
+
+        [HttpGet("blocked-tasks")]
+        public async Task<ActionResult<BlockedTaskReportDto>> GetBlockedTaskReport([FromQuery] ReportFilterRequest filter)
+        {
+            await EnsureCanViewReportsAsync();
+            return Ok(await _reportingService.GetBlockedTaskReportAsync(User.GetUserId(), User.GetRole(), filter));
+        }
+
+        [HttpGet("bottlenecks")]
+        public async Task<ActionResult<WorkflowBottlenecksReportDto>> GetWorkflowBottlenecks([FromQuery] ReportFilterRequest filter)
+        {
+            await EnsureCanViewReportsAsync();
+            return Ok(await _reportingService.GetWorkflowBottlenecksAsync(User.GetUserId(), User.GetRole(), filter));
+        }
+
+        [HttpGet("dependency-chain")]
+        public async Task<ActionResult<LongestDependencyChainReportDto>> GetLongestDependencyChain([FromQuery] Guid projectId)
+        {
+            await EnsureCanViewReportsAsync();
+            return Ok(await _reportingService.GetLongestDependencyChainAsync(User.GetUserId(), User.GetRole(), projectId));
+        }
+
         /// <summary>Export applies EXACTLY the same authorization + query path as the matching
         /// live report endpoint above — never a separate, weaker code path (the spec's own
         /// explicit "export endpoints must apply exactly the same authorization rules" rule).
@@ -187,6 +215,8 @@ namespace Silver_Task.Server.Controllers
                 ReportTypes.OldTasks => await BuildOldTasksExportAsync(callerId, callerRole, filter, thresholdDays),
                 ReportTypes.CompletionTime => await BuildCompletionTimeExportAsync(callerId, callerRole, filter),
                 ReportTypes.Custom => await BuildCustomExportAsync(callerId, callerRole, filter, groupBy ?? "Project"),
+                ReportTypes.BlockedTasks => await BuildBlockedTasksExportAsync(callerId, callerRole, filter),
+                ReportTypes.Bottlenecks => await BuildBottlenecksExportAsync(callerId, callerRole, filter),
                 _ => throw new ValidationException("Unrecognized or non-exportable report type.")
             };
 
@@ -294,6 +324,31 @@ namespace Silver_Task.Server.Controllers
             var headers = new[] { groupBy, "Count" };
             var exportRows = rows.Select(r => (IReadOnlyList<string>)new[] { r.Label, r.Count.ToString() }).ToList();
             return ($"Custom Report (grouped by {groupBy})", headers, exportRows);
+        }
+
+        private async Task<(string, IReadOnlyList<string>, IReadOnlyList<IReadOnlyList<string>>)> BuildBlockedTasksExportAsync(Guid callerId, UserRole callerRole, ReportFilterRequest filter)
+        {
+            var exportFilter = new ReportFilterRequest
+            {
+                ProjectId = filter.ProjectId, UserId = filter.UserId, Status = filter.Status, Priority = filter.Priority,
+                LabelId = filter.LabelId, Search = filter.Search, Page = 1, PageSize = 5000
+            };
+            var report = await _reportingService.GetBlockedTaskReportAsync(callerId, callerRole, exportFilter);
+            var headers = new[] { "Task", "Project", "Assignee", "Blocked By", "Blocked Since", "Priority" };
+            var rows = report.Items.Select(r => (IReadOnlyList<string>)new[]
+            {
+                r.TaskTitle, r.ProjectName, r.AssigneeName ?? "Unassigned", string.Join("; ", r.BlockedBy),
+                r.BlockedSince?.ToString("yyyy-MM-dd") ?? "", r.Priority
+            }).ToList();
+            return ("Blocked Tasks Report", headers, rows);
+        }
+
+        private async Task<(string, IReadOnlyList<string>, IReadOnlyList<IReadOnlyList<string>>)> BuildBottlenecksExportAsync(Guid callerId, UserRole callerRole, ReportFilterRequest filter)
+        {
+            var report = await _reportingService.GetWorkflowBottlenecksAsync(callerId, callerRole, filter);
+            var headers = new[] { "Task", "Project", "Blocks" };
+            var rows = report.Items.Select(r => (IReadOnlyList<string>)new[] { r.TaskTitle, r.ProjectName, r.BlocksCount.ToString() }).ToList();
+            return ("Workflow Bottlenecks Report", headers, rows);
         }
     }
 }

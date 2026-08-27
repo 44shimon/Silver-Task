@@ -95,9 +95,17 @@ export type DashboardWidgetId =
   | 'teamWorkload'
   | 'adminOverview'
   | 'weekSummary'
-  | 'reportsSummary';
+  | 'reportsSummary'
+  | 'workflow';
 
 export interface DashboardLayout {
   visibleWidgets: DashboardWidgetId[];
   order: DashboardWidgetId[];
+}
+
+/** Phase 39 — Blocked/Ready/Due Today over the caller's own open assigned tasks. */
+export interface WorkflowSummary {
+  blocked: number;
+  ready: number;
+  dueToday: number;
 }

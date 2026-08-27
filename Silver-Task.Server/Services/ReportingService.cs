@@ -48,6 +48,20 @@ namespace Silver_Task.Server.Services
         /// ReportTypes.GroupByFields, Count metric, over the same closed filter set every other
         /// report uses. Returns the same LabeledCountDto shape every other breakdown uses.</summary>
         Task<List<LabeledCountDto>> GetCustomReportAsync(Guid callerId, UserRole callerRole, ReportFilterRequest filter, string groupBy);
+
+        // ---------- Phase 39: dependency / workflow reports ----------
+
+        Task<DependencyReportDto> GetDependencyReportAsync(Guid callerId, UserRole callerRole, ReportFilterRequest filter);
+
+        Task<BlockedTaskReportDto> GetBlockedTaskReportAsync(Guid callerId, UserRole callerRole, ReportFilterRequest filter);
+
+        Task<WorkflowBottlenecksReportDto> GetWorkflowBottlenecksAsync(Guid callerId, UserRole callerRole, ReportFilterRequest filter);
+
+        /// <summary>Requires a single project (filter.ProjectId) — a cross-project "longest
+        /// chain" wouldn't be a meaningful workflow, since dependencies never cross projects (see
+        /// TaskDependencyService.CreateAsync). See LongestDependencyChainReportDto's own doc
+        /// comment for why this isn't labeled "Critical Path".</summary>
+        Task<LongestDependencyChainReportDto> GetLongestDependencyChainAsync(Guid callerId, UserRole callerRole, Guid projectId);
     }
 
     /// <summary>
@@ -703,6 +717,247 @@ namespace Silver_Task.Server.Services
                 .Select(g => new LabeledCountDto { Label = g.Key, Count = g.Count() })
                 .OrderByDescending(x => x.Count)
                 .ToList();
+        }
+
+        // ---------- Phase 39: dependency / workflow reports ----------
+
+        public async Task<DependencyReportDto> GetDependencyReportAsync(Guid callerId, UserRole callerRole, ReportFilterRequest filter)
+        {
+            var isAdmin = callerRole == UserRole.Administrator;
+            var scopedTasks = await ScopedTasks(callerId, isAdmin, filter).Select(t => new { t.Id, t.Status }).ToListAsync();
+            var scopedTaskIds = scopedTasks.Select(t => t.Id).ToList();
+
+            var totalDependencies = await _db.TaskDependencies.CountAsync(d => scopedTaskIds.Contains(d.TaskId));
+
+            var dependsOnRows = await _db.TaskDependencies
+                .Where(d => scopedTaskIds.Contains(d.TaskId))
+                .Select(d => new { d.TaskId, d.DependencyType, PrerequisiteStatus = d.DependsOnTask!.Status })
+                .ToListAsync();
+            var blockedTaskIds = dependsOnRows
+                .Where(r => !TaskDependencyService.IsSatisfiedForStart(r.DependencyType, r.PrerequisiteStatus))
+                .Select(r => r.TaskId)
+                .ToHashSet();
+
+            var openTasks = scopedTasks.Where(t => t.Status != TaskItemStatus.Complete && t.Status != TaskItemStatus.Cancelled).ToList();
+            var blockedTasks = openTasks.Count(t => blockedTaskIds.Contains(t.Id));
+
+            var tasksBlockingOthers = await _db.TaskDependencies
+                .Where(d => scopedTaskIds.Contains(d.DependsOnTaskId))
+                .Select(d => d.DependsOnTaskId)
+                .Distinct()
+                .CountAsync();
+
+            var overrideCount = await _db.TaskActivities
+                .Where(a => scopedTaskIds.Contains(a.TaskId) && a.Action == "DependencyOverridden")
+                .CountAsync();
+
+            return new DependencyReportDto
+            {
+                TotalDependencies = totalDependencies,
+                BlockedTasks = blockedTasks,
+                ReadyTasks = openTasks.Count - blockedTasks,
+                TasksBlockingOthers = tasksBlockingOthers,
+                DependencyOverrides = overrideCount
+            };
+        }
+
+        public async Task<BlockedTaskReportDto> GetBlockedTaskReportAsync(Guid callerId, UserRole callerRole, ReportFilterRequest filter)
+        {
+            var isAdmin = callerRole == UserRole.Administrator;
+            var rawTasks = await ScopedTasks(callerId, isAdmin, filter)
+                .Where(t => t.Status != TaskItemStatus.Complete && t.Status != TaskItemStatus.Cancelled)
+                .Select(t => new
+                {
+                    t.Id,
+                    t.Title,
+                    t.ProjectId,
+                    ProjectName = t.Project!.Name,
+                    AssigneeName = t.AssignedTo != null ? t.AssignedTo.Name : null,
+                    t.Priority
+                })
+                .ToListAsync();
+            var taskIds = rawTasks.Select(t => t.Id).ToList();
+
+            var dependsOnRows = await _db.TaskDependencies
+                .Where(d => taskIds.Contains(d.TaskId))
+                .Select(d => new
+                {
+                    d.TaskId,
+                    d.DependencyType,
+                    d.CreatedAt,
+                    PrerequisiteTitle = d.DependsOnTask!.Title,
+                    PrerequisiteStatus = d.DependsOnTask!.Status
+                })
+                .ToListAsync();
+
+            var blockersByTask = dependsOnRows
+                .Where(r => !TaskDependencyService.IsSatisfiedForStart(r.DependencyType, r.PrerequisiteStatus))
+                .GroupBy(r => r.TaskId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var blockedRows = rawTasks.Where(t => blockersByTask.ContainsKey(t.Id)).ToList();
+            var totalCount = blockedRows.Count;
+            var page = Math.Max(filter.Page, 1);
+            var pageSize = Math.Clamp(filter.PageSize, 1, 200);
+
+            var items = blockedRows
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(t =>
+                {
+                    var blockers = blockersByTask[t.Id];
+                    return new BlockedTaskRowDto
+                    {
+                        TaskId = t.Id,
+                        TaskTitle = t.Title,
+                        ProjectId = t.ProjectId,
+                        ProjectName = t.ProjectName,
+                        AssigneeName = t.AssigneeName,
+                        BlockedBy = blockers.Select(b => b.PrerequisiteTitle).Distinct().ToList(),
+                        BlockedSince = blockers.Count > 0 ? blockers.Min(b => b.CreatedAt) : null,
+                        Priority = t.Priority.ToString()
+                    };
+                })
+                .ToList();
+
+            return new BlockedTaskReportDto { Items = items, TotalCount = totalCount, Page = page, PageSize = pageSize };
+        }
+
+        public async Task<WorkflowBottlenecksReportDto> GetWorkflowBottlenecksAsync(Guid callerId, UserRole callerRole, ReportFilterRequest filter)
+        {
+            var isAdmin = callerRole == UserRole.Administrator;
+            var scopedTaskIds = await ScopedTasks(callerId, isAdmin, filter).Select(t => t.Id).ToListAsync();
+
+            var counts = await _db.TaskDependencies
+                .Where(d => scopedTaskIds.Contains(d.DependsOnTaskId))
+                .GroupBy(d => d.DependsOnTaskId)
+                .Select(g => new { TaskId = g.Key, Count = g.Count() })
+                .OrderByDescending(x => x.Count)
+                .Take(20)
+                .ToListAsync();
+
+            if (counts.Count == 0)
+            {
+                return new WorkflowBottlenecksReportDto { Items = [] };
+            }
+
+            var ids = counts.Select(c => c.TaskId).ToList();
+            var taskInfo = await _db.Tasks
+                .Where(t => ids.Contains(t.Id))
+                .Select(t => new { t.Id, t.Title, t.ProjectId, ProjectName = t.Project!.Name })
+                .ToDictionaryAsync(t => t.Id);
+
+            var items = counts
+                .Select(c => new BottleneckRowDto
+                {
+                    TaskId = c.TaskId,
+                    TaskTitle = taskInfo[c.TaskId].Title,
+                    ProjectId = taskInfo[c.TaskId].ProjectId,
+                    ProjectName = taskInfo[c.TaskId].ProjectName,
+                    BlocksCount = c.Count
+                })
+                .ToList();
+
+            return new WorkflowBottlenecksReportDto { Items = items };
+        }
+
+        public async Task<LongestDependencyChainReportDto> GetLongestDependencyChainAsync(Guid callerId, UserRole callerRole, Guid projectId)
+        {
+            var isAdmin = callerRole == UserRole.Administrator;
+            var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId)
+                ?? throw new Common.Exceptions.NotFoundException($"Project '{projectId}' was not found.");
+
+            var hasAccess = isAdmin || project.OwnerId == callerId ||
+                await _db.ProjectMembers.AnyAsync(m => m.ProjectId == projectId && m.UserId == callerId);
+            if (!hasAccess)
+            {
+                throw new Common.Exceptions.ForbiddenException("You do not have access to this project.");
+            }
+
+            var tasks = await _db.Tasks.Where(t => t.ProjectId == projectId)
+                .Select(t => new { t.Id, t.Title, t.Status })
+                .ToListAsync();
+            var edges = await _db.TaskDependencies
+                .Where(d => d.Task!.ProjectId == projectId)
+                .Select(d => new { d.TaskId, d.DependsOnTaskId })
+                .ToListAsync();
+
+            var adjacency = edges.GroupBy(e => e.TaskId).ToDictionary(g => g.Key, g => g.Select(e => e.DependsOnTaskId).ToList());
+            var memo = new Dictionary<Guid, int>();
+            var predecessor = new Dictionary<Guid, Guid?>();
+
+            // Longest path (by task count, not calendar time) ending at each task, via its
+            // prerequisites — see LongestDependencyChainReportDto's own doc comment for why this
+            // is hop-count-based rather than duration-weighted. `visiting` guards against a stray
+            // cycle recursing forever; WouldCreateCycleAsync should make cycles impossible in
+            // practice, this is defense-in-depth only.
+            int LongestPathEndingAt(Guid taskId, HashSet<Guid> visiting)
+            {
+                if (memo.TryGetValue(taskId, out var cached))
+                {
+                    return cached;
+                }
+                if (!adjacency.TryGetValue(taskId, out var prerequisites) || prerequisites.Count == 0)
+                {
+                    memo[taskId] = 1;
+                    predecessor[taskId] = null;
+                    return 1;
+                }
+
+                var best = 0;
+                Guid? bestPrerequisite = null;
+                foreach (var prerequisiteId in prerequisites)
+                {
+                    if (!visiting.Add(prerequisiteId))
+                    {
+                        continue;
+                    }
+                    var length = LongestPathEndingAt(prerequisiteId, visiting);
+                    visiting.Remove(prerequisiteId);
+                    if (length > best)
+                    {
+                        best = length;
+                        bestPrerequisite = prerequisiteId;
+                    }
+                }
+
+                memo[taskId] = best + 1;
+                predecessor[taskId] = bestPrerequisite;
+                return best + 1;
+            }
+
+            Guid? endTaskId = null;
+            var maxLength = 0;
+            foreach (var task in tasks)
+            {
+                var length = LongestPathEndingAt(task.Id, [task.Id]);
+                if (length > maxLength)
+                {
+                    maxLength = length;
+                    endTaskId = task.Id;
+                }
+            }
+
+            if (endTaskId is not Guid end)
+            {
+                return new LongestDependencyChainReportDto { ProjectId = projectId, ProjectName = project.Name, Chain = [] };
+            }
+
+            var chainIds = new List<Guid>();
+            Guid? cursor = end;
+            while (cursor is Guid current)
+            {
+                chainIds.Add(current);
+                cursor = predecessor.GetValueOrDefault(current);
+            }
+            chainIds.Reverse();
+
+            var taskLookup = tasks.ToDictionary(t => t.Id);
+            var chain = chainIds
+                .Select(id => new DependencyChainNodeDto { TaskId = id, TaskTitle = taskLookup[id].Title, Status = taskLookup[id].Status.ToString() })
+                .ToList();
+
+            return new LongestDependencyChainReportDto { ProjectId = projectId, ProjectName = project.Name, Chain = chain };
         }
     }
 }

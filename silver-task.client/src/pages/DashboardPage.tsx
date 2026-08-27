@@ -24,6 +24,7 @@ import { TeamWorkloadWidget } from '@/components/dashboard/TeamWorkloadWidget';
 import { AdminOverviewWidget } from '@/components/dashboard/AdminOverviewWidget';
 import { QuickActionsWidget } from '@/components/dashboard/QuickActionsWidget';
 import { ReportsSummaryWidget } from '@/components/dashboard/ReportsSummaryWidget';
+import { WorkflowWidget } from '@/components/dashboard/WorkflowWidget';
 import './DashboardPage.css';
 
 export function DashboardPage() {
@@ -116,6 +117,8 @@ export function DashboardPage() {
         return <AdminOverviewWidget />;
       case 'reportsSummary':
         return <ReportsSummaryWidget />;
+      case 'workflow':
+        return <WorkflowWidget />;
       default:
         return null;
     }

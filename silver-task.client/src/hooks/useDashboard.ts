@@ -22,3 +22,10 @@ export function useRecentActivity(mineOnly: boolean, limit = 15) {
     queryFn: () => dashboardApi.activity(mineOnly, limit),
   });
 }
+
+export function useWorkflowSummary() {
+  return useQuery({
+    queryKey: ['dashboard', 'workflow'],
+    queryFn: dashboardApi.workflow,
+  });
+}

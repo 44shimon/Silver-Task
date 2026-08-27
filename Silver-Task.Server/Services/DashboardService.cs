@@ -20,6 +20,12 @@ namespace Silver_Task.Server.Services
         /// <param name="mineOnly">True narrows the same feed to actions the caller themselves
         /// performed ("My Activity" — spec's own distinct widget from the general feed).</param>
         Task<IReadOnlyList<ActivityFeedItemDto>> GetRecentActivityAsync(Guid callerId, UserRole callerRole, bool mineOnly, int limit);
+
+        /// <summary>Phase 39 — Blocked/Ready/Due Today counts over the caller's own open assigned
+        /// tasks (same MyTasksBase-equivalent scope as TaskSummaryDto), backing the Workflow
+        /// dashboard widget. Reuses TaskDependencyService's type-aware satisfaction rule rather
+        /// than a second blocked-state calculation.</summary>
+        Task<WorkflowSummaryDto> GetWorkflowSummaryAsync(Guid callerId, UserRole callerRole);
     }
 
     /// <summary>
@@ -241,6 +247,41 @@ namespace Silver_Task.Server.Services
                     CreatedAt = a.CreatedAt
                 })
                 .ToListAsync();
+        }
+
+        public async Task<WorkflowSummaryDto> GetWorkflowSummaryAsync(Guid callerId, UserRole callerRole)
+        {
+            var isAdmin = callerRole == UserRole.Administrator;
+            var timeZoneId = await _db.UserPreferences.Where(p => p.UserId == callerId).Select(p => p.TimeZone).FirstOrDefaultAsync() ?? "UTC";
+            var timeZone = DashboardDateHelper.ResolveTimeZone(timeZoneId);
+            var today = DashboardDateHelper.TodayInZone(timeZone);
+
+            var openTasks = await _db.Tasks
+                .Include(t => t.Project)
+                .Where(t => t.AssignedToUserId == callerId && !t.Project!.IsArchived &&
+                    (isAdmin || t.Project.OwnerId == callerId || t.Project.Members.Any(m => m.UserId == callerId)) &&
+                    t.Status != TaskItemStatus.Complete && t.Status != TaskItemStatus.Cancelled)
+                .Select(t => new { t.Id, t.DueDate })
+                .ToListAsync();
+            var openTaskIds = openTasks.Select(t => t.Id).ToList();
+
+            var dependsOnRows = await _db.TaskDependencies
+                .Where(d => openTaskIds.Contains(d.TaskId))
+                .Select(d => new { d.TaskId, d.DependencyType, PrerequisiteStatus = d.DependsOnTask!.Status })
+                .ToListAsync();
+            var blockedIds = dependsOnRows
+                .Where(r => !TaskDependencyService.IsSatisfiedForStart(r.DependencyType, r.PrerequisiteStatus))
+                .Select(r => r.TaskId)
+                .ToHashSet();
+
+            var blocked = openTasks.Count(t => blockedIds.Contains(t.Id));
+
+            return new WorkflowSummaryDto
+            {
+                Blocked = blocked,
+                Ready = openTasks.Count - blocked,
+                DueToday = openTasks.Count(t => t.DueDate == today)
+            };
         }
     }
 }

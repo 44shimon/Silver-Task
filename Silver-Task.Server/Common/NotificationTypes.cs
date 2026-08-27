@@ -73,6 +73,12 @@ namespace Silver_Task.Server.Common
         /// project member (a project-wide event, unlike a per-task change).</summary>
         public const string ProjectStatusChanged = "ProjectStatusChanged";
 
+        /// <summary>Phase 39 — fires for a task's assignee the moment a newly-added dependency
+        /// immediately blocks it (the prerequisite doesn't yet satisfy the relationship type).
+        /// Distinct from TaskDependencyCompleted (Phase 29), which is the "no longer blocked"
+        /// counterpart.</summary>
+        public const string TaskBecameBlocked = "TaskBecameBlocked";
+
         public static readonly IReadOnlyList<string> All =
         [
             TaskAssigned,
@@ -96,7 +102,8 @@ namespace Silver_Task.Server.Common
             TaskCompleted,
             TaskReopened,
             FileUploaded,
-            ProjectStatusChanged
+            ProjectStatusChanged,
+            TaskBecameBlocked
         ];
     }
 }

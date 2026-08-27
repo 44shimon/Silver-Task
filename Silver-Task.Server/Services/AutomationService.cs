@@ -414,7 +414,11 @@ namespace Silver_Task.Server.Services
         [
             AutomationTriggerType.TaskCreated, AutomationTriggerType.TaskUpdated, AutomationTriggerType.TaskCompleted,
             AutomationTriggerType.TaskReopened, AutomationTriggerType.TaskAssigned, AutomationTriggerType.TaskOverdue,
-            AutomationTriggerType.CommentAdded, AutomationTriggerType.SubtaskCompleted
+            AutomationTriggerType.CommentAdded, AutomationTriggerType.SubtaskCompleted,
+            // Phase 39
+            AutomationTriggerType.TaskBecameReady, AutomationTriggerType.TaskBecameBlocked,
+            AutomationTriggerType.DependencyAdded, AutomationTriggerType.DependencyRemoved,
+            AutomationTriggerType.DependencyCompleted, AutomationTriggerType.DependencyOverridden
         ];
 
         private async Task<List<AutomationAction>> BuildActionsAsync(
@@ -764,6 +768,12 @@ namespace Silver_Task.Server.Services
             FileTaggedEvent e => e.FileId,
             SubtaskCompletedEvent e => e.SubtaskId,
             ProjectCreatedEvent e => e.ProjectId,
+            TaskBecameReadyEvent e => e.TaskId,
+            TaskBecameBlockedEvent e => e.TaskId,
+            DependencyAddedEvent e => e.TaskId,
+            DependencyRemovedEvent e => e.TaskId,
+            DependencyCompletedEvent e => e.DependentTaskId,
+            DependencyOverriddenEvent e => e.TaskId,
             _ => null
         };
 

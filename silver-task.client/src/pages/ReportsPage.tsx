@@ -13,10 +13,21 @@ import { CompletionTimeSection } from '@/components/reports/CompletionTimeSectio
 import { CustomReportSection } from '@/components/reports/CustomReportSection';
 import { MyReportsSection } from '@/components/reports/MyReportsSection';
 import { AdminReportsSection } from '@/components/reports/AdminReportsSection';
+import { DependencySection } from '@/components/reports/DependencySection';
 import type { ReportConfiguration, ReportFilters, ReportGroupByField } from '@/types/reports';
 import './ReportsPage.css';
 
-type TabKey = 'tasks' | 'overdue' | 'projects' | 'workload' | 'task-age' | 'completion-time' | 'custom' | 'my' | 'admin';
+type TabKey =
+  | 'tasks'
+  | 'overdue'
+  | 'projects'
+  | 'workload'
+  | 'task-age'
+  | 'completion-time'
+  | 'dependencies'
+  | 'custom'
+  | 'my'
+  | 'admin';
 
 const TABS: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: 'tasks', label: 'Task Summary' },
@@ -25,6 +36,7 @@ const TABS: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: 'workload', label: 'Workload' },
   { key: 'task-age', label: 'Task Age' },
   { key: 'completion-time', label: 'Completion Time' },
+  { key: 'dependencies', label: 'Dependencies' },
   { key: 'custom', label: 'Custom' },
   { key: 'my', label: 'My Reports' },
   { key: 'admin', label: 'Admin', adminOnly: true },
@@ -37,6 +49,10 @@ const TAB_REPORT_TYPE = {
   workload: 'Workload',
   'task-age': 'TaskAge',
   'completion-time': 'CompletionTime',
+  // The Dependencies tab shows several sub-reports at once (summary/blocked/bottlenecks/chain);
+  // Blocked Tasks is the richest exportable table among them, so it's what the tab's export
+  // buttons produce — see ReportsController.Export's BlockedTasks case.
+  dependencies: 'BlockedTasks',
   custom: 'Custom',
 } as const;
 
@@ -122,6 +138,7 @@ export function ReportsPage() {
         {activeTab === 'workload' && <WorkloadSection filters={filters} />}
         {activeTab === 'task-age' && <TaskAgeSection filters={filters} />}
         {activeTab === 'completion-time' && <CompletionTimeSection filters={filters} />}
+        {activeTab === 'dependencies' && <DependencySection filters={filters} />}
         {activeTab === 'custom' && <CustomReportSection filters={filters} groupBy={groupBy} onGroupByChange={setGroupBy} />}
         {activeTab === 'my' && (
           <MyReportsSection

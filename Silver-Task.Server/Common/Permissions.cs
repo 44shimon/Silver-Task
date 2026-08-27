@@ -47,6 +47,14 @@ namespace Silver_Task.Server.Common
         // app has no finer-grained sub-permission for them today; listed separately here so the
         // matrix/UI can label them distinctly even though enforcement reuses the Edit tier)
         public const string DependenciesManage = "Dependencies.Manage";
+
+        /// <summary>Phase 39 — bypassing a dependency block is meaningfully more privileged than
+        /// ordinary add/remove (DependenciesManage, above): it lets a task start or complete
+        /// despite an unsatisfied prerequisite, so unlike DependenciesManage this is NOT granted
+        /// at the shared Tasks.Edit tier — only project Managers (and Administrator/owner via
+        /// their usual bypass) get it. See ProjectMatrix.</summary>
+        public const string DependenciesOverride = "Dependencies.Override";
+
         public const string RecurringTasksManage = "RecurringTasks.Manage";
 
         // Custom Fields (project-scoped; definition changes are Manage-tier)
@@ -91,7 +99,7 @@ namespace Silver_Task.Server.Common
             TasksView, TasksCreate, TasksEdit, TasksDelete, TasksAssign,
             CommentsCreate, CommentsDelete,
             FilesUpload, FilesDelete,
-            DependenciesManage, RecurringTasksManage,
+            DependenciesManage, DependenciesOverride, RecurringTasksManage,
             CustomFieldsManage,
             AutomationsView, AutomationsCreate, AutomationsEdit, AutomationsDelete, AutomationsExecute,
             ReportsView, ReportsExport, ReportsCreate, ReportsManage,
@@ -108,7 +116,7 @@ namespace Silver_Task.Server.Common
             ["Tasks"] = [TasksView, TasksCreate, TasksEdit, TasksDelete, TasksAssign],
             ["Comments"] = [CommentsCreate, CommentsDelete],
             ["Files"] = [FilesUpload, FilesDelete],
-            ["Dependencies & Recurring Tasks"] = [DependenciesManage, RecurringTasksManage],
+            ["Dependencies & Recurring Tasks"] = [DependenciesManage, DependenciesOverride, RecurringTasksManage],
             ["Custom Fields"] = [CustomFieldsManage],
             ["Automations"] = [AutomationsView, AutomationsCreate, AutomationsEdit, AutomationsDelete, AutomationsExecute],
             ["Reports"] = [ReportsView, ReportsExport, ReportsCreate, ReportsManage],

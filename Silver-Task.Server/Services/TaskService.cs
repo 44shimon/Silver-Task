@@ -84,7 +84,8 @@ namespace Silver_Task.Server.Services
         ISystemSettingsService systemSettings,
         INotificationService notificationService,
         ITagService tagService,
-        IAutomationDispatcher automationDispatcher) : ITaskService
+        IAutomationDispatcher automationDispatcher,
+        ITaskDependencyService dependencyService) : ITaskService
     {
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
@@ -92,6 +93,7 @@ namespace Silver_Task.Server.Services
         private readonly INotificationService _notificationService = notificationService;
         private readonly ITagService _tagService = tagService;
         private readonly IAutomationDispatcher _automationDispatcher = automationDispatcher;
+        private readonly ITaskDependencyService _dependencyService = dependencyService;
 
         public async Task<IReadOnlyList<TaskItem>> GetAllForProjectAsync(Guid projectId, Guid callerId, UserRole callerRole)
         {
@@ -340,6 +342,27 @@ namespace Silver_Task.Server.Services
 
             var wasComplete = task.Status == TaskItemStatus.Complete;
             var willBeComplete = request.Status == TaskItemStatus.Complete;
+            var willStart = task.Status == TaskItemStatus.NotStarted && request.Status != TaskItemStatus.NotStarted;
+            var isCompleting = willBeComplete && !wasComplete;
+
+            // SortOrder deliberately isn't diffed here — reordering isn't a meaningful
+            // change for a human reading the activity feed, unlike every field below.
+            var activities = new List<TaskActivity>();
+
+            // Phase 39 — backend enforcement of dependency blocking (never relies on the frontend
+            // alone). Only checked on the two transitions that actually matter (leaving
+            // NotStarted, and newly reaching Complete) — every other status change (e.g.
+            // InProgress -> Waiting) is unaffected by dependencies entirely. Throws
+            // DependencyBlockedException unless the caller both requested and is authorized for
+            // an override, in which case the override is recorded into `activities` here and the
+            // corresponding automation event dispatched after SaveChangesAsync below (never
+            // before — a dispatched event must always reflect committed state).
+            string? dependencyOverrideReason = null;
+            if (willStart || isCompleting)
+            {
+                dependencyOverrideReason = await EnsureNotBlockedByDependenciesAsync(
+                    task, willStart, isCompleting, request, callerId, callerRole, activities);
+            }
 
             // Resolved once and reused for every notification this single edit might raise below
             // (a PUT can change several fields at once) rather than a fresh lookup per
@@ -347,9 +370,6 @@ namespace Silver_Task.Server.Services
             var actorName = await _db.Users.Where(u => u.Id == callerId).Select(u => u.Name).FirstOrDefaultAsync() ?? "Someone";
             var taskNoun = task.ParentTaskId is null ? "Task" : "Subtask";
 
-            // SortOrder deliberately isn't diffed here — reordering isn't a meaningful
-            // change for a human reading the activity feed, unlike every field below.
-            var activities = new List<TaskActivity>();
             var trimmedTitle = request.Title.Trim();
             var newDescription = NormalizeText(request.Description);
 
@@ -446,7 +466,7 @@ namespace Silver_Task.Server.Services
                 task.OverdueAutomationProcessedAt = null;
             }
 
-            if (willBeComplete && !wasComplete)
+            if (isCompleting)
             {
                 task.CompletedAt = DateTime.UtcNow;
 
@@ -465,7 +485,7 @@ namespace Silver_Task.Server.Services
                         $"\"{trimmedTitle}\" was marked complete.", task.Id, task.ProjectId);
                 }
 
-                await NotifyUnblockedDependentsAsync(task, callerId);
+                await NotifyDependentsOfCompletionAsync(task, callerId);
             }
             else if (!willBeComplete && wasComplete)
             {
@@ -485,6 +505,12 @@ namespace Silver_Task.Server.Services
             await DispatchUpdateEventsAsync(
                 task, previousStatus, request.Status, previousAssigneeId, request.AssignedToUserId,
                 wasComplete, willBeComplete, callerId);
+
+            if (dependencyOverrideReason is not null)
+            {
+                await _automationDispatcher.DispatchAsync(
+                    new DependencyOverriddenEvent(task.Id, task.ProjectId, callerId, dependencyOverrideReason, DateTime.UtcNow));
+            }
 
             task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
             await AttachTaskSummariesAsync([task]);
@@ -720,38 +746,109 @@ namespace Silver_Task.Server.Services
             return false;
         }
 
-        /// <summary>Called right after a task is marked Complete — finds every task that depends
-        /// on it (Finish-to-Start) and, for each one whose *other* prerequisites (if any) are
-        /// already Complete too, notifies its assignee that it's no longer blocked. A dependent
-        /// with other still-incomplete prerequisites is deliberately not notified yet — the spec's
-        /// example is "no longer blocked", not "one of several prerequisites finished".</summary>
-        private async Task NotifyUnblockedDependentsAsync(TaskItem completedTask, Guid actorId)
+        /// <summary>Phase 39 backend enforcement — never trusts the frontend alone (per the
+        /// spec's own explicit requirement). Checks GetStartBlockersAsync/GetCompletionBlockersAsync
+        /// (whichever apply to the transition in progress) and either lets the caller through, lets
+        /// them through via a recorded override, or throws DependencyBlockedException listing the
+        /// blockers by title. Returns the override reason (to dispatch DependencyOverriddenEvent
+        /// after the caller's own SaveChangesAsync) or null if there was nothing to override.</summary>
+        private async Task<string?> EnsureNotBlockedByDependenciesAsync(
+            TaskItem task, bool isStarting, bool isCompleting, UpdateTaskRequest request,
+            Guid callerId, UserRole callerRole, List<TaskActivity> activities)
         {
-            var dependentTaskIds = await _db.TaskDependencies
+            var blockers = new List<TaskDependency>();
+            if (isStarting)
+            {
+                blockers.AddRange(await _dependencyService.GetStartBlockersAsync(task.Id));
+            }
+            if (isCompleting)
+            {
+                foreach (var blocker in await _dependencyService.GetCompletionBlockersAsync(task.Id))
+                {
+                    if (blockers.All(existing => existing.Id != blocker.Id))
+                    {
+                        blockers.Add(blocker);
+                    }
+                }
+            }
+
+            if (blockers.Count == 0)
+            {
+                return null;
+            }
+
+            var blockerTitles = blockers.Select(b => b.DependsOnTask!.Title).Distinct().ToList();
+
+            if (!request.OverrideDependencyBlock)
+            {
+                var action = isCompleting ? "completed" : "started";
+                throw new DependencyBlockedException(
+                    $"Task cannot be {action} because it is blocked by: {string.Join(", ", blockerTitles)}", blockerTitles);
+            }
+
+            if (string.IsNullOrWhiteSpace(request.OverrideReason))
+            {
+                throw new ValidationException("An override reason is required.");
+            }
+
+            // Only a project Manager (or Administrator/owner) may bypass a dependency block —
+            // Permissions.DependenciesOverride (see PermissionService.ProjectMatrix) maps to
+            // exactly this tier, so this is the same check the frontend's own `can()` gate mirrors.
+            // Not every user can override, per the spec's own explicit requirement.
+            await _projectAccess.EnsureCanManageAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+
+            activities.Add(new TaskActivity
+            {
+                Id = Guid.NewGuid(),
+                TaskId = task.Id,
+                UserId = callerId,
+                Action = "DependencyOverridden",
+                FieldName = isCompleting ? "Complete" : "Start",
+                OldValue = string.Join(", ", blockerTitles),
+                NewValue = request.OverrideReason!.Trim()
+            });
+
+            return request.OverrideReason.Trim();
+        }
+
+        /// <summary>Called right after a task is marked Complete — dispatches DependencyCompleted
+        /// (once per FinishToStart/FinishToFinish dependent — the two types whose own condition
+        /// is specifically "prerequisite reached Complete") and, for every dependent now fully
+        /// unblocked from starting, dispatches TaskBecameReady and notifies its assignee. A
+        /// dependent with other still-unsatisfied prerequisites is deliberately not notified yet —
+        /// the spec's example is "no longer blocked", not "one of several prerequisites finished".</summary>
+        private async Task NotifyDependentsOfCompletionAsync(TaskItem completedTask, Guid actorId)
+        {
+            var dependentEdges = await _db.TaskDependencies
                 .Where(d => d.DependsOnTaskId == completedTask.Id)
-                .Select(d => d.TaskId)
+                .Select(d => new { d.TaskId, d.DependencyType })
                 .ToListAsync();
 
-            foreach (var dependentTaskId in dependentTaskIds)
+            foreach (var edge in dependentEdges.Where(e => e.DependencyType is DependencyTypes.FinishToStart or DependencyTypes.FinishToFinish))
             {
+                await _automationDispatcher.DispatchAsync(
+                    new DependencyCompletedEvent(edge.TaskId, completedTask.Id, completedTask.ProjectId, actorId, DateTime.UtcNow));
+            }
+
+            foreach (var dependentTaskId in dependentEdges.Select(e => e.TaskId).Distinct())
+            {
+                var remainingBlockers = await _dependencyService.GetStartBlockersAsync(dependentTaskId);
+                if (remainingBlockers.Count > 0)
+                {
+                    continue;
+                }
+
+                await _automationDispatcher.DispatchAsync(
+                    new TaskBecameReadyEvent(dependentTaskId, completedTask.ProjectId, actorId, DateTime.UtcNow));
+
                 var dependent = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == dependentTaskId);
-                if (dependent?.AssignedToUserId is not Guid assigneeId)
+                if (dependent?.AssignedToUserId is Guid assigneeId)
                 {
-                    continue;
+                    await _notificationService.NotifyAsync(
+                        assigneeId, actorId, NotificationTypes.TaskDependencyCompleted, "Task dependency completed",
+                        $"\"{completedTask.Title}\" is complete. \"{dependent.Title}\" is no longer blocked.",
+                        dependent.Id, dependent.ProjectId);
                 }
-
-                var stillBlocked = await _db.TaskDependencies
-                    .Where(d => d.TaskId == dependentTaskId && d.DependsOnTaskId != completedTask.Id)
-                    .AnyAsync(d => d.DependsOnTask!.Status != TaskItemStatus.Complete);
-                if (stillBlocked)
-                {
-                    continue;
-                }
-
-                await _notificationService.NotifyAsync(
-                    assigneeId, actorId, NotificationTypes.TaskDependencyCompleted, "Task dependency completed",
-                    $"\"{completedTask.Title}\" is complete. \"{dependent.Title}\" is no longer blocked.",
-                    dependent.Id, dependent.ProjectId);
             }
         }
 
@@ -903,7 +1000,7 @@ namespace Silver_Task.Server.Services
 
             var dependsOnRows = await _db.TaskDependencies
                 .Where(d => ids.Contains(d.TaskId))
-                .Select(d => new { d.TaskId, PrerequisiteStatus = d.DependsOnTask!.Status })
+                .Select(d => new { d.TaskId, d.DependencyType, PrerequisiteStatus = d.DependsOnTask!.Status })
                 .ToListAsync();
 
             var dependentCounts = await _db.TaskDependencies
@@ -919,7 +1016,11 @@ namespace Silver_Task.Server.Services
                 if (dependsOnGroups.TryGetValue(task.Id, out var rows))
                 {
                     task.DependsOnCount = rows.Count;
-                    task.BlockedByCount = rows.Count(r => r.PrerequisiteStatus != TaskItemStatus.Complete);
+                    // Phase 39 — type-aware: a Finish-to-Finish/Start-to-Finish dependency never
+                    // blocks STARTING (only completing), so it no longer inflates this "blocked
+                    // from starting" count the way a blanket "prerequisite != Complete" check
+                    // would. See TaskDependencyService's own doc comment for the full rule table.
+                    task.BlockedByCount = rows.Count(r => !TaskDependencyService.IsSatisfiedForStart(r.DependencyType, r.PrerequisiteStatus));
                 }
                 task.DependentCount = dependentCounts.GetValueOrDefault(task.Id);
             }

@@ -1,11 +1,11 @@
 import { httpClient } from './httpClient';
-import type { TaskDependency, TaskDependencyEdge } from '@/types/dependency';
+import type { DependencyType, TaskDependency, TaskDependencyEdge } from '@/types/dependency';
 
 export const dependenciesApi = {
   listDependencies: (taskId: string) => httpClient.get<TaskDependency[]>(`/tasks/${taskId}/dependencies`),
   listDependents: (taskId: string) => httpClient.get<TaskDependency[]>(`/tasks/${taskId}/dependents`),
-  create: (taskId: string, dependsOnTaskId: string) =>
-    httpClient.post<TaskDependency>(`/tasks/${taskId}/dependencies`, { dependsOnTaskId }),
+  create: (taskId: string, dependsOnTaskId: string, dependencyType: DependencyType) =>
+    httpClient.post<TaskDependency>(`/tasks/${taskId}/dependencies`, { dependsOnTaskId, dependencyType }),
   remove: (taskId: string, dependencyId: string) =>
     httpClient.delete<void>(`/tasks/${taskId}/dependencies/${dependencyId}`),
   /** Every dependency edge in a project — backs Gantt/Timeline connector lines. */

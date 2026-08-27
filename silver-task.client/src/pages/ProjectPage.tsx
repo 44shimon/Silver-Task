@@ -55,6 +55,7 @@ export function ProjectPage() {
   const { can } = useProjectPermissions(project);
   const canEditTasks = can(Permissions.TasksEdit);
   const canManageProject = can(Permissions.ProjectsManageMembers);
+  const canOverrideDependencies = can(Permissions.DependenciesOverride);
   const {
     filteredTasks,
     isFiltered,
@@ -269,6 +270,7 @@ export function ProjectPage() {
           onOpenDetail={openTaskDetail}
           canEdit={canEditTasks}
           canDelete={can(Permissions.TasksDelete)}
+          canOverrideDependencies={canOverrideDependencies}
         />
       )}
 
@@ -287,6 +289,7 @@ export function ProjectPage() {
           onClose={closeTaskDetail}
           onOpenDetail={openTaskDetail}
           canEdit={canEditTasks}
+          canOverrideDependencies={canOverrideDependencies}
         />
       )}
 

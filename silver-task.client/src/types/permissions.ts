@@ -28,6 +28,7 @@ export const Permissions = {
   FilesDelete: 'Files.Delete',
 
   DependenciesManage: 'Dependencies.Manage',
+  DependenciesOverride: 'Dependencies.Override',
   RecurringTasksManage: 'RecurringTasks.Manage',
 
   CustomFieldsManage: 'CustomFields.Manage',
@@ -78,6 +79,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   [Permissions.FilesDelete]: 'Delete Any File',
 
   [Permissions.DependenciesManage]: 'Manage Dependencies',
+  [Permissions.DependenciesOverride]: 'Override Dependency Blocks',
   [Permissions.RecurringTasksManage]: 'Manage Recurring Tasks',
 
   [Permissions.CustomFieldsManage]: 'Manage Custom Fields',
@@ -114,7 +116,7 @@ export const PERMISSION_GROUPS: Record<string, string[]> = {
   Tasks: [Permissions.TasksView, Permissions.TasksCreate, Permissions.TasksEdit, Permissions.TasksDelete, Permissions.TasksAssign],
   Comments: [Permissions.CommentsCreate, Permissions.CommentsDelete],
   Files: [Permissions.FilesUpload, Permissions.FilesDelete],
-  'Dependencies & Recurring Tasks': [Permissions.DependenciesManage, Permissions.RecurringTasksManage],
+  'Dependencies & Recurring Tasks': [Permissions.DependenciesManage, Permissions.DependenciesOverride, Permissions.RecurringTasksManage],
   'Custom Fields': [Permissions.CustomFieldsManage],
   Automations: [
     Permissions.AutomationsView,

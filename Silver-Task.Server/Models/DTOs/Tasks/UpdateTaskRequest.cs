@@ -26,5 +26,14 @@ namespace Silver_Task.Server.Models.DTOs.Tasks
 
         [Required]
         public double SortOrder { get; set; }
+
+        /// <summary>Phase 39 — set true (alongside OverrideReason) to bypass a dependency block
+        /// that would otherwise reject this status change; ignored entirely when the status
+        /// change isn't actually blocked. Requires Permissions.DependenciesOverride (project
+        /// Manager/Administrator/owner) — see TaskService.EnsureNotBlockedByDependenciesAsync.</summary>
+        public bool OverrideDependencyBlock { get; set; }
+
+        [StringLength(1000)]
+        public string? OverrideReason { get; set; }
     }
 }

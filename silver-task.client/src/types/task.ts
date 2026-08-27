@@ -84,4 +84,8 @@ export interface UpdateTaskRequest {
   startDate?: string | null;
   dueDate?: string | null;
   sortOrder: number;
+  /** Phase 39 — set alongside overrideReason to bypass a dependency block; ignored unless the
+   * status change is actually blocked. Requires Permissions.DependenciesOverride. */
+  overrideDependencyBlock?: boolean;
+  overrideReason?: string;
 }

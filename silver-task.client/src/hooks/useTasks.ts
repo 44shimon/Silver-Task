@@ -46,6 +46,13 @@ export const taskFieldChange = {
     request: { dueDate: value },
   }),
   status: (value: TaskStatus): TaskFieldChange => ({ optimistic: { status: value }, request: { status: value } }),
+  /** Phase 39 — resubmits a status change that was rejected as dependency-blocked, with the
+   * override flag + reason set. Only reachable after the plain `status` change above already
+   * failed with a DependencyBlockedException-shaped error (see StatusDropdownCell). */
+  statusOverride: (value: TaskStatus, reason: string): TaskFieldChange => ({
+    optimistic: { status: value },
+    request: { status: value, overrideDependencyBlock: true, overrideReason: reason },
+  }),
   priority: (value: TaskPriority): TaskFieldChange => ({
     optimistic: { priority: value },
     request: { priority: value },

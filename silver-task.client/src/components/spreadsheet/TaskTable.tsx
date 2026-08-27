@@ -48,6 +48,9 @@ interface TaskTableProps {
   canEdit: boolean;
   /** Delete is a separate (and often stricter) permission from edit — see Tasks.Delete. */
   canDelete: boolean;
+  /** Phase 39 — Permissions.DependenciesOverride for this project; offers the Override option
+   * when a status change is rejected as dependency-blocked. */
+  canOverrideDependencies?: boolean;
 }
 
 const columnHelper = legacyCreateColumnHelper<TaskTreeNode>();
@@ -66,6 +69,7 @@ export function TaskTable({
   onOpenDetail,
   canEdit,
   canDelete,
+  canOverrideDependencies,
 }: TaskTableProps) {
   // Expanded by default — subtasks should be visible without an extra step the first time a
   // project with hierarchy is opened. Kept in local state (not reloaded from the server), so
@@ -148,7 +152,9 @@ export function TaskTable({
         ),
         size: 150,
         minSize: 130,
-        cell: (info) => <StatusDropdownCell task={info.row.original} projectId={projectId} readOnly={!canEdit} />,
+        cell: (info) => (
+          <StatusDropdownCell task={info.row.original} projectId={projectId} readOnly={!canEdit} canOverride={canOverrideDependencies} />
+        ),
       }),
       columnHelper.accessor('priority', {
         header: () => (
@@ -251,7 +257,20 @@ export function TaskTable({
         ),
       }),
     ],
-    [projectId, members, customFields, sortField, sortDirection, onSortFieldClick, onDuplicate, onDelete, onOpenDetail, canEdit, canDelete],
+    [
+      projectId,
+      members,
+      customFields,
+      sortField,
+      sortDirection,
+      onSortFieldClick,
+      onDuplicate,
+      onDelete,
+      onOpenDetail,
+      canEdit,
+      canDelete,
+      canOverrideDependencies,
+    ],
   );
 
   const table = useLegacyTable({

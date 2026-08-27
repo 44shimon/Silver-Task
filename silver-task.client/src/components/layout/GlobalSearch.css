@@ -66,12 +66,20 @@
 }
 
 .global-search__result-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-h);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.global-search__result-blocked-icon {
+  color: var(--danger);
+  flex-shrink: 0;
 }
 
 .global-search__result-meta {

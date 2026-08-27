@@ -13,6 +13,12 @@ namespace Silver_Task.Server.Models.DTOs.Dependencies
 
         public required string DependencyType { get; set; }
 
+        /// <summary>Whether this specific relationship's own condition currently holds (see
+        /// TaskDependencyService.IsRelationshipSatisfied) — backs the checkbox-style indicator
+        /// next to each row in the Dependencies panel. Not the same as "is the task overall
+        /// Ready" — a task can have several dependencies, only some unsatisfied.</summary>
+        public bool IsSatisfied { get; set; }
+
         public DateTime CreatedAt { get; set; }
 
         public Guid TaskId { get; set; }

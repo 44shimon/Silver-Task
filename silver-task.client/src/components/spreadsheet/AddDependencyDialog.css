@@ -4,6 +4,63 @@
   color: var(--text);
 }
 
+.add-dependency-dialog__type-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.add-dependency-dialog__type-field select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+  max-width: 220px;
+}
+
+.add-dependency-dialog__type-description {
+  margin: -6px 0 0;
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.75;
+}
+
+.add-dependency-dialog__warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.add-dependency-dialog__warning p {
+  margin: 0;
+  font-size: 12px;
+}
+
+.add-dependency-dialog__submit {
+  padding: 7px 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.add-dependency-dialog__submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .add-dependency-dialog__search {
   padding: 8px 10px;
   border: 1px solid var(--border);
@@ -38,8 +95,9 @@
 
 .add-dependency-dialog__row {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -80,4 +138,5 @@
 .add-dependency-dialog__actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
 }

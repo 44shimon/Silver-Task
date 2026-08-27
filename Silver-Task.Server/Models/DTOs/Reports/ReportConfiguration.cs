@@ -49,10 +49,16 @@ namespace Silver_Task.Server.Models.DTOs.Reports
         public const string CompletionTime = "CompletionTime";
         public const string Custom = "Custom";
 
+        // Phase 39
+        public const string Dependency = "Dependency";
+        public const string BlockedTasks = "BlockedTasks";
+        public const string Bottlenecks = "Bottlenecks";
+
         public static readonly IReadOnlyCollection<string> All =
         [
             TaskSummary, CompletionTrend, CreationTrend, Overdue, OverdueTrend,
-            ProjectProgress, Workload, UserCompletion, TaskAge, OldTasks, CompletionTime, Custom
+            ProjectProgress, Workload, UserCompletion, TaskAge, OldTasks, CompletionTime, Custom,
+            Dependency, BlockedTasks, Bottlenecks
         ];
 
         public static readonly IReadOnlyCollection<string> GroupByFields = ["Project", "Status", "Priority", "Assignee"];

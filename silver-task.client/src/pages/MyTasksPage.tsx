@@ -1,7 +1,7 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMyTasks, useTasks } from '@/hooks/useTasks';
 import { useMyTasksFilters, MY_TASK_SORT_FIELDS, MY_TASK_SORT_FIELD_LABELS } from '@/hooks/useMyTasksFilters';
-import type { QuickFilter } from '@/utils/taskFilters';
+import type { DependencyStateFilter, QuickFilter } from '@/utils/taskFilters';
 import { useProject, useProjects, useProjectMembers } from '@/hooks/useProjects';
 import { useCustomFields } from '@/hooks/useCustomFields';
 import { useCurrentUser } from '@/hooks/useAuth';
@@ -18,6 +18,7 @@ import './MyTasksPage.css';
 
 const TASK_QUERY_PARAM = 'task';
 const VALID_QUICK_FILTERS: QuickFilter[] = ['all', 'open', 'dueToday', 'dueThisWeek', 'overdue', 'completed'];
+const VALID_DEPENDENCY_STATES: DependencyStateFilter[] = ['blocked', 'notBlocked', 'hasDependencies', 'hasDependents'];
 
 export function MyTasksPage() {
   const { data: tasks, isLoading, isError } = useMyTasks();
@@ -33,6 +34,13 @@ export function MyTasksPage() {
   const initialQuickFilter = VALID_QUICK_FILTERS.includes(requestedQuickFilter as QuickFilter)
     ? (requestedQuickFilter as QuickFilter)
     : 'all';
+
+  // Phase 39 — same seeding pattern, for the Dashboard Workflow widget's "Blocked" stat card
+  // (?dependencyState=blocked) linking here with that filter already applied.
+  const requestedDependencyState = searchParams.get('dependencyState');
+  const initialDependencyState = VALID_DEPENDENCY_STATES.includes(requestedDependencyState as DependencyStateFilter)
+    ? (requestedDependencyState as DependencyStateFilter)
+    : null;
 
   const {
     filteredTasks,
@@ -50,7 +58,7 @@ export function MyTasksPage() {
     setSortField,
     setSortDirection,
     summary,
-  } = useMyTasksFilters(tasks ?? [], initialQuickFilter);
+  } = useMyTasksFilters(tasks ?? [], initialQuickFilter, initialDependencyState);
 
   const selectedTaskId = searchParams.get(TASK_QUERY_PARAM);
   const selectedTask = tasks?.find((t) => t.id === selectedTaskId) ?? null;
@@ -146,6 +154,7 @@ export function MyTasksPage() {
           onClose={closeTaskDetail}
           onOpenDetail={openDependencyDetail}
           canEdit={can(Permissions.TasksEdit)}
+          canOverrideDependencies={can(Permissions.DependenciesOverride)}
         />
       )}
     </div>

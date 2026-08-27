@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { dependenciesApi } from '@/api/dependenciesApi';
+import type { DependencyType } from '@/types/dependency';
 
 const dependenciesKey = (taskId: string) => ['tasks', taskId, 'dependencies'] as const;
 const dependentsKey = (taskId: string) => ['tasks', taskId, 'dependents'] as const;
@@ -45,7 +46,8 @@ function invalidateDependencyData(queryClient: ReturnType<typeof useQueryClient>
 export function useCreateTaskDependency(taskId: string, projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (dependsOnTaskId: string) => dependenciesApi.create(taskId, dependsOnTaskId),
+    mutationFn: ({ dependsOnTaskId, dependencyType }: { dependsOnTaskId: string; dependencyType: DependencyType }) =>
+      dependenciesApi.create(taskId, dependsOnTaskId, dependencyType),
     onSuccess: () => invalidateDependencyData(queryClient, projectId),
   });
 }
