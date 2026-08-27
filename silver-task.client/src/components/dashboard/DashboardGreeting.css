@@ -1,0 +1,12 @@
+.dashboard-greeting h1 {
+  font-size: 22px;
+  margin: 0 0 2px;
+  color: var(--text-h);
+}
+
+.dashboard-greeting p {
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0.75;
+  margin: 0;
+}

@@ -29,6 +29,8 @@ export interface AdminStats {
   totalTasks: number;
   openTasks: number;
   completedTasks: number;
+  completedToday: number;
+  overdueTasks: number;
 }
 
 /** One row of the read-only Admin -> Roles & Permissions matrix (Phase 32) — a role's fixed

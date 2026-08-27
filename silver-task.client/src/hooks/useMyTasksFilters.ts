@@ -54,9 +54,9 @@ const EMPTY_FILTERS: MyTasksFilters = {
  * Shares its quick-filter/common-filter/sort logic with useTaskFilters via utils/taskFilters —
  * only the Project dimension (meaningless within a single project's own views) is specific to
  * this hook. */
-export function useMyTasksFilters(tasks: Task[]) {
+export function useMyTasksFilters(tasks: Task[], initialQuickFilter: QuickFilter = 'all') {
   const [searchQuery, setSearchQuery] = useState('');
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>(initialQuickFilter);
   const [filters, setFilters] = useState<MyTasksFilters>(EMPTY_FILTERS);
   const [sortField, setSortFieldState] = useState<MyTaskSortField>('dueDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');

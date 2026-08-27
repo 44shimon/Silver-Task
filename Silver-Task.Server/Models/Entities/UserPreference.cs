@@ -50,6 +50,22 @@ namespace Silver_Task.Server.Models.Entities
         /// no matter how often the sweep ticks.</summary>
         public DateTime? LastDigestSentAt { get; set; }
 
+        /// <summary>Phase 37 — "Dashboard" (default), "MyTasks", or "LastVisited". Read by the
+        /// frontend's landing-redirect at "/" (see routes/AppRoutes.tsx); "LastVisited" is
+        /// resolved client-side from localStorage (a browser-local concept — see
+        /// useLastVisitedPage's own doc comment on why that one deliberately isn't synced
+        /// server-side), everything else is a fixed route this field names directly.</summary>
+        public string DefaultLandingPage { get; set; } = "Dashboard";
+
+        /// <summary>Phase 37 — small JSON blob (widget visibility + order), same "flexible shape
+        /// that doesn't deserve its own EAV table" reasoning as Notification.Metadata: the known
+        /// widget id set can grow without a migration, and nothing outside DashboardLayoutService
+        /// ever needs to query *into* this column, so a free-form JSON string is simpler than
+        /// modeling it relationally. Null means "use the default layout" (a brand-new user, or a
+        /// user who has never customized their dashboard) — the frontend applies its own default
+        /// widget list in that case, not this column.</summary>
+        public string? DashboardLayout { get; set; }
+
         public DateTime CreatedAt { get; set; }
 
         public DateTime UpdatedAt { get; set; }

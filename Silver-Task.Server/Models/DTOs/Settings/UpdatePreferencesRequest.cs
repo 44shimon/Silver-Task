@@ -31,5 +31,11 @@ namespace Silver_Task.Server.Models.DTOs.Settings
         public TimeOnly? QuietHoursStart { get; set; }
 
         public TimeOnly? QuietHoursEnd { get; set; }
+
+        [Required]
+        public required string DefaultLandingPage { get; set; }
+
+        [MaxLength(4000)]
+        public string? DashboardLayout { get; set; }
     }
 }

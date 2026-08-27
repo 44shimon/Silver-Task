@@ -16,5 +16,11 @@ namespace Silver_Task.Server.Models.DTOs.Admin
         public int OpenTasks { get; set; }
 
         public int CompletedTasks { get; set; }
+
+        /// <summary>Phase 37 — completed today, server UTC day (admin-facing system stat, not a
+        /// per-user timezone-sensitive figure like the dashboard's own widgets).</summary>
+        public int CompletedToday { get; set; }
+
+        public int OverdueTasks { get; set; }
     }
 }

@@ -23,5 +23,13 @@ namespace Silver_Task.Server.Models.DTOs.Settings
         public TimeOnly? QuietHoursStart { get; set; }
 
         public TimeOnly? QuietHoursEnd { get; set; }
+
+        public string DefaultLandingPage { get; set; } = "Dashboard";
+
+        /// <summary>Raw JSON string (widget visibility + order) — the frontend owns parsing/
+        /// shaping this, same "server just stores an opaque blob" treatment as
+        /// Notification.Metadata. Null means "no customization saved yet, use the client's
+        /// built-in default layout".</summary>
+        public string? DashboardLayout { get; set; }
     }
 }

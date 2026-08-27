@@ -28,7 +28,9 @@ namespace Silver_Task.Server.Models.DTOs.Settings
             DigestFrequency = preference.DigestFrequency,
             QuietHoursEnabled = preference.QuietHoursEnabled,
             QuietHoursStart = preference.QuietHoursStart,
-            QuietHoursEnd = preference.QuietHoursEnd
+            QuietHoursEnd = preference.QuietHoursEnd,
+            DefaultLandingPage = preference.DefaultLandingPage,
+            DashboardLayout = preference.DashboardLayout
         };
 
         public static NotificationSettingDto ToDto(this UserNotificationSetting setting) => new()

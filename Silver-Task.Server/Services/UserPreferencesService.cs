@@ -31,6 +31,8 @@ namespace Silver_Task.Server.Services
             new(StringComparer.OrdinalIgnoreCase) { "MM/dd/yyyy", "dd/MM/yyyy", "yyyy-MM-dd", "dd MMM yyyy" };
         private static readonly HashSet<string> ValidDigestFrequencies =
             new(StringComparer.OrdinalIgnoreCase) { "Immediately", "Daily", "Never" };
+        private static readonly HashSet<string> ValidLandingPages =
+            new(StringComparer.OrdinalIgnoreCase) { "Dashboard", "MyTasks", "LastVisited" };
 
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
@@ -112,6 +114,21 @@ namespace Silver_Task.Server.Services
             {
                 throw new ValidationException("Quiet hours requires both a start and end time.");
             }
+            if (!ValidLandingPages.Contains(request.DefaultLandingPage))
+            {
+                throw new ValidationException($"'{request.DefaultLandingPage}' is not a valid default landing page.");
+            }
+            if (request.DashboardLayout is not null)
+            {
+                try
+                {
+                    System.Text.Json.JsonDocument.Parse(request.DashboardLayout).Dispose();
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    throw new ValidationException("Dashboard layout is not valid JSON.");
+                }
+            }
 
             var preference = await GetOrCreateAsync(userId);
             preference.Theme = request.Theme;
@@ -125,6 +142,8 @@ namespace Silver_Task.Server.Services
             preference.QuietHoursEnabled = request.QuietHoursEnabled;
             preference.QuietHoursStart = request.QuietHoursEnabled ? request.QuietHoursStart : null;
             preference.QuietHoursEnd = request.QuietHoursEnabled ? request.QuietHoursEnd : null;
+            preference.DefaultLandingPage = request.DefaultLandingPage;
+            preference.DashboardLayout = request.DashboardLayout;
             preference.UpdatedAt = DateTime.UtcNow;
 
             await _db.SaveChangesAsync();

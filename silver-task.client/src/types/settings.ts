@@ -1,6 +1,7 @@
 export type Theme = 'Light' | 'Dark' | 'System';
 export type TimeFormat = '12h' | '24h';
 export type DigestFrequency = 'Immediately' | 'Daily' | 'Never';
+export type DefaultLandingPage = 'Dashboard' | 'MyTasks' | 'LastVisited';
 
 export interface UserPreferences {
   theme: Theme;
@@ -19,6 +20,10 @@ export interface UserPreferences {
   /** "HH:mm:ss" (TimeOnly on the wire) — only meaningful when quietHoursEnabled is true. */
   quietHoursStart: string | null;
   quietHoursEnd: string | null;
+  defaultLandingPage: DefaultLandingPage;
+  /** Raw JSON string (DashboardLayout) — parsed/shaped entirely client-side, see
+   * @/types/dashboard's DashboardLayout interface. Null means "no customization saved yet". */
+  dashboardLayout: string | null;
 }
 
 export type UpdatePreferencesRequest = UserPreferences;

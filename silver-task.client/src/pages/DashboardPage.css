@@ -1,0 +1,52 @@
+.dashboard-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 24px;
+}
+
+.dashboard-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dashboard-page__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+/* Wide widgets (stat-card rows, progress lists) span the full grid width — everything else
+   pairs up two-per-row, matching the spec's own desktop mockup (My Tasks/Due Today side by
+   side, My Projects as its own full-width row, Activity/Notifications side by side). */
+.dashboard-page__cell--taskSummary,
+.dashboard-page__cell--weekSummary,
+.dashboard-page__cell--myProjects {
+  grid-column: 1 / -1;
+}
+
+.dashboard-page__empty {
+  text-align: center;
+  padding: 40px 0;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+@media (max-width: 860px) {
+  .dashboard-page__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-page__cell {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .dashboard-page__header {
+    flex-direction: column;
+  }
+}

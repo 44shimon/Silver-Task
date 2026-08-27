@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Clock, LayoutGrid, ListChecks, Plus, ShieldCheck, Star } from 'lucide-react';
+import { Clock, LayoutDashboard, LayoutGrid, ListChecks, Plus, ShieldCheck, Star } from 'lucide-react';
 import { useCreateProject, useProjects } from '@/hooks/useProjects';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Permissions } from '@/types/permissions';
@@ -41,8 +41,14 @@ export function Sidebar() {
     <aside className="sidebar">
       <nav className="sidebar__nav sidebar__nav--top">
         <NavLink
-          to="/"
-          end
+          to="/dashboard"
+          className={({ isActive }) => `sidebar__nav-item${isActive ? ' sidebar__nav-item--active' : ''}`}
+        >
+          <LayoutDashboard size={16} />
+          <span>Dashboard</span>
+        </NavLink>
+        <NavLink
+          to="/my-tasks"
           className={({ isActive }) => `sidebar__nav-item${isActive ? ' sidebar__nav-item--active' : ''}`}
         >
           <ListChecks size={16} />

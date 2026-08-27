@@ -17,6 +17,8 @@ namespace Silver_Task.Server.Data.Configurations
             builder.Property(p => p.TimeFormat).IsRequired().HasMaxLength(10);
             builder.Property(p => p.TimeZone).IsRequired().HasMaxLength(100);
             builder.Property(p => p.DigestFrequency).IsRequired().HasMaxLength(20);
+            builder.Property(p => p.DefaultLandingPage).IsRequired().HasMaxLength(20);
+            builder.Property(p => p.DashboardLayout).HasColumnType("text");
 
             builder.Property(p => p.CreatedAt).HasDefaultValueSql("timezone('utc', now())");
             builder.Property(p => p.UpdatedAt).HasDefaultValueSql("timezone('utc', now())");

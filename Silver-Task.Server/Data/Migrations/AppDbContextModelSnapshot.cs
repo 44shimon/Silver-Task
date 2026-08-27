@@ -1291,7 +1291,15 @@ namespace Silver_Task.Server.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("timezone('utc', now())");
 
+                    b.Property<string>("DashboardLayout")
+                        .HasColumnType("text");
+
                     b.Property<string>("DateFormat")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("DefaultLandingPage")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");

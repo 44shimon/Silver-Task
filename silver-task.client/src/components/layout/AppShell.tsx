@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { useUserPreferences } from '@/hooks/useUserSettings';
 import { useNotificationHub } from '@/hooks/useNotifications';
+import { useLastVisitedPage } from '@/hooks/useLastVisitedPage';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
@@ -14,6 +15,7 @@ export function AppShell({ children }: AppShellProps) {
   // Established once for the whole authenticated app (AppShell wraps every page via
   // RequireAuth), not per-page — a single persistent connection regardless of navigation.
   useNotificationHub();
+  useLastVisitedPage();
 
   // System (the default) leaves the attribute unset entirely, so index.css's
   // prefers-color-scheme media query keeps governing — Light/Dark force an explicit override

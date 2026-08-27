@@ -1,6 +1,7 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMyTasks, useTasks } from '@/hooks/useTasks';
 import { useMyTasksFilters, MY_TASK_SORT_FIELDS, MY_TASK_SORT_FIELD_LABELS } from '@/hooks/useMyTasksFilters';
+import type { QuickFilter } from '@/utils/taskFilters';
 import { useProject, useProjects, useProjectMembers } from '@/hooks/useProjects';
 import { useCustomFields } from '@/hooks/useCustomFields';
 import { useCurrentUser } from '@/hooks/useAuth';
@@ -16,6 +17,7 @@ import { TaskDetailPanel } from '@/components/spreadsheet/TaskDetailPanel';
 import './MyTasksPage.css';
 
 const TASK_QUERY_PARAM = 'task';
+const VALID_QUICK_FILTERS: QuickFilter[] = ['all', 'open', 'dueToday', 'dueThisWeek', 'overdue', 'completed'];
 
 export function MyTasksPage() {
   const { data: tasks, isLoading, isError } = useMyTasks();
@@ -23,6 +25,14 @@ export function MyTasksPage() {
   const { data: currentUser } = useCurrentUser();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // Seeds the initial quick filter from ?quickFilter=... (e.g. a dashboard stat card link) —
+  // read once on mount, not kept in sync afterward, same "starting point, not two-way binding"
+  // behavior the ?view= param already has elsewhere in this app.
+  const requestedQuickFilter = searchParams.get('quickFilter');
+  const initialQuickFilter = VALID_QUICK_FILTERS.includes(requestedQuickFilter as QuickFilter)
+    ? (requestedQuickFilter as QuickFilter)
+    : 'all';
 
   const {
     filteredTasks,
@@ -40,7 +50,7 @@ export function MyTasksPage() {
     setSortField,
     setSortDirection,
     summary,
-  } = useMyTasksFilters(tasks ?? []);
+  } = useMyTasksFilters(tasks ?? [], initialQuickFilter);
 
   const selectedTaskId = searchParams.get(TASK_QUERY_PARAM);
   const selectedTask = tasks?.find((t) => t.id === selectedTaskId) ?? null;

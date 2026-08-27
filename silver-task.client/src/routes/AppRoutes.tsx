@@ -3,6 +3,8 @@ import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/auth/RequireAuth';
 import { RequireAdmin } from '@/components/auth/RequireAdmin';
 import { MyTasksPage } from '@/pages/MyTasksPage';
+import { DashboardPage } from '@/pages/DashboardPage';
+import { LandingRedirect } from '@/pages/LandingRedirect';
 import { NotificationsPage } from '@/pages/NotificationsPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ProjectPage } from '@/pages/ProjectPage';
@@ -23,6 +25,7 @@ import { ProfileSettingsPage } from '@/pages/settings/ProfileSettingsPage';
 import { PreferencesSettingsPage } from '@/pages/settings/PreferencesSettingsPage';
 import { NotificationSettingsPage } from '@/pages/settings/NotificationSettingsPage';
 import { SecuritySettingsPage } from '@/pages/settings/SecuritySettingsPage';
+import { DashboardSettingsPage } from '@/pages/settings/DashboardSettingsPage';
 
 export function AppRoutes() {
   return (
@@ -34,7 +37,9 @@ export function AppRoutes() {
           <RequireAuth>
             <AppShell>
               <Routes>
-                <Route path="/" element={<MyTasksPage />} />
+                <Route path="/" element={<LandingRedirect />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/my-tasks" element={<MyTasksPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/projects/:projectId" element={<ProjectPage />} />
                 <Route path="/files/favorites" element={<FavoriteFilesPage />} />
@@ -43,6 +48,7 @@ export function AppRoutes() {
                   <Route index element={<ProfileSettingsPage />} />
                   <Route path="preferences" element={<PreferencesSettingsPage />} />
                   <Route path="notifications" element={<NotificationSettingsPage />} />
+                  <Route path="dashboard" element={<DashboardSettingsPage />} />
                   <Route path="security" element={<SecuritySettingsPage />} />
                 </Route>
                 <Route

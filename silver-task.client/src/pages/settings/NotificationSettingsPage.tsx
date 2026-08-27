@@ -85,13 +85,7 @@ export function NotificationSettingsPage() {
   function saveDigestAndQuietHours() {
     if (!preferences) return;
     updatePreferences.mutate({
-      theme: preferences.theme,
-      defaultProjectId: preferences.defaultProjectId,
-      defaultTaskView: preferences.defaultTaskView,
-      dateFormat: preferences.dateFormat,
-      timeFormat: preferences.timeFormat,
-      timeZone: preferences.timeZone,
-      itemsPerPage: preferences.itemsPerPage,
+      ...preferences,
       digestFrequency,
       quietHoursEnabled,
       quietHoursStart: quietHoursEnabled ? `${quietHoursStart}:00` : null,

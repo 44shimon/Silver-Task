@@ -38,6 +38,14 @@ namespace Silver_Task.Server.Services
             var completedTasks = statusCounts.GetValueOrDefault(TaskItemStatus.Complete);
             var cancelledTasks = statusCounts.GetValueOrDefault(TaskItemStatus.Cancelled);
 
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var completedToday = await _db.Tasks.CountAsync(t =>
+                t.Status == TaskItemStatus.Complete && t.CompletedAt != null &&
+                t.CompletedAt >= DateTime.SpecifyKind(today.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc) &&
+                t.CompletedAt < DateTime.SpecifyKind(today.AddDays(1).ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc));
+            var overdueTasks = await _db.Tasks.CountAsync(t =>
+                t.DueDate != null && t.DueDate < today && t.Status != TaskItemStatus.Complete && t.Status != TaskItemStatus.Cancelled);
+
             return new AdminStatsDto
             {
                 TotalUsers = totalUsers,
@@ -45,7 +53,9 @@ namespace Silver_Task.Server.Services
                 TotalProjects = totalProjects,
                 TotalTasks = totalTasks,
                 OpenTasks = totalTasks - completedTasks - cancelledTasks,
-                CompletedTasks = completedTasks
+                CompletedTasks = completedTasks,
+                CompletedToday = completedToday,
+                OverdueTasks = overdueTasks
             };
         }
 

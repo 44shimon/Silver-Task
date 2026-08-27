@@ -32,6 +32,12 @@ export function SettingsLayout() {
           Notifications
         </NavLink>
         <NavLink
+          to="/settings/dashboard"
+          className={({ isActive }) => `settings-layout__nav-item${isActive ? ' settings-layout__nav-item--active' : ''}`}
+        >
+          Dashboard
+        </NavLink>
+        <NavLink
           to="/settings/security"
           className={({ isActive }) => `settings-layout__nav-item${isActive ? ' settings-layout__nav-item--active' : ''}`}
         >

@@ -1,0 +1,11 @@
+.task-summary-widget {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 860px) {
+  .task-summary-widget {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
