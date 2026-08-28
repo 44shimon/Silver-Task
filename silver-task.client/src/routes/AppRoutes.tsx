@@ -34,6 +34,8 @@ import { ProjectTemplateBuilderPage } from '@/pages/templates/ProjectTemplateBui
 import { TaskTemplateBuilderPage } from '@/pages/templates/TaskTemplateBuilderPage';
 import { CreateProjectFromTemplateWizardPage } from '@/pages/templates/CreateProjectFromTemplateWizardPage';
 import { SearchResultsPage } from '@/pages/SearchResultsPage';
+import { ViewsPage } from '@/pages/ViewsPage';
+import { SavedViewPage } from '@/pages/SavedViewPage';
 
 export function AppRoutes() {
   return (
@@ -50,6 +52,8 @@ export function AppRoutes() {
                 <Route path="/my-tasks" element={<MyTasksPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/search" element={<SearchResultsPage />} />
+                <Route path="/views" element={<ViewsPage />} />
+                <Route path="/views/:id" element={<SavedViewPage />} />
                 <Route path="/projects/:projectId" element={<ProjectPage />} />
                 <Route path="/files/favorites" element={<FavoriteFilesPage />} />
                 <Route path="/files/recent" element={<RecentFilesPage />} />

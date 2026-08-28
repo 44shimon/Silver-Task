@@ -137,6 +137,8 @@ builder.Services.AddScoped<IReportExportService, ReportExportService>();
 builder.Services.AddScoped<ISavedReportService, SavedReportService>();
 builder.Services.AddScoped<ITemplateService, TemplateService>();
 builder.Services.AddScoped<ITemplateInstantiationService, TemplateInstantiationService>();
+builder.Services.AddScoped<ISavedViewFilterEngine, SavedViewFilterEngine>();
+builder.Services.AddScoped<ISavedViewService, SavedViewService>();
 builder.Services.AddHostedService<DueDateNotificationBackgroundService>();
 builder.Services.AddHostedService<RecurringTaskGenerationBackgroundService>();
 builder.Services.AddHostedService<AutomationQueueBackgroundService>();

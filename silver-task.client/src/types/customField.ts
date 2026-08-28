@@ -36,7 +36,10 @@ export type CustomFieldConditionOperator =
   | 'GreaterThanOrEqual'
   | 'LessThanOrEqual'
   | 'Before'
-  | 'After';
+  | 'After'
+  | 'StartsWith'
+  | 'EndsWith'
+  | 'Between';
 
 export const CONDITION_OPERATOR_OPTIONS: CustomFieldConditionOperator[] = [
   'Equals',
@@ -62,6 +65,9 @@ export const CONDITION_OPERATOR_LABELS: Record<CustomFieldConditionOperator, str
   LessThanOrEqual: 'At Most',
   Before: 'Is Before',
   After: 'Is After',
+  StartsWith: 'Starts With',
+  EndsWith: 'Ends With',
+  Between: 'Between',
 };
 
 export interface LinkValue {

@@ -93,6 +93,12 @@ namespace Silver_Task.Server.Data
 
         public DbSet<TaskChecklistItem> TaskChecklistItems => Set<TaskChecklistItem>();
 
+        public DbSet<SavedView> SavedViews => Set<SavedView>();
+
+        public DbSet<SavedViewShare> SavedViewShares => Set<SavedViewShare>();
+
+        public DbSet<UserSavedViewFavorite> UserSavedViewFavorites => Set<UserSavedViewFavorite>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

@@ -37,6 +37,10 @@ namespace Silver_Task.Server.Services
                     return expectedValue is not null && actualValue.Contains(expectedValue, StringComparison.OrdinalIgnoreCase);
                 case AutomationConditionOperator.NotContains:
                     return expectedValue is null || !actualValue.Contains(expectedValue, StringComparison.OrdinalIgnoreCase);
+                case AutomationConditionOperator.StartsWith:
+                    return expectedValue is not null && actualValue.StartsWith(expectedValue, StringComparison.OrdinalIgnoreCase);
+                case AutomationConditionOperator.EndsWith:
+                    return expectedValue is not null && actualValue.EndsWith(expectedValue, StringComparison.OrdinalIgnoreCase);
                 case AutomationConditionOperator.GreaterThan:
                 case AutomationConditionOperator.After:
                     return Compare(actualValue, expectedValue) > 0;

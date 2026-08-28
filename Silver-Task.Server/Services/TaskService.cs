@@ -31,6 +31,15 @@ namespace Silver_Task.Server.Services
 
         Task<TaskItem> GetByIdAsync(Guid taskId, Guid callerId, UserRole callerRole);
 
+        /// <summary>Phase 43 — loads exactly the given task ids (order not guaranteed; the caller
+        /// re-sorts), re-scoped to projects the caller can currently access (defense in depth —
+        /// callers such as SavedViewExecutionService already scope ids to accessible projects
+        /// before calling this, but this is the one choke point every task-returning read goes
+        /// through, so it never trusts an id set blindly). Runs the same AttachTaskSummariesAsync
+        /// pipeline as every other list method, so private custom field values are redacted here
+        /// too — a Saved View can never leak a restricted field's value through this path.</summary>
+        Task<IReadOnlyList<TaskItem>> GetByIdsAsync(IEnumerable<Guid> taskIds, Guid callerId, UserRole callerRole);
+
         Task<TaskItem> CreateAsync(Guid projectId, CreateTaskRequest request, Guid callerId, UserRole callerRole);
 
         Task<TaskItem> UpdateAsync(Guid taskId, UpdateTaskRequest request, Guid callerId, UserRole callerRole);
@@ -209,6 +218,32 @@ namespace Silver_Task.Server.Services
             await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
             await AttachTaskSummariesAsync([task], callerId, callerRole);
             return task;
+        }
+
+        public async Task<IReadOnlyList<TaskItem>> GetByIdsAsync(IEnumerable<Guid> taskIds, Guid callerId, UserRole callerRole)
+        {
+            var idList = taskIds.Distinct().ToList();
+            if (idList.Count == 0)
+            {
+                return [];
+            }
+
+            var query = _db.Tasks
+                .Include(t => t.AssignedTo)
+                .Include(t => t.Project)
+                .Include(t => t.CustomValues)
+                .ThenInclude(v => v.CustomField)
+                .Where(t => idList.Contains(t.Id));
+
+            if (callerRole != UserRole.Administrator)
+            {
+                query = query.Where(t =>
+                    t.Project!.OwnerId == callerId || t.Project.Members.Any(m => m.UserId == callerId));
+            }
+
+            var tasks = await query.ToListAsync();
+            await AttachTaskSummariesAsync(tasks, callerId, callerRole);
+            return tasks;
         }
 
         public async Task<IReadOnlyList<TaskItem>> GetSubtasksAsync(Guid taskId, Guid callerId, UserRole callerRole)

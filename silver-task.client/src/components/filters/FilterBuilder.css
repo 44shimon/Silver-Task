@@ -1,0 +1,166 @@
+.filter-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.filter-builder--nested {
+  background: var(--bg-subtle);
+}
+
+.filter-builder__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.filter-builder__header select {
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.filter-builder__empty-hint {
+  opacity: 0.7;
+}
+
+.filter-builder__reference-project {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.filter-builder__reference-project select {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 12px;
+}
+
+.filter-builder__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-builder__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.filter-builder__row--group {
+  align-items: stretch;
+}
+
+.filter-builder__connector {
+  align-self: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 30px;
+}
+
+.filter-builder__subgroup {
+  flex: 1;
+}
+
+.filter-condition {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.filter-condition select,
+.filter-condition input {
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 12px;
+}
+
+.filter-condition__multi {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-condition__checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.filter-condition__checkboxes label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.filter-condition__date {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-condition__date-mode {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.filter-condition__date-mode label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.filter-condition__unavailable {
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.filter-builder__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-builder__actions button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+}
