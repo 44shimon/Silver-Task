@@ -5,6 +5,7 @@ import {
   CUSTOM_FIELD_TYPE_OPTIONS,
   customFieldTypeHasOptions,
   type CustomField,
+  type CustomFieldEntityType,
   type CustomFieldType,
 } from '@/types/customField';
 import {
@@ -30,6 +31,7 @@ export function CustomFieldsPanel({ projectId }: CustomFieldsPanelProps) {
 
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState<CustomFieldType>('Text');
+  const [newEntityType, setNewEntityType] = useState<CustomFieldEntityType>('Task');
   const [newOptions, setNewOptions] = useState<string[]>([]);
   const [newOptionDraft, setNewOptionDraft] = useState('');
   const [fieldConflict, setFieldConflict] = useState<{ id: string; name: string; message: string } | null>(null);
@@ -71,12 +73,14 @@ export function CustomFieldsPanel({ projectId }: CustomFieldsPanelProps) {
       {
         name: trimmedName,
         fieldType: newType,
+        entityType: newEntityType,
         options: customFieldTypeHasOptions(newType) ? newOptions : undefined,
       },
       {
         onSuccess: () => {
           setNewName('');
           setNewType('Text');
+          setNewEntityType('Task');
           setNewOptions([]);
         },
       },
@@ -121,6 +125,14 @@ export function CustomFieldsPanel({ projectId }: CustomFieldsPanelProps) {
                   {CUSTOM_FIELD_TYPE_LABELS[type]}
                 </option>
               ))}
+            </select>
+          </label>
+
+          <label className="toolbar-popover__field">
+            <span>Applies to</span>
+            <select value={newEntityType} onChange={(e) => setNewEntityType(e.target.value as CustomFieldEntityType)}>
+              <option value="Task">Tasks (grid column)</option>
+              <option value="Project">This Project (detail page)</option>
             </select>
           </label>
 

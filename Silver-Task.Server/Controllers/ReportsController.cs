@@ -193,6 +193,13 @@ namespace Silver_Task.Server.Controllers
             return Ok(await _reportingService.GetTemplateUsageReportAsync(User.GetUserId(), User.GetRole()));
         }
 
+        [HttpGet("custom-field-summary")]
+        public async Task<ActionResult<CustomFieldSummaryReportDto>> GetCustomFieldSummaryReport([FromQuery] Guid customFieldId)
+        {
+            await EnsureCanViewReportsAsync();
+            return Ok(await _reportingService.GetCustomFieldSummaryAsync(User.GetUserId(), User.GetRole(), customFieldId));
+        }
+
         /// <summary>Export applies EXACTLY the same authorization + query path as the matching
         /// live report endpoint above — never a separate, weaker code path (the spec's own
         /// explicit "export endpoints must apply exactly the same authorization rules" rule).

@@ -16,6 +16,9 @@ namespace Silver_Task.Server.Models.DTOs.Projects
             IsArchived = project.IsArchived,
             ArchivedAt = project.ArchivedAt,
             MyPermissions = myPermissions,
+            CustomValues = project.CustomValues
+                .Select(v => new ProjectCustomValueDto { CustomFieldId = v.CustomFieldId, Value = v.Value })
+                .ToList(),
             CreatedAt = project.CreatedAt,
             UpdatedAt = project.UpdatedAt
         };

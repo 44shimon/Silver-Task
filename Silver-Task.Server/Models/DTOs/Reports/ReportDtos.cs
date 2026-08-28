@@ -309,6 +309,29 @@ namespace Silver_Task.Server.Models.DTOs.Reports
         public DateTime? LastUsedAt { get; set; }
     }
 
+    /// <summary>Phase 41 — only the aggregations that make sense for the field's own type are
+    /// populated (spec #64's own "only implement aggregations appropriate to field types"):
+    /// Number/Currency get Sum/Average/Min/Max, Dropdown/Checkbox/User/UserMulti get ByValue
+    /// counts, every other type only gets the plain presence Count.</summary>
+    public class CustomFieldSummaryReportDto
+    {
+        public required string FieldName { get; set; }
+
+        public required string FieldType { get; set; }
+
+        public int Count { get; set; }
+
+        public decimal? Sum { get; set; }
+
+        public decimal? Average { get; set; }
+
+        public decimal? Min { get; set; }
+
+        public decimal? Max { get; set; }
+
+        public List<LabeledCountDto>? ByValue { get; set; }
+    }
+
     /// <summary>Phase 39 — "Circular Dependency Attempts" from the spec's own suggested metric
     /// list is deliberately omitted: a rejected circular-dependency request fails validation
     /// before anything is written anywhere, so there is no persisted record of the attempt to

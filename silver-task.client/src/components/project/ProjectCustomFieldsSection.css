@@ -1,0 +1,124 @@
+.project-custom-fields {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-top: 16px;
+}
+
+.project-custom-fields h2 {
+  font-size: 14px;
+  margin: 0 0 10px;
+  color: var(--text-h);
+}
+
+.project-custom-fields__group {
+  margin-bottom: 12px;
+}
+
+.project-custom-fields__group-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text);
+  opacity: 0.7;
+  margin: 0 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.project-custom-fields__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 6px 0;
+}
+
+.project-custom-fields__label {
+  flex: 0 0 180px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.project-custom-fields__required {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
+.project-custom-fields__value {
+  font-size: 13px;
+  color: var(--text-h);
+  flex: 1;
+  min-width: 120px;
+}
+
+.project-custom-fields__value--editable {
+  cursor: pointer;
+  border-bottom: 1px dashed transparent;
+}
+
+.project-custom-fields__value--editable:hover {
+  border-bottom-color: var(--border);
+}
+
+.project-custom-fields__placeholder {
+  opacity: 0.5;
+}
+
+.project-custom-fields__hint {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.project-custom-fields__editor {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.project-custom-fields__error {
+  color: #dc2626;
+  font-size: 11px;
+}
+
+.project-custom-fields__input {
+  flex: 1;
+  min-width: 120px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.project-custom-fields__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.project-custom-fields__link-editor {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+}
+
+.project-custom-fields__link-editor input {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 12px;
+  flex: 1;
+}

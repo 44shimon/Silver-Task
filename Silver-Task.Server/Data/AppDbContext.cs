@@ -25,6 +25,8 @@ namespace Silver_Task.Server.Data
 
         public DbSet<TaskCustomValue> TaskCustomValues => Set<TaskCustomValue>();
 
+        public DbSet<ProjectCustomValue> ProjectCustomValues => Set<ProjectCustomValue>();
+
         public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
 
         public DbSet<UserNotificationSetting> UserNotificationSettings => Set<UserNotificationSetting>();

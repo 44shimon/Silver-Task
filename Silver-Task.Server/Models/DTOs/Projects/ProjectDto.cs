@@ -30,8 +30,19 @@ namespace Silver_Task.Server.Models.DTOs.Projects
         /// views don't need.</summary>
         public List<string>? MyPermissions { get; set; }
 
+        /// <summary>Phase 41 — empty on list endpoints (GetAllForUserAsync doesn't bother
+        /// Including it), populated by GetById/Create/Update/Restore/SetCustomValue.</summary>
+        public List<ProjectCustomValueDto> CustomValues { get; set; } = [];
+
         public DateTime CreatedAt { get; set; }
 
         public DateTime UpdatedAt { get; set; }
+    }
+
+    public class ProjectCustomValueDto
+    {
+        public Guid CustomFieldId { get; set; }
+
+        public string? Value { get; set; }
     }
 }

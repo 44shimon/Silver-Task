@@ -27,6 +27,7 @@ import { TaskFilterPanel } from '@/components/spreadsheet/TaskFilterPanel';
 import { SortMenu } from '@/components/filters/SortMenu';
 import { QuickFilterChips } from '@/components/filters/QuickFilterChips';
 import { CustomFieldsPanel } from '@/components/spreadsheet/CustomFieldsPanel';
+import { ProjectCustomFieldsSection } from '@/components/project/ProjectCustomFieldsSection';
 import { TaskDetailPanel } from '@/components/spreadsheet/TaskDetailPanel';
 import { DeleteTaskDialog } from '@/components/spreadsheet/DeleteTaskDialog';
 import { initials } from '@/utils/initials';
@@ -199,6 +200,8 @@ export function ProjectPage() {
           <p className="project-page__description">{project.description || ''}</p>
         )}
       </div>
+
+      <ProjectCustomFieldsSection project={project} members={memberUsers} canEdit={can(Permissions.ProjectsEdit)} />
 
       <div className="project-toolbar">
         <div className="project-toolbar__row">

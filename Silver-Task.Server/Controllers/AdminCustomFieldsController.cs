@@ -24,10 +24,18 @@ namespace Silver_Task.Server.Controllers
         public async Task<ActionResult<IReadOnlyList<CustomFieldDto>>> GetAll(
             [FromQuery] Guid? projectId,
             [FromQuery] CustomFieldType? fieldType,
+            [FromQuery] CustomFieldEntityType? entityType,
             [FromQuery] bool? isActive)
         {
-            var fields = await _customFieldService.GetAllForAdminAsync(projectId, fieldType, isActive);
+            var fields = await _customFieldService.GetAllForAdminAsync(projectId, fieldType, entityType, isActive);
             return Ok(fields.Select(f => f.ToDto()));
+        }
+
+        [HttpPost("reorder")]
+        public async Task<IActionResult> Reorder([FromBody] List<Guid> orderedFieldIds)
+        {
+            await _customFieldService.ReorderAsync(orderedFieldIds, User.GetUserId(), User.GetRole());
+            return NoContent();
         }
 
         [HttpPost]

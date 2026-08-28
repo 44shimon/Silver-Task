@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Silver_Task.Server.Common;
 using Silver_Task.Server.Common.Exceptions;
@@ -11,7 +12,9 @@ namespace Silver_Task.Server.Services
 {
     public interface ICustomFieldService
     {
-        Task<IReadOnlyList<CustomField>> GetAllForProjectAsync(Guid projectId, Guid callerId, UserRole callerRole);
+        /// <param name="entityType">Which kind of object's field set to load — Task (the
+        /// project's task grid columns) or Project (the project's own detail-page fields).</param>
+        Task<IReadOnlyList<CustomField>> GetAllForProjectAsync(Guid projectId, CustomFieldEntityType entityType, Guid callerId, UserRole callerRole);
 
         Task<CustomField> GetByIdAsync(Guid customFieldId, Guid callerId, UserRole callerRole);
 
@@ -23,8 +26,8 @@ namespace Silver_Task.Server.Services
         Task<CustomField> UpdateAsync(Guid customFieldId, UpdateCustomFieldRequest request, Guid callerId, UserRole callerRole);
 
         /// <param name="confirm">Required (true) to permanently delete a field that still has
-        /// task values — see README/CLAUDE "do not silently destroy task data". Deleting a field
-        /// with no recorded values never needs confirmation.</param>
+        /// task/project values — see README/CLAUDE "do not silently destroy task data". Deleting
+        /// a field with no recorded values never needs confirmation.</param>
         Task DeleteAsync(Guid customFieldId, bool confirm, Guid callerId, UserRole callerRole);
 
         Task<int> GetUsageCountAsync(Guid customFieldId, Guid callerId, UserRole callerRole);
@@ -32,7 +35,7 @@ namespace Silver_Task.Server.Services
         /// <summary>Admin > Custom Fields listing across every project, with optional filters —
         /// distinct from GetAllForProjectAsync, which is scoped to one project's effective field
         /// set (its own fields + global ones) for the project grid.</summary>
-        Task<IReadOnlyList<CustomField>> GetAllForAdminAsync(Guid? projectId, CustomFieldType? fieldType, bool? isActive);
+        Task<IReadOnlyList<CustomField>> GetAllForAdminAsync(Guid? projectId, CustomFieldType? fieldType, CustomFieldEntityType? entityType, bool? isActive);
 
         Task<CustomFieldOption> AddOptionAsync(Guid customFieldId, string value, Guid callerId, UserRole callerRole);
 
@@ -43,6 +46,11 @@ namespace Silver_Task.Server.Services
         /// selection. Deactivating (IsActive=false) via UpdateOptionAsync is the safe alternative
         /// and never needs confirmation.</param>
         Task DeleteOptionAsync(Guid customFieldId, Guid optionId, bool confirm, Guid callerId, UserRole callerRole);
+
+        /// <summary>Persists a new SortOrder for every field in the given order — backs the admin
+        /// field list's drag-and-drop reorder. All fields must share the same EntityType/ProjectId
+        /// scope as the first one; mismatched ids are rejected rather than silently skipped.</summary>
+        Task ReorderAsync(IReadOnlyList<Guid> orderedFieldIds, Guid callerId, UserRole callerRole);
     }
 
     public class CustomFieldService(AppDbContext db, IProjectAccessService projectAccess, ISystemSettingsService systemSettings) : ICustomFieldService
@@ -51,17 +59,17 @@ namespace Silver_Task.Server.Services
         private readonly IProjectAccessService _projectAccess = projectAccess;
         private readonly ISystemSettingsService _systemSettings = systemSettings;
 
-        public async Task<IReadOnlyList<CustomField>> GetAllForProjectAsync(Guid projectId, Guid callerId, UserRole callerRole)
+        public async Task<IReadOnlyList<CustomField>> GetAllForProjectAsync(Guid projectId, CustomFieldEntityType entityType, Guid callerId, UserRole callerRole)
         {
             var project = await LoadProjectAsync(projectId);
             await _projectAccess.EnsureCanParticipateAsync(project.Id, project.OwnerId, callerId, callerRole);
 
             // A project's effective field set is its own fields plus every "all projects" field —
             // inactive ones stay included so existing values on inactive fields remain visible;
-            // only setting a *new* value on one is blocked (TaskService.ValidateAndNormalizeCustomValueAsync).
+            // only setting a *new* value on one is blocked (ICustomFieldValueValidator).
             return await _db.CustomFields
                 .Include(f => f.Options)
-                .Where(f => f.ProjectId == projectId || f.ProjectId == null)
+                .Where(f => (f.ProjectId == projectId || f.ProjectId == null) && f.EntityType == entityType)
                 .OrderBy(f => f.SortOrder)
                 .ToListAsync();
         }
@@ -105,19 +113,35 @@ namespace Silver_Task.Server.Services
                 EnsureAdministrator(callerRole);
             }
 
-            await EnsureNameIsAvailableAsync(projectId, request.Name, excludingFieldId: null);
+            await EnsureNameIsAvailableAsync(projectId, request.EntityType, request.Name, excludingFieldId: null);
+            var identifier = await GenerateIdentifierAsync(projectId, request.EntityType, request.Name);
+            await ValidateConditionAsync(projectId, request.EntityType, request.ConditionFieldId, request.ConditionOperator, excludingFieldId: null);
+            ValidateTypeSettings(request.FieldType, request.MaxLength, request.MinValue, request.MaxValue, request.DecimalPlaces);
 
             var field = new CustomField
             {
                 Id = Guid.NewGuid(),
                 ProjectId = projectId,
                 Name = request.Name.Trim(),
+                Identifier = identifier,
                 Description = NormalizeOptionalText(request.Description),
                 FieldType = request.FieldType,
+                EntityType = request.EntityType,
                 IsRequired = request.IsRequired,
                 IsActive = true,
                 DefaultValue = ValidateAndNormalizeDefaultValue(request.FieldType, request.DefaultValue),
-                SortOrder = await GetNextFieldSortOrderAsync(projectId)
+                SortOrder = await GetNextFieldSortOrderAsync(projectId, request.EntityType),
+                GroupName = NormalizeOptionalText(request.GroupName),
+                Placeholder = NormalizeOptionalText(request.Placeholder),
+                MaxLength = request.MaxLength,
+                MinValue = request.MinValue,
+                MaxValue = request.MaxValue,
+                DecimalPlaces = request.DecimalPlaces,
+                IsPrivate = request.IsPrivate,
+                VisibleToRoles = NormalizeOptionalText(request.VisibleToRoles),
+                ConditionFieldId = request.ConditionFieldId,
+                ConditionOperator = request.ConditionOperator,
+                ConditionValue = NormalizeOptionalText(request.ConditionValue)
             };
             _db.CustomFields.Add(field);
 
@@ -150,7 +174,9 @@ namespace Silver_Task.Server.Services
             var field = await LoadFieldAsync(customFieldId);
             await EnsureCanManageFieldAsync(field, callerId, callerRole);
 
-            await EnsureNameIsAvailableAsync(field.ProjectId, request.Name, excludingFieldId: field.Id);
+            await EnsureNameIsAvailableAsync(field.ProjectId, field.EntityType, request.Name, excludingFieldId: field.Id);
+            await ValidateConditionAsync(field.ProjectId, field.EntityType, request.ConditionFieldId, request.ConditionOperator, excludingFieldId: field.Id);
+            ValidateTypeSettings(field.FieldType, request.MaxLength, request.MinValue, request.MaxValue, request.DecimalPlaces);
 
             field.Name = request.Name.Trim();
             field.Description = NormalizeOptionalText(request.Description);
@@ -158,6 +184,17 @@ namespace Silver_Task.Server.Services
             field.IsActive = request.IsActive;
             field.DefaultValue = ValidateAndNormalizeDefaultValue(field.FieldType, request.DefaultValue);
             field.SortOrder = request.SortOrder;
+            field.GroupName = NormalizeOptionalText(request.GroupName);
+            field.Placeholder = NormalizeOptionalText(request.Placeholder);
+            field.MaxLength = request.MaxLength;
+            field.MinValue = request.MinValue;
+            field.MaxValue = request.MaxValue;
+            field.DecimalPlaces = request.DecimalPlaces;
+            field.IsPrivate = request.IsPrivate;
+            field.VisibleToRoles = NormalizeOptionalText(request.VisibleToRoles);
+            field.ConditionFieldId = request.ConditionFieldId;
+            field.ConditionOperator = request.ConditionOperator;
+            field.ConditionValue = NormalizeOptionalText(request.ConditionValue);
             field.UpdatedAt = DateTime.UtcNow;
 
             await _db.SaveChangesAsync();
@@ -169,15 +206,18 @@ namespace Silver_Task.Server.Services
             var field = await LoadFieldAsync(customFieldId);
             await EnsureCanManageFieldAsync(field, callerId, callerRole);
 
-            var usageCount = await _db.TaskCustomValues.CountAsync(v => v.CustomFieldId == customFieldId);
+            var usageCount = field.EntityType == CustomFieldEntityType.Project
+                ? await _db.ProjectCustomValues.CountAsync(v => v.CustomFieldId == customFieldId)
+                : await _db.TaskCustomValues.CountAsync(v => v.CustomFieldId == customFieldId);
             if (usageCount > 0 && !confirm)
             {
+                var noun = field.EntityType == CustomFieldEntityType.Project ? "project" : "task";
                 throw new ConflictException(
-                    $"'{field.Name}' has values on {usageCount} task{(usageCount == 1 ? "" : "s")}. " +
+                    $"'{field.Name}' has values on {usageCount} {noun}{(usageCount == 1 ? "" : "s")}. " +
                     "Deactivate it instead to keep that data, or confirm to permanently delete it and those values.");
             }
 
-            // Cascades to CustomFieldOptions and TaskCustomValues at the database level (Phase 2).
+            // Cascades to CustomFieldOptions and Task/ProjectCustomValues at the database level.
             _db.CustomFields.Remove(field);
             await _db.SaveChangesAsync();
         }
@@ -186,10 +226,12 @@ namespace Silver_Task.Server.Services
         {
             var field = await LoadFieldAsync(customFieldId);
             await EnsureCanManageFieldAsync(field, callerId, callerRole);
-            return await _db.TaskCustomValues.CountAsync(v => v.CustomFieldId == customFieldId);
+            return field.EntityType == CustomFieldEntityType.Project
+                ? await _db.ProjectCustomValues.CountAsync(v => v.CustomFieldId == customFieldId)
+                : await _db.TaskCustomValues.CountAsync(v => v.CustomFieldId == customFieldId);
         }
 
-        public async Task<IReadOnlyList<CustomField>> GetAllForAdminAsync(Guid? projectId, CustomFieldType? fieldType, bool? isActive)
+        public async Task<IReadOnlyList<CustomField>> GetAllForAdminAsync(Guid? projectId, CustomFieldType? fieldType, CustomFieldEntityType? entityType, bool? isActive)
         {
             var query = _db.CustomFields.Include(f => f.Project).Include(f => f.Options).AsQueryable();
 
@@ -200,6 +242,10 @@ namespace Silver_Task.Server.Services
             if (fieldType is CustomFieldType type)
             {
                 query = query.Where(f => f.FieldType == type);
+            }
+            if (entityType is CustomFieldEntityType et)
+            {
+                query = query.Where(f => f.EntityType == et);
             }
             if (isActive is bool active)
             {
@@ -266,21 +312,59 @@ namespace Silver_Task.Server.Services
             var option = await _db.CustomFieldOptions.FirstOrDefaultAsync(o => o.Id == optionId && o.CustomFieldId == customFieldId)
                 ?? throw new NotFoundException($"Option '{optionId}' was not found.");
 
-            // Dropdown stores the option id directly; MultiSelect stores a JSON array that may
-            // contain it — a plain string.Contains catches both without needing to know which.
-            var affectedValues = await _db.TaskCustomValues
+            // Dropdown/MultiSelect/UserMulti all store either the raw option id or a JSON array
+            // that may contain it — a plain string.Contains catches every shape without needing
+            // to know which one this field uses.
+            var affectedTaskValues = await _db.TaskCustomValues
                 .Where(v => v.CustomFieldId == customFieldId && v.Value != null && v.Value.Contains(optionId.ToString()))
                 .ToListAsync();
+            var affectedProjectValues = await _db.ProjectCustomValues
+                .Where(v => v.CustomFieldId == customFieldId && v.Value != null && v.Value.Contains(optionId.ToString()))
+                .ToListAsync();
+            var affectedCount = affectedTaskValues.Count + affectedProjectValues.Count;
 
-            if (affectedValues.Count > 0 && !confirm)
+            if (affectedCount > 0 && !confirm)
             {
                 throw new ConflictException(
-                    $"'{option.Value}' is used by {affectedValues.Count} task{(affectedValues.Count == 1 ? "" : "s")}. " +
+                    $"'{option.Value}' is used by {affectedCount} value{(affectedCount == 1 ? "" : "s")}. " +
                     "Disable it instead to keep that data, or confirm to permanently delete it and clear those values.");
             }
 
-            _db.TaskCustomValues.RemoveRange(affectedValues);
+            _db.TaskCustomValues.RemoveRange(affectedTaskValues);
+            _db.ProjectCustomValues.RemoveRange(affectedProjectValues);
             _db.CustomFieldOptions.Remove(option);
+            await _db.SaveChangesAsync();
+        }
+
+        public async Task ReorderAsync(IReadOnlyList<Guid> orderedFieldIds, Guid callerId, UserRole callerRole)
+        {
+            if (orderedFieldIds.Count == 0)
+            {
+                return;
+            }
+
+            var fields = await _db.CustomFields.Where(f => orderedFieldIds.Contains(f.Id)).ToListAsync();
+            if (fields.Count != orderedFieldIds.Count)
+            {
+                throw new NotFoundException("One or more fields to reorder were not found.");
+            }
+
+            var scopeProjectId = fields[0].ProjectId;
+            var scopeEntityType = fields[0].EntityType;
+            if (fields.Any(f => f.ProjectId != scopeProjectId || f.EntityType != scopeEntityType))
+            {
+                throw new ValidationException("Cannot reorder fields from different scopes together.");
+            }
+
+            await EnsureCanManageFieldAsync(fields[0], callerId, callerRole);
+
+            for (var i = 0; i < orderedFieldIds.Count; i++)
+            {
+                var field = fields.First(f => f.Id == orderedFieldIds[i]);
+                field.SortOrder = i;
+                field.UpdatedAt = DateTime.UtcNow;
+            }
+
             await _db.SaveChangesAsync();
         }
 
@@ -321,14 +405,15 @@ namespace Silver_Task.Server.Services
             }
         }
 
-        private async Task EnsureNameIsAvailableAsync(Guid? projectId, string name, Guid? excludingFieldId)
+        private async Task EnsureNameIsAvailableAsync(Guid? projectId, CustomFieldEntityType entityType, string name, Guid? excludingFieldId)
         {
             var normalized = name.Trim().ToLower();
-            var query = _db.CustomFields.Where(f => f.Id != excludingFieldId && f.Name.ToLower() == normalized);
+            var query = _db.CustomFields.Where(f => f.Id != excludingFieldId && f.EntityType == entityType && f.Name.ToLower() == normalized);
 
             // A project-scoped field's effective visibility set is itself + every "all projects"
             // field, so it only needs to avoid colliding with those. A new "all projects" field is
-            // visible everywhere, so it has to avoid colliding with literally any existing field.
+            // visible everywhere, so it has to avoid colliding with literally any existing field
+            // of the same EntityType.
             query = projectId is Guid pid
                 ? query.Where(f => f.ProjectId == pid || f.ProjectId == null)
                 : query;
@@ -339,9 +424,44 @@ namespace Silver_Task.Server.Services
             }
         }
 
-        private async Task<int> GetNextFieldSortOrderAsync(Guid? projectId)
+        /// <summary>Slugifies Name into a stable snake_case key (spec #4: "Property Address" ->
+        /// "property_address"), then disambiguates against the same identifier-uniqueness scope
+        /// Name itself uses (spec #5). Never re-derived on rename — see CustomField.Identifier's
+        /// own doc comment.</summary>
+        private async Task<string> GenerateIdentifierAsync(Guid? projectId, CustomFieldEntityType entityType, string name)
         {
-            var max = await _db.CustomFields.Where(f => f.ProjectId == projectId).Select(f => (int?)f.SortOrder).MaxAsync();
+            var baseIdentifier = Slugify(name);
+            var candidate = baseIdentifier;
+            var suffix = 2;
+
+            while (true)
+            {
+                var query = _db.CustomFields.Where(f => f.EntityType == entityType && f.Identifier == candidate);
+                query = projectId is Guid pid
+                    ? query.Where(f => f.ProjectId == pid || f.ProjectId == null)
+                    : query;
+
+                if (!await query.AnyAsync())
+                {
+                    return candidate;
+                }
+
+                candidate = $"{baseIdentifier}_{suffix++}";
+            }
+        }
+
+        private static readonly Regex NonAlphanumeric = new("[^a-z0-9]+", RegexOptions.Compiled);
+
+        private static string Slugify(string name)
+        {
+            var lower = name.Trim().ToLowerInvariant();
+            var slug = NonAlphanumeric.Replace(lower, "_").Trim('_');
+            return string.IsNullOrEmpty(slug) ? "field" : slug;
+        }
+
+        private async Task<int> GetNextFieldSortOrderAsync(Guid? projectId, CustomFieldEntityType entityType)
+        {
+            var max = await _db.CustomFields.Where(f => f.ProjectId == projectId && f.EntityType == entityType).Select(f => (int?)f.SortOrder).MaxAsync();
             return (max ?? -1) + 1;
         }
 
@@ -356,12 +476,100 @@ namespace Silver_Task.Server.Services
             }
         }
 
+        /// <summary>A field can only condition on another field in the exact same scope
+        /// (EntityType + effective project visibility) — conditioning a Task field on a Project
+        /// field (or vice versa) has no coherent evaluation point, and a field can't condition on
+        /// itself or form a cycle.</summary>
+        private async Task ValidateConditionAsync(Guid? projectId, CustomFieldEntityType entityType, Guid? conditionFieldId, AutomationConditionOperator? conditionOperator, Guid? excludingFieldId)
+        {
+            if (conditionFieldId is null)
+            {
+                return;
+            }
+
+            if (conditionFieldId == excludingFieldId)
+            {
+                throw new ValidationException("A field cannot be conditioned on itself.");
+            }
+
+            if (conditionOperator is null)
+            {
+                throw new ValidationException("A condition operator is required when a condition field is set.");
+            }
+
+            var controllingField = await _db.CustomFields.FirstOrDefaultAsync(f => f.Id == conditionFieldId)
+                ?? throw new ValidationException("The selected condition field does not exist.");
+
+            if (controllingField.EntityType != entityType)
+            {
+                throw new ValidationException("A field's visibility condition must reference another field of the same scope (Task/Project).");
+            }
+
+            var sameProjectVisibility = controllingField.ProjectId == projectId || controllingField.ProjectId is null || projectId is null;
+            if (!sameProjectVisibility)
+            {
+                throw new ValidationException("The selected condition field is not visible in the same project scope.");
+            }
+
+            // A depends on B, B must not (transitively) depend back on A — walk B's own
+            // condition chain looking for A, capped at 20 hops as a defensive limit.
+            var current = controllingField;
+            for (var i = 0; i < 20; i++)
+            {
+                if (current.ConditionFieldId is not Guid nextId)
+                {
+                    break;
+                }
+                if (nextId == excludingFieldId)
+                {
+                    throw new ValidationException("This condition would create a circular dependency between fields.");
+                }
+
+                var next = await _db.CustomFields.FirstOrDefaultAsync(f => f.Id == nextId);
+                if (next is null)
+                {
+                    break;
+                }
+                current = next;
+            }
+        }
+
+        private static void ValidateTypeSettings(CustomFieldType fieldType, int? maxLength, decimal? minValue, decimal? maxValue, int? decimalPlaces)
+        {
+            var supportsMaxLength = fieldType is CustomFieldType.Text or CustomFieldType.LongText or CustomFieldType.Url or CustomFieldType.Email or CustomFieldType.Phone;
+            if (maxLength is int ml)
+            {
+                if (!supportsMaxLength)
+                {
+                    throw new ValidationException("Max length only applies to text-like field types.");
+                }
+                if (ml <= 0)
+                {
+                    throw new ValidationException("Max length must be greater than zero.");
+                }
+            }
+
+            var supportsRange = fieldType is CustomFieldType.Number or CustomFieldType.Currency;
+            if ((minValue is not null || maxValue is not null || decimalPlaces is not null) && !supportsRange)
+            {
+                throw new ValidationException("Minimum, maximum, and decimal places only apply to Number/Currency field types.");
+            }
+            if (minValue is decimal min && maxValue is decimal max && min > max)
+            {
+                throw new ValidationException("Minimum cannot be greater than maximum.");
+            }
+            if (decimalPlaces is int places && places < 0)
+            {
+                throw new ValidationException("Decimal places cannot be negative.");
+            }
+        }
+
         private static string? NormalizeOptionalText(string? text) =>
             string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
         /// <summary>Only validated for types whose format is meaningful without other context —
-        /// Dropdown/MultiSelect options and User project-membership can't be checked at field-
-        /// definition time (the options are being created in this same call; membership is
+        /// Dropdown/MultiSelect options and User/UserMulti project-membership can't be checked at
+        /// field-definition time (the options are being created in this same call; membership is
         /// per-project and this field may apply to every project).</summary>
         private static string? ValidateAndNormalizeDefaultValue(CustomFieldType fieldType, string? value)
         {
@@ -399,6 +607,13 @@ namespace Silver_Task.Server.Services
                     if (normalized is not ("true" or "false"))
                     {
                         throw new ValidationException("Default value for a Checkbox field must be 'true' or 'false'.");
+                    }
+                    break;
+
+                case CustomFieldType.Email:
+                    if (!System.Net.Mail.MailAddress.TryCreate(normalized, out _))
+                    {
+                        throw new ValidationException($"'{normalized}' is not a valid default email address.");
                     }
                     break;
             }

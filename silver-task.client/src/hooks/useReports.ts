@@ -88,6 +88,14 @@ export function useTemplateUsageReport() {
   return useQuery({ queryKey: ['reports', 'template-usage'], queryFn: reportsApi.templateUsage });
 }
 
+export function useCustomFieldSummaryReport(customFieldId: string | undefined) {
+  return useQuery({
+    queryKey: ['reports', 'custom-field-summary', customFieldId ?? ''],
+    queryFn: () => reportsApi.customFieldSummary(customFieldId!),
+    enabled: Boolean(customFieldId),
+  });
+}
+
 export function useSavedReports() {
   return useQuery({ queryKey: savedReportsKey, queryFn: savedReportsApi.list });
 }

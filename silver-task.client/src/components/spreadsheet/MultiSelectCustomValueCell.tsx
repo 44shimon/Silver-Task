@@ -4,17 +4,26 @@ import { useSetTaskCustomValue } from '@/hooks/useTasks';
 import { ChevronDown } from 'lucide-react';
 import './MultiSelectCustomValueCell.css';
 
+interface MultiOption {
+  id: string;
+  value: string;
+}
+
 interface MultiSelectCustomValueCellProps {
   task: Task;
   field: CustomField;
   projectId: string;
   value: string | null;
+  /** MultiSelect fields pass their own options (default); UserMulti fields pass project members. */
+  options?: MultiOption[];
+  emptyMessage?: string;
 }
 
-export function MultiSelectCustomValueCell({ task, field, projectId, value }: MultiSelectCustomValueCellProps) {
+export function MultiSelectCustomValueCell({ task, field, projectId, value, options, emptyMessage }: MultiSelectCustomValueCellProps) {
   const setValue = useSetTaskCustomValue(projectId);
+  const effectiveOptions = options ?? field.options;
   const selectedIds = value ? safeParseIds(value) : [];
-  const selectedLabels = field.options.filter((o) => selectedIds.includes(o.id)).map((o) => o.value);
+  const selectedLabels = effectiveOptions.filter((o) => selectedIds.includes(o.id)).map((o) => o.value);
 
   function toggle(optionId: string) {
     const next = selectedIds.includes(optionId)
@@ -36,13 +45,13 @@ export function MultiSelectCustomValueCell({ task, field, projectId, value }: Mu
         <ChevronDown size={12} className="dropdown-cell__chevron" />
       </summary>
       <div className="multiselect-cell__panel">
-        {field.options.map((option) => (
+        {effectiveOptions.map((option) => (
           <label key={option.id} className="multiselect-cell__option">
             <input type="checkbox" checked={selectedIds.includes(option.id)} onChange={() => toggle(option.id)} />
             <span>{option.value}</span>
           </label>
         ))}
-        {field.options.length === 0 && <p className="multiselect-cell__empty">No options defined.</p>}
+        {effectiveOptions.length === 0 && <p className="multiselect-cell__empty">{emptyMessage ?? 'No options defined.'}</p>}
       </div>
     </details>
   );

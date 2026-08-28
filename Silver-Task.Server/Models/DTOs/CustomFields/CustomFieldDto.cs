@@ -14,9 +14,13 @@ namespace Silver_Task.Server.Models.DTOs.CustomFields
 
         public required string Name { get; set; }
 
+        public required string Identifier { get; set; }
+
         public string? Description { get; set; }
 
         public CustomFieldType FieldType { get; set; }
+
+        public CustomFieldEntityType EntityType { get; set; }
 
         public bool IsRequired { get; set; }
 
@@ -25,6 +29,28 @@ namespace Silver_Task.Server.Models.DTOs.CustomFields
         public string? DefaultValue { get; set; }
 
         public int SortOrder { get; set; }
+
+        public string? GroupName { get; set; }
+
+        public string? Placeholder { get; set; }
+
+        public int? MaxLength { get; set; }
+
+        public decimal? MinValue { get; set; }
+
+        public decimal? MaxValue { get; set; }
+
+        public int? DecimalPlaces { get; set; }
+
+        public bool IsPrivate { get; set; }
+
+        public string? VisibleToRoles { get; set; }
+
+        public Guid? ConditionFieldId { get; set; }
+
+        public AutomationConditionOperator? ConditionOperator { get; set; }
+
+        public string? ConditionValue { get; set; }
 
         public List<CustomFieldOptionDto> Options { get; set; } = [];
 

@@ -251,6 +251,7 @@ namespace Silver_Task.Server.Data.Seeding
                         Id = Guid.NewGuid(),
                         ProjectId = project.Id,
                         Name = spec.FieldName,
+                        Identifier = SlugifyFieldName(spec.FieldName),
                         FieldType = spec.Type,
                         SortOrder = result.Count(kv => kv.Key.StartsWith(spec.ProjectName + ":", StringComparison.Ordinal))
                     };
@@ -271,6 +272,12 @@ namespace Silver_Task.Server.Data.Seeding
 
             return result;
         }
+
+        /// <summary>Seed-only slugifier — mirrors CustomFieldService's own Slugify but doesn't
+        /// need the uniqueness-disambiguation loop, since every seeded field name here is
+        /// already distinct within its project.</summary>
+        private static string SlugifyFieldName(string name) =>
+            System.Text.RegularExpressions.Regex.Replace(name.Trim().ToLowerInvariant(), "[^a-z0-9]+", "_").Trim('_');
 
         private record SeededTask(TaskItem Entity, bool IsNew, Guid OwnerId, string ProjectName);
 

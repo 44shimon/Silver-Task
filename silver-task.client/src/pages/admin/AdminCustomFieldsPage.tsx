@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAdminCustomFields } from '@/hooks/useAdminCustomFields';
 import { useAllProjectsForAdmin } from '@/hooks/useProjects';
 import { AdminCustomFieldsTable } from '@/components/admin/AdminCustomFieldsTable';
 import { CustomFieldFormModal } from '@/components/admin/CustomFieldFormModal';
-import { CUSTOM_FIELD_TYPE_LABELS, CUSTOM_FIELD_TYPE_OPTIONS, type CustomFieldType } from '@/types/customField';
+import { CUSTOM_FIELD_TYPE_LABELS, CUSTOM_FIELD_TYPE_OPTIONS, type CustomFieldEntityType, type CustomFieldType } from '@/types/customField';
 import './AdminCustomFieldsPage.css';
 
 type ActiveFilter = 'all' | 'active' | 'inactive';
@@ -12,7 +12,9 @@ export function AdminCustomFieldsPage() {
   const { data: projects } = useAllProjectsForAdmin();
   const [projectFilter, setProjectFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [entityTypeFilter, setEntityTypeFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('all');
+  const [search, setSearch] = useState('');
   // An id, not the field object itself — the object goes stale the moment an option is
   // added/renamed/reordered/disabled inside the edit modal, since that mutation invalidates and
   // refetches `fields` rather than mutating whatever snapshot was captured on click.
@@ -22,14 +24,30 @@ export function AdminCustomFieldsPage() {
   const { data: fields, isLoading, isError } = useAdminCustomFields({
     projectId: projectFilter || undefined,
     fieldType: (typeFilter as CustomFieldType) || undefined,
+    entityType: (entityTypeFilter as CustomFieldEntityType) || undefined,
     isActive: activeFilter === 'all' ? undefined : activeFilter === 'active',
   });
+
+  const filteredFields = useMemo(() => {
+    const trimmed = search.trim().toLowerCase();
+    if (!trimmed) return fields ?? [];
+    return (fields ?? []).filter(
+      (f) => f.name.toLowerCase().includes(trimmed) || f.identifier.toLowerCase().includes(trimmed),
+    );
+  }, [fields, search]);
 
   const editingField = fields?.find((f) => f.id === editingFieldId) ?? null;
 
   return (
     <div className="admin-custom-fields-page">
       <div className="admin-custom-fields-page__toolbar">
+        <input
+          type="search"
+          placeholder="Search by name or identifier..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+
         <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
           <option value="">All Projects</option>
           {projects?.map((project) => (
@@ -37,6 +55,12 @@ export function AdminCustomFieldsPage() {
               {project.name}
             </option>
           ))}
+        </select>
+
+        <select value={entityTypeFilter} onChange={(e) => setEntityTypeFilter(e.target.value)}>
+          <option value="">Task + Project Fields</option>
+          <option value="Task">Task Fields</option>
+          <option value="Project">Project Fields</option>
         </select>
 
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
@@ -63,7 +87,7 @@ export function AdminCustomFieldsPage() {
       {isError && <p>Custom fields could not be loaded.</p>}
 
       {!isLoading && !isError && (
-        <AdminCustomFieldsTable fields={fields ?? []} onEdit={(field) => setEditingFieldId(field.id)} />
+        <AdminCustomFieldsTable fields={filteredFields} onEdit={(field) => setEditingFieldId(field.id)} />
       )}
 
       {showCreate && <CustomFieldFormModal mode="create" projects={projects ?? []} onClose={() => setShowCreate(false)} />}

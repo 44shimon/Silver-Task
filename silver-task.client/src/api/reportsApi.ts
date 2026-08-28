@@ -4,6 +4,7 @@ import type {
   AutomationReport,
   BlockedTaskReport,
   CompletionTimeReport,
+  CustomFieldSummaryReport,
   DependencyReport,
   ExportFormat,
   FileReport,
@@ -75,6 +76,8 @@ export const reportsApi = {
   dependencyChain: (projectId: string) =>
     httpClient.get<LongestDependencyChainReport>(`/reports/dependency-chain?projectId=${projectId}`),
   templateUsage: () => httpClient.get<TemplateUsageReport>('/reports/template-usage'),
+  customFieldSummary: (customFieldId: string) =>
+    httpClient.get<CustomFieldSummaryReport>(`/reports/custom-field-summary?customFieldId=${customFieldId}`),
   /** Not a fetch — builds a direct, same-origin download URL for an <a>/window.open, same
    * pattern as attachmentsApi.downloadUrl. */
   exportUrl: (reportType: ReportType, filter: ReportFilters, format: ExportFormat, extra?: Record<string, string | number | undefined>) =>

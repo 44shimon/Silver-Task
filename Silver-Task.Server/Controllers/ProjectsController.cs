@@ -141,9 +141,9 @@ namespace Silver_Task.Server.Controllers
         }
 
         [HttpGet("{id:guid}/custom-fields")]
-        public async Task<ActionResult<IReadOnlyList<CustomFieldDto>>> GetCustomFields(Guid id)
+        public async Task<ActionResult<IReadOnlyList<CustomFieldDto>>> GetCustomFields(Guid id, [FromQuery] CustomFieldEntityType entityType = CustomFieldEntityType.Task)
         {
-            var fields = await _customFieldService.GetAllForProjectAsync(id, User.GetUserId(), User.GetRole());
+            var fields = await _customFieldService.GetAllForProjectAsync(id, entityType, User.GetUserId(), User.GetRole());
             return Ok(fields.Select(f => f.ToDto()));
         }
 
@@ -152,6 +152,25 @@ namespace Silver_Task.Server.Controllers
         {
             var field = await _customFieldService.CreateAsync(id, request, User.GetUserId(), User.GetRole());
             return CreatedAtAction(nameof(CustomFieldsController.GetById), "CustomFields", new { id = field.Id }, field.ToDto());
+        }
+
+        [HttpPut("{id:guid}/custom-values/{customFieldId:guid}")]
+        public async Task<ActionResult<ProjectDto>> SetCustomValue(Guid id, Guid customFieldId, [FromBody] SetTaskCustomValueRequest request)
+        {
+            var project = await _projectService.SetCustomValueAsync(id, customFieldId, request.Value, User.GetUserId(), User.GetRole());
+            return Ok(project.ToDto());
+        }
+
+        /// <summary>Field-level authorization (manage tier) is enforced inside
+        /// ICustomFieldService.ReorderAsync itself — this route has no [Authorize(Roles=...)]
+        /// gate of its own so a project Manager can reorder their own project's fields, not just
+        /// an Administrator (see AdminCustomFieldsController's own reorder route for the
+        /// Administrator-facing equivalent on global fields).</summary>
+        [HttpPost("{id:guid}/custom-fields/reorder")]
+        public async Task<IActionResult> ReorderCustomFields(Guid id, [FromBody] List<Guid> orderedFieldIds)
+        {
+            await _customFieldService.ReorderAsync(orderedFieldIds, User.GetUserId(), User.GetRole());
+            return NoContent();
         }
 
         /// <summary>Every dependency edge in the project, for Gantt/Timeline connector-line

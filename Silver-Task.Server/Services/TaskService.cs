@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Silver_Task.Server.Common;
 using Silver_Task.Server.Common.Automation;
@@ -95,7 +93,8 @@ namespace Silver_Task.Server.Services
         INotificationService notificationService,
         ITagService tagService,
         IAutomationDispatcher automationDispatcher,
-        ITaskDependencyService dependencyService) : ITaskService
+        ITaskDependencyService dependencyService,
+        ICustomFieldValueValidator customFieldValueValidator) : ITaskService
     {
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
@@ -104,6 +103,7 @@ namespace Silver_Task.Server.Services
         private readonly ITagService _tagService = tagService;
         private readonly IAutomationDispatcher _automationDispatcher = automationDispatcher;
         private readonly ITaskDependencyService _dependencyService = dependencyService;
+        private readonly ICustomFieldValueValidator _customFieldValueValidator = customFieldValueValidator;
 
         public async Task<IReadOnlyList<TaskItem>> GetAllForProjectAsync(Guid projectId, Guid callerId, UserRole callerRole)
         {
@@ -113,11 +113,12 @@ namespace Silver_Task.Server.Services
             var tasks = await _db.Tasks
                 .Include(t => t.AssignedTo)
                 .Include(t => t.CustomValues)
+                .ThenInclude(v => v.CustomField)
                 .Where(t => t.ProjectId == projectId)
                 .OrderBy(t => t.SortOrder)
                 .ToListAsync();
 
-            await AttachTaskSummariesAsync(tasks);
+            await AttachTaskSummariesAsync(tasks, callerId, callerRole);
             return tasks;
         }
 
@@ -168,7 +169,7 @@ namespace Silver_Task.Server.Services
                 .Take(limit)
                 .ToListAsync();
 
-            await AttachTaskSummariesAsync(results);
+            await AttachTaskSummariesAsync(results, callerId, callerRole);
             return results;
         }
 
@@ -180,6 +181,7 @@ namespace Silver_Task.Server.Services
                 .Include(t => t.AssignedTo)
                 .Include(t => t.Project)
                 .Include(t => t.CustomValues)
+                .ThenInclude(v => v.CustomField)
                 .Where(t => t.AssignedToUserId == callerId && !t.Project!.IsArchived);
 
             // Mirrors ProjectService.GetAllForUserAsync: an Administrator sees everything, everyone
@@ -197,7 +199,7 @@ namespace Silver_Task.Server.Services
                 .ThenBy(t => t.Title)
                 .ToListAsync();
 
-            await AttachTaskSummariesAsync(tasks);
+            await AttachTaskSummariesAsync(tasks, callerId, callerRole);
             return tasks;
         }
 
@@ -205,7 +207,7 @@ namespace Silver_Task.Server.Services
         {
             var task = await LoadTaskAsync(taskId);
             await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
-            await AttachTaskSummariesAsync([task]);
+            await AttachTaskSummariesAsync([task], callerId, callerRole);
             return task;
         }
 
@@ -217,11 +219,12 @@ namespace Silver_Task.Server.Services
             var subtasks = await _db.Tasks
                 .Include(t => t.AssignedTo)
                 .Include(t => t.CustomValues)
+                .ThenInclude(v => v.CustomField)
                 .Where(t => t.ParentTaskId == taskId)
                 .OrderBy(t => t.SortOrder)
                 .ToListAsync();
 
-            await AttachTaskSummariesAsync(subtasks);
+            await AttachTaskSummariesAsync(subtasks, callerId, callerRole);
             return subtasks;
         }
 
@@ -523,7 +526,7 @@ namespace Silver_Task.Server.Services
             }
 
             task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
-            await AttachTaskSummariesAsync([task]);
+            await AttachTaskSummariesAsync([task], callerId, callerRole);
             return task;
         }
 
@@ -577,7 +580,7 @@ namespace Silver_Task.Server.Services
             if (parentTaskId == task.ParentTaskId)
             {
                 task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
-                await AttachTaskSummariesAsync([task]);
+                await AttachTaskSummariesAsync([task], callerId, callerRole);
                 return task;
             }
 
@@ -630,7 +633,7 @@ namespace Silver_Task.Server.Services
             await _db.SaveChangesAsync();
 
             task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
-            await AttachTaskSummariesAsync([task]);
+            await AttachTaskSummariesAsync([task], callerId, callerRole);
             return task;
         }
 
@@ -653,7 +656,7 @@ namespace Silver_Task.Server.Services
             await _db.SaveChangesAsync();
 
             task.AssignedTo = task.AssignedToUserId is null ? null : await _db.Users.FindAsync(task.AssignedToUserId);
-            await AttachTaskSummariesAsync([task]);
+            await AttachTaskSummariesAsync([task], callerId, callerRole);
             return task;
         }
 
@@ -1028,8 +1031,12 @@ namespace Silver_Task.Server.Services
 
             copy.AssignedTo = original.AssignedTo;
             copy.CustomValues = original.CustomValues
-                .Select(v => new TaskCustomValue { CustomFieldId = v.CustomFieldId, Value = v.Value })
+                .Select(v => new TaskCustomValue { CustomFieldId = v.CustomFieldId, Value = v.Value, CustomField = v.CustomField })
                 .ToList();
+
+            var callerProjectRole = callerRole == UserRole.Administrator ? null : await _projectAccess.GetProjectRoleAsync(original.ProjectId, callerId);
+            CustomFieldPrivacy.RedactTaskValues(copy, callerId, callerRole, original.Project!.OwnerId, callerProjectRole);
+
             return copy;
         }
 
@@ -1039,6 +1046,7 @@ namespace Silver_Task.Server.Services
                 .Include(t => t.AssignedTo)
                 .Include(t => t.Project)
                 .Include(t => t.CustomValues)
+                .ThenInclude(v => v.CustomField)
                 .FirstOrDefaultAsync(t => t.Id == taskId);
             return task ?? throw new NotFoundException($"Task '{taskId}' was not found.");
         }
@@ -1094,11 +1102,41 @@ namespace Silver_Task.Server.Services
         /// <summary>Every bulk-populated, non-persisted field TaskDto exposes (dependency counts,
         /// subtask counts, parent title) in one call — the single place every task-returning
         /// method in this service goes through, so a future addition to this family only needs to
-        /// be wired in once.</summary>
-        private async Task AttachTaskSummariesAsync(IReadOnlyList<TaskItem> tasks)
+        /// be wired in once. Phase 41 also redacts private custom field values here, for the same
+        /// reason: this is the one choke point every read path already funnels through, so a
+        /// private field can't leak by a future call site forgetting a separate redaction step.</summary>
+        private async Task AttachTaskSummariesAsync(IReadOnlyList<TaskItem> tasks, Guid callerId, UserRole callerRole)
         {
             await AttachDependencySummaryAsync(tasks);
             await AttachSubtaskSummaryAsync(tasks);
+            await RedactPrivateCustomValuesAsync(tasks, callerId, callerRole);
+        }
+
+        /// <summary>Batches the caller's ProjectRole lookup by distinct project (not one query per
+        /// task) before redacting — see CustomFieldPrivacy.RedactTaskValues for the visibility
+        /// rule itself.</summary>
+        private async Task RedactPrivateCustomValuesAsync(IReadOnlyList<TaskItem> tasks, Guid callerId, UserRole callerRole)
+        {
+            if (callerRole == UserRole.Administrator || tasks.Count == 0)
+            {
+                // An Administrator can always see every private field's value — CustomFieldPrivacy
+                // already encodes this, but skipping the project-role lookups entirely here avoids
+                // doing pointless work on the single most common "can see everything" case.
+                return;
+            }
+
+            var projectIds = tasks.Select(t => t.ProjectId).Distinct().ToList();
+            var ownerByProject = await _db.Projects.Where(p => projectIds.Contains(p.Id)).Select(p => new { p.Id, p.OwnerId }).ToDictionaryAsync(p => p.Id, p => p.OwnerId);
+            var roleByProject = new Dictionary<Guid, ProjectRole?>();
+            foreach (var projectId in projectIds)
+            {
+                roleByProject[projectId] = await _projectAccess.GetProjectRoleAsync(projectId, callerId);
+            }
+
+            foreach (var task in tasks)
+            {
+                CustomFieldPrivacy.RedactTaskValues(task, callerId, callerRole, ownerByProject.GetValueOrDefault(task.ProjectId), roleByProject[task.ProjectId]);
+            }
         }
 
         /// <summary>Populates TaskItem.SubtaskCount/CompletedSubtaskCount (direct children only,
@@ -1252,7 +1290,12 @@ namespace Silver_Task.Server.Services
                 throw new ValidationException("That custom field does not belong to this task's project.");
             }
 
-            var normalizedValue = await ValidateAndNormalizeCustomValueAsync(field, value, task.ProjectId);
+            var normalizedValue = await _customFieldValueValidator.ValidateAndNormalizeAsync(field, value, task.ProjectId, callerId, callerRole);
+
+            var currentValues = task.CustomValues.ToDictionary(v => v.CustomFieldId, v => v.Value);
+            await _customFieldValueValidator.EnsureConditionalRequirementsAsync(
+                field, normalizedValue, CustomFieldEntityType.Task, task.ProjectId, currentValues);
+
             var existing = task.CustomValues.FirstOrDefault(v => v.CustomFieldId == customFieldId);
             var oldValue = existing?.Value;
 
@@ -1271,7 +1314,8 @@ namespace Silver_Task.Server.Services
                     Id = Guid.NewGuid(),
                     TaskId = taskId,
                     CustomFieldId = customFieldId,
-                    Value = normalizedValue
+                    Value = normalizedValue,
+                    CustomField = field
                 };
                 task.CustomValues.Add(newValue);
                 _db.TaskCustomValues.Add(newValue);
@@ -1288,151 +1332,14 @@ namespace Silver_Task.Server.Services
             }
 
             await _db.SaveChangesAsync();
+
+            var callerProjectRole = callerRole == UserRole.Administrator ? null : await _projectAccess.GetProjectRoleAsync(task.ProjectId, callerId);
+            CustomFieldPrivacy.RedactTaskValues(task, callerId, callerRole, task.Project!.OwnerId, callerProjectRole);
+
             return task;
         }
 
-        private async Task<string?> ValidateAndNormalizeCustomValueAsync(CustomField field, string? value, Guid projectId)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                if (field.IsRequired)
-                {
-                    throw new ValidationException($"'{field.Name}' is required and cannot be cleared.");
-                }
-                return null;
-            }
-
-            // A deactivated field keeps its existing values readable (never force-cleared) but
-            // can't be given a new value — the admin-facing "prefer deactivation over deletion"
-            // path from Phase 25 would be pointless if the field stayed fully writable anyway.
-            if (!field.IsActive)
-            {
-                throw new ValidationException($"'{field.Name}' has been disabled and can no longer be set.");
-            }
-
-            switch (field.FieldType)
-            {
-                case CustomFieldType.Text:
-                case CustomFieldType.LongText:
-                    return value.Trim();
-
-                case CustomFieldType.Number:
-                case CustomFieldType.Currency:
-                    if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out _))
-                    {
-                        throw new ValidationException($"'{value}' is not a valid number for field '{field.Name}'.");
-                    }
-                    return value.Trim();
-
-                case CustomFieldType.Date:
-                    if (!DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
-                    {
-                        throw new ValidationException($"'{value}' is not a valid date (expected YYYY-MM-DD) for field '{field.Name}'.");
-                    }
-                    return value.Trim();
-
-                case CustomFieldType.DateTime:
-                    if (!DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var parsedDateTime))
-                    {
-                        throw new ValidationException($"'{value}' is not a valid date/time for field '{field.Name}'.");
-                    }
-                    return parsedDateTime.ToString("O", CultureInfo.InvariantCulture);
-
-                case CustomFieldType.Checkbox:
-                    if (value is not ("true" or "false"))
-                    {
-                        throw new ValidationException($"Checkbox field '{field.Name}' must be 'true' or 'false'.");
-                    }
-                    return value;
-
-                case CustomFieldType.Dropdown:
-                    if (!field.Options.Any(o => o.Id.ToString() == value))
-                    {
-                        throw new ValidationException($"'{value}' is not a valid option for field '{field.Name}'.");
-                    }
-                    return value;
-
-                case CustomFieldType.MultiSelect:
-                    var optionIds = ParseMultiSelectValue(value, field.Name);
-                    var validIds = field.Options.Select(o => o.Id).ToHashSet();
-                    if (optionIds.Any(id => !validIds.Contains(id)))
-                    {
-                        throw new ValidationException($"One or more selected options are not valid for field '{field.Name}'.");
-                    }
-                    return JsonSerializer.Serialize(optionIds);
-
-                case CustomFieldType.User:
-                    if (!Guid.TryParse(value, out var userId) || !await _projectAccess.IsMemberAsync(projectId, userId))
-                    {
-                        throw new ValidationException($"'{value}' is not a valid project member for field '{field.Name}'.");
-                    }
-                    return value;
-
-                case CustomFieldType.Link:
-                    return NormalizeLinkValue(value, field.Name);
-
-                default:
-                    throw new ValidationException($"Unsupported field type for '{field.Name}'.");
-            }
-        }
-
-        private static string NormalizeLinkValue(string value, string fieldName)
-        {
-            LinkValue? parsed;
-            try
-            {
-                parsed = JsonSerializer.Deserialize<LinkValue>(value);
-            }
-            catch (JsonException)
-            {
-                throw new ValidationException($"'{value}' is not a valid link value for field '{fieldName}'.");
-            }
-
-            if (parsed is null || string.IsNullOrWhiteSpace(parsed.Url))
-            {
-                throw new ValidationException($"A URL is required for link field '{fieldName}'.");
-            }
-
-            var originalUrl = parsed.Url.Trim();
-            var url = originalUrl;
-
-            // Users naturally type "google.com" without a scheme — treat that like a
-            // browser address bar would, rather than rejecting it.
-            if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
-                !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            {
-                url = "https://" + url;
-            }
-
-            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
-                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) ||
-                string.IsNullOrEmpty(uri.Host))
-            {
-                throw new ValidationException($"'{originalUrl}' is not a valid URL for field '{fieldName}'.");
-            }
-
-            return JsonSerializer.Serialize(new LinkValue { Label = parsed.Label?.Trim() ?? string.Empty, Url = url });
-        }
-
-        private class LinkValue
-        {
-            [JsonPropertyName("label")]
-            public string? Label { get; set; }
-
-            [JsonPropertyName("url")]
-            public string Url { get; set; } = string.Empty;
-        }
-
-        private static List<Guid> ParseMultiSelectValue(string value, string fieldName)
-        {
-            try
-            {
-                return JsonSerializer.Deserialize<List<Guid>>(value) ?? [];
-            }
-            catch (JsonException)
-            {
-                throw new ValidationException($"'{value}' is not a valid selection list for field '{fieldName}'.");
-            }
-        }
+        // Value validation/normalization moved to the shared ICustomFieldValueValidator (Phase
+        // 41) so ProjectService.SetCustomValueAsync doesn't need its own duplicate copy.
     }
 }

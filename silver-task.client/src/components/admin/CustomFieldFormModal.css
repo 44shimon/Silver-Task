@@ -100,3 +100,61 @@
   font-weight: 600;
   white-space: nowrap;
 }
+
+.settings-form__row {
+  display: flex;
+  gap: 10px;
+}
+
+.settings-form__row .settings-form__field,
+.settings-form__row .settings-form__readonly {
+  flex: 1;
+  min-width: 0;
+}
+
+.custom-field-form__roles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.custom-field-form__role-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 400;
+}
+
+.custom-field-form__condition {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.custom-field-form__condition-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.custom-field-form__condition-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.custom-field-form__condition-row select,
+.custom-field-form__condition-row input {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 12px;
+  font-weight: 400;
+  flex: 1;
+  min-width: 100px;
+}

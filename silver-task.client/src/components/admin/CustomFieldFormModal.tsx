@@ -3,16 +3,23 @@ import { ArrowDown, ArrowUp, X } from 'lucide-react';
 import { Modal } from '@/components/shared/Modal';
 import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
 import {
+  CONDITION_OPERATOR_LABELS,
+  CONDITION_OPERATOR_OPTIONS,
   CUSTOM_FIELD_TYPE_LABELS,
   CUSTOM_FIELD_TYPE_OPTIONS,
   customFieldTypeHasOptions,
+  customFieldTypeSupportsMaxLength,
+  customFieldTypeSupportsRange,
   type CustomField,
+  type CustomFieldConditionOperator,
+  type CustomFieldEntityType,
   type CustomFieldType,
 } from '@/types/customField';
 import type { Project } from '@/types/project';
 import {
   useAdminAddCustomFieldOption,
   useAdminCreateCustomField,
+  useAdminCustomFields,
   useAdminDeleteCustomFieldOption,
   useAdminUpdateCustomField,
   useAdminUpdateCustomFieldOption,
@@ -29,11 +36,12 @@ interface CustomFieldFormModalProps {
 }
 
 const PROJECT_SCOPE_ALL = 'all';
+const SYSTEM_ROLES = ['Administrator', 'Manager', 'Member', 'Viewer'];
 
-// One modal for both create and edit: FieldType and project scope are only choosable at create
-// time (changing either after values might exist could make those values impossible to
-// interpret, or silently move the field's scope), everything else stays editable — same
-// immutable-FieldType rule the existing project-scoped panel already follows.
+// One modal for both create and edit: FieldType, EntityType, and project scope are only
+// choosable at create time (changing any of them after values might exist could make those
+// values impossible to interpret, or silently move the field's scope), everything else stays
+// editable — same immutable-FieldType rule the existing project-scoped panel already follows.
 export function CustomFieldFormModal({ mode, field, projects, onClose }: CustomFieldFormModalProps) {
   const createField = useAdminCreateCustomField();
   const updateField = useAdminUpdateCustomField();
@@ -41,15 +49,34 @@ export function CustomFieldFormModal({ mode, field, projects, onClose }: CustomF
   const [name, setName] = useState(field?.name ?? '');
   const [description, setDescription] = useState(field?.description ?? '');
   const [fieldType, setFieldType] = useState<CustomFieldType>(field?.fieldType ?? 'Text');
+  const [entityType, setEntityType] = useState<CustomFieldEntityType>(field?.entityType ?? 'Task');
   const [isRequired, setIsRequired] = useState(field?.isRequired ?? false);
   const [isActive, setIsActive] = useState(field?.isActive ?? true);
   const [defaultValue, setDefaultValue] = useState(field?.defaultValue ?? '');
   const [scope, setScope] = useState<string>(field ? (field.projectId ?? PROJECT_SCOPE_ALL) : PROJECT_SCOPE_ALL);
   const [newOptions, setNewOptions] = useState<string[]>([]);
   const [newOptionDraft, setNewOptionDraft] = useState('');
+  const [groupName, setGroupName] = useState(field?.groupName ?? '');
+  const [placeholder, setPlaceholder] = useState(field?.placeholder ?? '');
+  const [maxLength, setMaxLength] = useState(field?.maxLength?.toString() ?? '');
+  const [minValue, setMinValue] = useState(field?.minValue?.toString() ?? '');
+  const [maxValue, setMaxValue] = useState(field?.maxValue?.toString() ?? '');
+  const [decimalPlaces, setDecimalPlaces] = useState(field?.decimalPlaces?.toString() ?? '');
+  const [isPrivate, setIsPrivate] = useState(field?.isPrivate ?? false);
+  const [visibleToRoles, setVisibleToRoles] = useState<string[]>(field?.visibleToRoles ? field.visibleToRoles.split(',') : []);
+  const [conditionFieldId, setConditionFieldId] = useState(field?.conditionFieldId ?? '');
+  const [conditionOperator, setConditionOperator] = useState<CustomFieldConditionOperator | ''>(field?.conditionOperator ?? '');
+  const [conditionValue, setConditionValue] = useState(field?.conditionValue ?? '');
   const [formError, setFormError] = useState<string | null>(null);
 
   const mutation = mode === 'create' ? createField : updateField;
+
+  // Candidate fields for the condition picker: same scope this field would live in, excluding
+  // itself. Fetched reactively as the admin changes EntityType/scope in the create form.
+  const scopeProjectId = scope === PROJECT_SCOPE_ALL ? undefined : scope;
+  const { data: scopeFields } = useAdminCustomFields({ entityType, projectId: scopeProjectId });
+  const conditionCandidates = (scopeFields ?? []).filter((f) => f.id !== field?.id);
+  const conditionField = conditionCandidates.find((f) => f.id === conditionFieldId);
 
   function addOptionDraft() {
     const trimmed = newOptionDraft.trim();
@@ -60,6 +87,10 @@ export function CustomFieldFormModal({ mode, field, projects, onClose }: CustomF
     setNewOptionDraft('');
   }
 
+  function toggleRole(role: string) {
+    setVisibleToRoles((prev) => (prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]));
+  }
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     const trimmedName = name.trim();
@@ -68,16 +99,32 @@ export function CustomFieldFormModal({ mode, field, projects, onClose }: CustomF
     }
     setFormError(null);
 
+    const shared = {
+      groupName: groupName.trim() || undefined,
+      placeholder: customFieldTypeSupportsMaxLength(fieldType) ? placeholder.trim() || undefined : undefined,
+      maxLength: customFieldTypeSupportsMaxLength(fieldType) && maxLength ? Number(maxLength) : undefined,
+      minValue: customFieldTypeSupportsRange(fieldType) && minValue ? Number(minValue) : undefined,
+      maxValue: customFieldTypeSupportsRange(fieldType) && maxValue ? Number(maxValue) : undefined,
+      decimalPlaces: customFieldTypeSupportsRange(fieldType) && decimalPlaces ? Number(decimalPlaces) : undefined,
+      isPrivate,
+      visibleToRoles: visibleToRoles.length > 0 ? visibleToRoles.join(',') : undefined,
+      conditionFieldId: conditionFieldId || undefined,
+      conditionOperator: conditionFieldId ? (conditionOperator || undefined) : undefined,
+      conditionValue: conditionFieldId ? (conditionValue.trim() || undefined) : undefined,
+    };
+
     if (mode === 'create') {
       createField.mutate(
         {
           name: trimmedName,
           description: description.trim() || undefined,
           fieldType,
+          entityType,
           isRequired,
           defaultValue: defaultValue.trim() || undefined,
           options: customFieldTypeHasOptions(fieldType) ? newOptions : undefined,
           projectId: scope === PROJECT_SCOPE_ALL ? null : scope,
+          ...shared,
         },
         {
           onSuccess: onClose,
@@ -95,6 +142,7 @@ export function CustomFieldFormModal({ mode, field, projects, onClose }: CustomF
             isActive,
             defaultValue: defaultValue.trim() || null,
             sortOrder: field.sortOrder,
+            ...shared,
           },
         },
         {
@@ -126,26 +174,41 @@ export function CustomFieldFormModal({ mode, field, projects, onClose }: CustomF
         </div>
 
         {mode === 'create' ? (
-          <div className="settings-form__field">
-            <label htmlFor="cf-type">Type</label>
-            <select id="cf-type" value={fieldType} onChange={(e) => setFieldType(e.target.value as CustomFieldType)}>
-              {CUSTOM_FIELD_TYPE_OPTIONS.map((type) => (
-                <option key={type} value={type}>
-                  {CUSTOM_FIELD_TYPE_LABELS[type]}
-                </option>
-              ))}
-            </select>
+          <div className="settings-form__row">
+            <div className="settings-form__field">
+              <label htmlFor="cf-type">Type</label>
+              <select id="cf-type" value={fieldType} onChange={(e) => setFieldType(e.target.value as CustomFieldType)}>
+                {CUSTOM_FIELD_TYPE_OPTIONS.map((type) => (
+                  <option key={type} value={type}>
+                    {CUSTOM_FIELD_TYPE_LABELS[type]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="settings-form__field">
+              <label htmlFor="cf-entity-type">Applies to</label>
+              <select id="cf-entity-type" value={entityType} onChange={(e) => setEntityType(e.target.value as CustomFieldEntityType)}>
+                <option value="Task">Tasks</option>
+                <option value="Project">Projects</option>
+              </select>
+            </div>
           </div>
         ) : (
-          <div className="settings-form__readonly">
-            <span className="settings-form__readonly-label">Type</span>
-            <span className="settings-form__readonly-value">{CUSTOM_FIELD_TYPE_LABELS[field!.fieldType]}</span>
+          <div className="settings-form__row">
+            <div className="settings-form__readonly">
+              <span className="settings-form__readonly-label">Type</span>
+              <span className="settings-form__readonly-value">{CUSTOM_FIELD_TYPE_LABELS[field!.fieldType]}</span>
+            </div>
+            <div className="settings-form__readonly">
+              <span className="settings-form__readonly-label">Applies to</span>
+              <span className="settings-form__readonly-value">{field!.entityType === 'Project' ? 'Projects' : 'Tasks'}</span>
+            </div>
           </div>
         )}
 
         {mode === 'create' ? (
           <div className="settings-form__field">
-            <label htmlFor="cf-scope">Applies to</label>
+            <label htmlFor="cf-scope">Project scope</label>
             <select id="cf-scope" value={scope} onChange={(e) => setScope(e.target.value)}>
               <option value={PROJECT_SCOPE_ALL}>All Projects</option>
               {projects.map((project) => (
@@ -157,8 +220,49 @@ export function CustomFieldFormModal({ mode, field, projects, onClose }: CustomF
           </div>
         ) : (
           <div className="settings-form__readonly">
-            <span className="settings-form__readonly-label">Applies to</span>
+            <span className="settings-form__readonly-label">Project scope</span>
             <span className="settings-form__readonly-value">{field!.projectName ?? 'All Projects'}</span>
+          </div>
+        )}
+
+        <div className="settings-form__field">
+          <label htmlFor="cf-group">Group</label>
+          <input
+            id="cf-group"
+            type="text"
+            value={groupName}
+            onChange={(e) => setGroupName(e.target.value)}
+            placeholder="Optional — e.g. Property Information"
+          />
+        </div>
+
+        {customFieldTypeSupportsMaxLength(fieldType) && (
+          <div className="settings-form__row">
+            <div className="settings-form__field">
+              <label htmlFor="cf-placeholder">Placeholder</label>
+              <input id="cf-placeholder" type="text" value={placeholder} onChange={(e) => setPlaceholder(e.target.value)} />
+            </div>
+            <div className="settings-form__field">
+              <label htmlFor="cf-maxlength">Max Length</label>
+              <input id="cf-maxlength" type="number" min={1} value={maxLength} onChange={(e) => setMaxLength(e.target.value)} />
+            </div>
+          </div>
+        )}
+
+        {customFieldTypeSupportsRange(fieldType) && (
+          <div className="settings-form__row">
+            <div className="settings-form__field">
+              <label htmlFor="cf-min">Minimum</label>
+              <input id="cf-min" type="number" value={minValue} onChange={(e) => setMinValue(e.target.value)} />
+            </div>
+            <div className="settings-form__field">
+              <label htmlFor="cf-max">Maximum</label>
+              <input id="cf-max" type="number" value={maxValue} onChange={(e) => setMaxValue(e.target.value)} />
+            </div>
+            <div className="settings-form__field">
+              <label htmlFor="cf-decimals">Decimal Places</label>
+              <input id="cf-decimals" type="number" min={0} value={decimalPlaces} onChange={(e) => setDecimalPlaces(e.target.value)} placeholder="0 = whole numbers" />
+            </div>
           </div>
         )}
 
@@ -170,7 +274,7 @@ export function CustomFieldFormModal({ mode, field, projects, onClose }: CustomF
             value={defaultValue}
             onChange={(e) => setDefaultValue(e.target.value)}
             placeholder="Optional"
-            disabled={customFieldTypeHasOptions(fieldType) || fieldType === 'User'}
+            disabled={customFieldTypeHasOptions(fieldType) || fieldType === 'User' || fieldType === 'UserMulti'}
           />
         </div>
 
@@ -194,7 +298,7 @@ export function CustomFieldFormModal({ mode, field, projects, onClose }: CustomF
             <div className="settings-toggle-row__label">
               <span className="settings-toggle-row__title">Active</span>
               <span className="settings-toggle-row__description">
-                Disabled fields keep their existing task values but can't be given a new one.
+                Disabled fields keep their existing values but can't be given a new one.
               </span>
             </div>
             <button
@@ -207,6 +311,75 @@ export function CustomFieldFormModal({ mode, field, projects, onClose }: CustomF
             />
           </div>
         )}
+
+        <div className="settings-toggle-row">
+          <div className="settings-toggle-row__label">
+            <span className="settings-toggle-row__title">Private</span>
+            <span className="settings-toggle-row__description">
+              Only an Administrator, the project owner/Manager, or a role listed below can see this field's value.
+            </span>
+          </div>
+          <button
+            type="button"
+            className={`settings-toggle${isPrivate ? ' settings-toggle--on' : ''}`}
+            role="switch"
+            aria-checked={isPrivate}
+            aria-label="Private"
+            onClick={() => setIsPrivate((prev) => !prev)}
+          />
+        </div>
+
+        {isPrivate && (
+          <div className="custom-field-form__roles">
+            <span>Also visible to:</span>
+            {SYSTEM_ROLES.map((role) => (
+              <label key={role} className="custom-field-form__role-checkbox">
+                <input type="checkbox" checked={visibleToRoles.includes(role)} onChange={() => toggleRole(role)} />
+                {role}
+              </label>
+            ))}
+          </div>
+        )}
+
+        <div className="custom-field-form__condition">
+          <span className="custom-field-form__condition-title">Show this field when: (optional)</span>
+          <div className="custom-field-form__condition-row">
+            <select value={conditionFieldId} onChange={(e) => setConditionFieldId(e.target.value)}>
+              <option value="">Always visible</option>
+              {conditionCandidates.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+            {conditionFieldId && (
+              <>
+                <select value={conditionOperator} onChange={(e) => setConditionOperator(e.target.value as CustomFieldConditionOperator)}>
+                  <option value="">Select an operator...</option>
+                  {CONDITION_OPERATOR_OPTIONS.map((op) => (
+                    <option key={op} value={op}>
+                      {CONDITION_OPERATOR_LABELS[op]}
+                    </option>
+                  ))}
+                </select>
+                {conditionOperator !== 'IsEmpty' && conditionOperator !== 'IsNotEmpty' && (
+                  conditionField && customFieldTypeHasOptions(conditionField.fieldType) ? (
+                    <select value={conditionValue} onChange={(e) => setConditionValue(e.target.value)}>
+                      <option value="">Select a value...</option>
+                      {conditionField.options.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.value}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input type="text" value={conditionValue} onChange={(e) => setConditionValue(e.target.value)} placeholder="Value" />
+                  )
+                )}
+              </>
+            )}
+          </div>
+        </div>
 
         {customFieldTypeHasOptions(fieldType) && mode === 'create' && (
           <div className="custom-field-form__options-builder">

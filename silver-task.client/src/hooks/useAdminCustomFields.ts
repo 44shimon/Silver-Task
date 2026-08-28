@@ -25,6 +25,16 @@ export function useAdminCreateCustomField() {
   });
 }
 
+export function useAdminReorderCustomFields() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (orderedFieldIds: string[]) => adminCustomFieldsApi.reorder(orderedFieldIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ADMIN_CUSTOM_FIELDS_ROOT_KEY });
+    },
+  });
+}
+
 // The remaining mutations reuse customFieldsApi directly — update/delete/options are all
 // field-id-keyed REST endpoints CustomFieldService already authorizes per-field regardless of
 // which page called in, so there's no need for admin-specific API functions, only admin-specific

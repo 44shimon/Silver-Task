@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Silver_Task.Server.Common;
+using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.DTOs.Dashboard;
 using Silver_Task.Server.Models.DTOs.Reports;
@@ -66,6 +67,8 @@ namespace Silver_Task.Server.Services
         // ---------- Phase 40: template usage ----------
 
         Task<TemplateUsageReportDto> GetTemplateUsageReportAsync(Guid callerId, UserRole callerRole);
+
+        Task<CustomFieldSummaryReportDto> GetCustomFieldSummaryAsync(Guid callerId, UserRole callerRole, Guid customFieldId);
     }
 
     /// <summary>
@@ -987,6 +990,93 @@ namespace Silver_Task.Server.Services
                 .ToList();
 
             return new TemplateUsageReportDto { ProjectsCreatedFromTemplate = projectsCreatedFromTemplate, MostUsedTemplates = mostUsed };
+        }
+
+        /// <summary>Phase 41 — scoped the same way every other report is (Administrator sees
+        /// everything; everyone else only values on projects/tasks they own or are a member of).
+        /// A private field's own summary is Administrator-only outright — even an aggregate
+        /// (a sum/average/count) can leak information about a restricted value, so this doesn't
+        /// try to be clever about "aggregates are safe"; it just refuses (spec #38's own "never
+        /// return restricted custom field values to unauthorized clients", applied to reports
+        /// too, not just raw value endpoints).</summary>
+        public async Task<CustomFieldSummaryReportDto> GetCustomFieldSummaryAsync(Guid callerId, UserRole callerRole, Guid customFieldId)
+        {
+            var isAdmin = callerRole == UserRole.Administrator;
+
+            var field = await _db.CustomFields.Include(f => f.Options).FirstOrDefaultAsync(f => f.Id == customFieldId)
+                ?? throw new NotFoundException($"Custom field '{customFieldId}' was not found.");
+
+            if (field.IsPrivate && !isAdmin)
+            {
+                throw new ForbiddenException("Only an Administrator can view a summary of a private field.");
+            }
+
+            List<string> values;
+            if (field.EntityType == CustomFieldEntityType.Project)
+            {
+                values = await _db.ProjectCustomValues
+                    .Where(v => v.CustomFieldId == customFieldId && v.Value != null)
+                    .Where(v => isAdmin || v.Project!.OwnerId == callerId || v.Project.Members.Any(m => m.UserId == callerId))
+                    .Select(v => v.Value!)
+                    .ToListAsync();
+            }
+            else
+            {
+                values = await _db.TaskCustomValues
+                    .Where(v => v.CustomFieldId == customFieldId && v.Value != null)
+                    .Where(v => isAdmin || v.Task!.Project!.OwnerId == callerId || v.Task.Project.Members.Any(m => m.UserId == callerId))
+                    .Select(v => v.Value!)
+                    .ToListAsync();
+            }
+
+            var summary = new CustomFieldSummaryReportDto
+            {
+                FieldName = field.Name,
+                FieldType = field.FieldType.ToString(),
+                Count = values.Count
+            };
+
+            switch (field.FieldType)
+            {
+                case CustomFieldType.Number:
+                case CustomFieldType.Currency:
+                    {
+                        var numbers = values
+                            .Select(v => decimal.TryParse(v, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var n) ? (decimal?)n : null)
+                            .Where(n => n.HasValue)
+                            .Select(n => n!.Value)
+                            .ToList();
+                        if (numbers.Count > 0)
+                        {
+                            summary.Sum = numbers.Sum();
+                            summary.Average = Math.Round(numbers.Average(), 2);
+                            summary.Min = numbers.Min();
+                            summary.Max = numbers.Max();
+                        }
+                        break;
+                    }
+
+                case CustomFieldType.Checkbox:
+                    summary.ByValue =
+                    [
+                        new LabeledCountDto { Label = "Yes", Count = values.Count(v => v == "true") },
+                        new LabeledCountDto { Label = "No", Count = values.Count(v => v == "false") }
+                    ];
+                    break;
+
+                case CustomFieldType.Dropdown:
+                    {
+                        var optionNames = field.Options.ToDictionary(o => o.Id.ToString(), o => o.Value);
+                        summary.ByValue = values
+                            .GroupBy(v => optionNames.GetValueOrDefault(v, v))
+                            .Select(g => new LabeledCountDto { Label = g.Key, Count = g.Count() })
+                            .OrderByDescending(g => g.Count)
+                            .ToList();
+                        break;
+                    }
+            }
+
+            return summary;
         }
     }
 }

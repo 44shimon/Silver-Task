@@ -345,3 +345,16 @@ export interface TemplateUsageReport {
   projectsCreatedFromTemplate: number;
   mostUsedTemplates: TemplateUsageRow[];
 }
+
+// ---------- Phase 41: custom field summary report ----------
+
+export interface CustomFieldSummaryReport {
+  fieldName: string;
+  fieldType: string;
+  count: number;
+  sum: number | null;
+  average: number | null;
+  min: number | null;
+  max: number | null;
+  byValue: LabeledCount[] | null;
+}

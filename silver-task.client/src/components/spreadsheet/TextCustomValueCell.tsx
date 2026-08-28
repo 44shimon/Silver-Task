@@ -11,15 +11,22 @@ interface TextCustomValueCellProps {
   value: string | null;
 }
 
-/** Handles Text, LongText, Number, and Currency — all a click-to-edit free-form value,
- * differing only in input type / multiline. */
+const INPUT_TYPE_BY_FIELD_TYPE: Partial<Record<string, string>> = {
+  Number: 'number',
+  Currency: 'number',
+  Url: 'url',
+  Email: 'email',
+  Phone: 'tel',
+};
+
+/** Handles Text, LongText, Number, Currency, Url, Email, and Phone — all a click-to-edit
+ * free-form value, differing only in input type / multiline / maxLength. */
 export function TextCustomValueCell({ task, field, projectId, value }: TextCustomValueCellProps) {
   const setValue = useSetTaskCustomValue(projectId);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState('');
 
   const isMultiline = field.fieldType === 'LongText';
-  const isNumeric = field.fieldType === 'Number' || field.fieldType === 'Currency';
 
   function startEditing() {
     setDraft(value ?? '');
@@ -54,8 +61,10 @@ export function TextCustomValueCell({ task, field, projectId, value }: TextCusto
       />
     ) : (
       <input
-        type={isNumeric ? 'number' : 'text'}
+        type={INPUT_TYPE_BY_FIELD_TYPE[field.fieldType] ?? 'text'}
         step={field.fieldType === 'Currency' ? '0.01' : undefined}
+        maxLength={field.maxLength ?? undefined}
+        placeholder={field.placeholder ?? undefined}
         className="editable-cell__input"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}

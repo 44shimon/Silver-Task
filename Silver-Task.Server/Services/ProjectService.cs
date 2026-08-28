@@ -43,6 +43,11 @@ namespace Silver_Task.Server.Services
         /// adding/removing members. The project owner's own role can't be changed this way (their
         /// row is always Manager, matching their always-implicit-Manager access).</summary>
         Task<ProjectMember> SetMemberRoleAsync(Guid projectId, Guid targetUserId, ProjectRole role, Guid callerId, UserRole callerRole);
+
+        /// <summary>Phase 41 — the Project-scope equivalent of TaskService.SetCustomValueAsync.
+        /// Only fields with EntityType.Project may be set here; a Task-scoped field is rejected
+        /// (same "does not belong to this scope" rule TaskService already enforces the other way).</summary>
+        Task<Project> SetCustomValueAsync(Guid projectId, Guid customFieldId, string? value, Guid callerId, UserRole callerRole);
     }
 
     public class ProjectService(
@@ -50,13 +55,15 @@ namespace Silver_Task.Server.Services
         IProjectAccessService projectAccess,
         ISystemSettingsService systemSettings,
         INotificationService notificationService,
-        IAutomationDispatcher automationDispatcher) : IProjectService
+        IAutomationDispatcher automationDispatcher,
+        ICustomFieldValueValidator customFieldValueValidator) : IProjectService
     {
         private readonly AppDbContext _db = db;
         private readonly IProjectAccessService _projectAccess = projectAccess;
         private readonly ISystemSettingsService _systemSettings = systemSettings;
         private readonly INotificationService _notificationService = notificationService;
         private readonly IAutomationDispatcher _automationDispatcher = automationDispatcher;
+        private readonly ICustomFieldValueValidator _customFieldValueValidator = customFieldValueValidator;
 
         public async Task<IReadOnlyList<Project>> GetAllForUserAsync(Guid callerId, UserRole callerRole, bool includeArchived = false)
         {
@@ -79,6 +86,7 @@ namespace Silver_Task.Server.Services
         {
             var project = await LoadProjectAsync(projectId);
             await _projectAccess.EnsureCanParticipateAsync(project.Id, project.OwnerId, callerId, callerRole);
+            await RedactPrivateCustomValuesAsync(project, callerId, callerRole);
             return project;
         }
 
@@ -141,6 +149,7 @@ namespace Silver_Task.Server.Services
             project.UpdatedAt = DateTime.UtcNow;
 
             await _db.SaveChangesAsync();
+            await RedactPrivateCustomValuesAsync(project, callerId, callerRole);
             return project;
         }
 
@@ -180,6 +189,71 @@ namespace Silver_Task.Server.Services
             await NotifyMembersOfStatusChangeAsync(project, callerId, "restored");
 
             await _db.SaveChangesAsync();
+            await RedactPrivateCustomValuesAsync(project, callerId, callerRole);
+            return project;
+        }
+
+        public async Task<Project> SetCustomValueAsync(Guid projectId, Guid customFieldId, string? value, Guid callerId, UserRole callerRole)
+        {
+            var project = await LoadProjectAsync(projectId);
+            await _projectAccess.EnsureCanEditAsync(project.Id, project.OwnerId, callerId, callerRole);
+
+            var field = await _db.CustomFields
+                .Include(f => f.Options)
+                .FirstOrDefaultAsync(f => f.Id == customFieldId)
+                ?? throw new NotFoundException($"Custom field '{customFieldId}' was not found.");
+
+            if (field.EntityType != CustomFieldEntityType.Project)
+            {
+                throw new ValidationException("That custom field does not apply to projects.");
+            }
+            if (field.ProjectId is Guid fieldProjectId && fieldProjectId != project.Id)
+            {
+                throw new ValidationException("That custom field does not belong to this project.");
+            }
+
+            var normalizedValue = await _customFieldValueValidator.ValidateAndNormalizeAsync(field, value, project.Id, callerId, callerRole);
+
+            var currentValues = project.CustomValues.ToDictionary(v => v.CustomFieldId, v => v.Value);
+            await _customFieldValueValidator.EnsureConditionalRequirementsAsync(
+                field, normalizedValue, CustomFieldEntityType.Project, project.Id, currentValues);
+
+            var existing = project.CustomValues.FirstOrDefault(v => v.CustomFieldId == customFieldId);
+
+            if (normalizedValue is null)
+            {
+                if (existing is not null)
+                {
+                    project.CustomValues.Remove(existing);
+                    _db.ProjectCustomValues.Remove(existing);
+                }
+            }
+            else if (existing is null)
+            {
+                var newValue = new ProjectCustomValue
+                {
+                    Id = Guid.NewGuid(),
+                    ProjectId = projectId,
+                    CustomFieldId = customFieldId,
+                    Value = normalizedValue,
+                    CustomField = field
+                };
+                project.CustomValues.Add(newValue);
+                _db.ProjectCustomValues.Add(newValue);
+            }
+            else
+            {
+                existing.Value = normalizedValue;
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+
+            // No project-level activity/audit table exists in this app (TaskActivity is
+            // task-scoped only — see the Phase 40 final report's own disclosed note, reconfirmed
+            // here); a project custom field change is therefore not historically diffed anywhere,
+            // matching that same established, previously-disclosed limitation rather than
+            // introducing a new audit mechanism just for this one field.
+            await _db.SaveChangesAsync();
+            await RedactPrivateCustomValuesAsync(project, callerId, callerRole);
             return project;
         }
 
@@ -307,8 +381,26 @@ namespace Silver_Task.Server.Services
 
         private async Task<Project> LoadProjectAsync(Guid projectId)
         {
-            var project = await _db.Projects.Include(p => p.Owner).Include(p => p.Members).FirstOrDefaultAsync(p => p.Id == projectId);
+            var project = await _db.Projects
+                .Include(p => p.Owner)
+                .Include(p => p.Members)
+                .Include(p => p.CustomValues)
+                .ThenInclude(v => v.CustomField)
+                .FirstOrDefaultAsync(p => p.Id == projectId);
             return project ?? throw new NotFoundException($"Project '{projectId}' was not found.");
+        }
+
+        /// <summary>See CustomFieldPrivacy.RedactProjectValues — the single choke point every
+        /// read path that returns a full Project (with CustomValues loaded) funnels through.</summary>
+        private async Task RedactPrivateCustomValuesAsync(Project project, Guid callerId, UserRole callerRole)
+        {
+            if (callerRole == UserRole.Administrator || project.CustomValues.Count == 0)
+            {
+                return;
+            }
+
+            var callerProjectRole = await _projectAccess.GetProjectRoleAsync(project.Id, callerId);
+            CustomFieldPrivacy.RedactProjectValues(project, callerId, callerRole, callerProjectRole);
         }
 
         private static string? NormalizeDescription(string? description) =>

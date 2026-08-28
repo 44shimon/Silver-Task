@@ -1,3 +1,5 @@
+import type { TaskCustomValue } from './task';
+
 export interface UserSummary {
   id: string;
   name: string;
@@ -25,6 +27,8 @@ export interface Project {
    * populated by GET /projects/{id} (the single-project fetch every ProjectPage load already
    * makes); null on list endpoints. See useProjectPermissions(). */
   myPermissions: string[] | null;
+  /** Phase 41 — empty on list endpoints, populated by GetById/Create/Update/Restore/SetCustomValue. */
+  customValues: TaskCustomValue[];
   createdAt: string;
   updatedAt: string;
 }

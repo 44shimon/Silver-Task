@@ -15,6 +15,7 @@ import { MyReportsSection } from '@/components/reports/MyReportsSection';
 import { AdminReportsSection } from '@/components/reports/AdminReportsSection';
 import { DependencySection } from '@/components/reports/DependencySection';
 import { TemplateUsageSection } from '@/components/reports/TemplateUsageSection';
+import { CustomFieldSummarySection } from '@/components/reports/CustomFieldSummarySection';
 import type { ReportConfiguration, ReportFilters, ReportGroupByField } from '@/types/reports';
 import './ReportsPage.css';
 
@@ -28,6 +29,7 @@ type TabKey =
   | 'dependencies'
   | 'custom'
   | 'templates'
+  | 'custom-fields'
   | 'my'
   | 'admin';
 
@@ -41,6 +43,7 @@ const TABS: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: 'dependencies', label: 'Dependencies' },
   { key: 'custom', label: 'Custom' },
   { key: 'templates', label: 'Templates' },
+  { key: 'custom-fields', label: 'Custom Fields' },
   { key: 'my', label: 'My Reports' },
   { key: 'admin', label: 'Admin', adminOnly: true },
 ];
@@ -132,7 +135,9 @@ export function ReportsPage() {
         </div>
       )}
 
-      {activeTab !== 'my' && activeTab !== 'templates' && <ReportFilterBar filters={filters} onChange={setFilters} />}
+      {activeTab !== 'my' && activeTab !== 'templates' && activeTab !== 'custom-fields' && (
+        <ReportFilterBar filters={filters} onChange={setFilters} />
+      )}
 
       <div className="reports-page__content">
         {activeTab === 'tasks' && <TaskSummarySection filters={filters} />}
@@ -144,6 +149,7 @@ export function ReportsPage() {
         {activeTab === 'dependencies' && <DependencySection filters={filters} />}
         {activeTab === 'custom' && <CustomReportSection filters={filters} groupBy={groupBy} onGroupByChange={setGroupBy} />}
         {activeTab === 'templates' && <TemplateUsageSection />}
+        {activeTab === 'custom-fields' && <CustomFieldSummarySection />}
         {activeTab === 'my' && (
           <MyReportsSection
             currentReportType={exportReportType ?? 'TaskSummary'}
