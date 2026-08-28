@@ -164,6 +164,34 @@ namespace Silver_Task.Server.Controllers
             return NoContent();
         }
 
+        [HttpGet("{id:guid}/checklist")]
+        public async Task<ActionResult<IReadOnlyList<TaskChecklistItemDto>>> GetChecklist(Guid id)
+        {
+            var items = await _taskService.GetChecklistAsync(id, User.GetUserId(), User.GetRole());
+            return Ok(items.Select(i => i.ToDto()));
+        }
+
+        [HttpPost("{id:guid}/checklist")]
+        public async Task<ActionResult<TaskChecklistItemDto>> AddChecklistItem(Guid id, [FromBody] AddChecklistItemRequest request)
+        {
+            var item = await _taskService.AddChecklistItemAsync(id, request.Text, User.GetUserId(), User.GetRole());
+            return Ok(item.ToDto());
+        }
+
+        [HttpPut("{id:guid}/checklist/{itemId:guid}")]
+        public async Task<ActionResult<TaskChecklistItemDto>> SetChecklistItemChecked(Guid id, Guid itemId, [FromBody] SetChecklistItemCheckedRequest request)
+        {
+            var item = await _taskService.SetChecklistItemCheckedAsync(id, itemId, request.IsChecked, User.GetUserId(), User.GetRole());
+            return Ok(item.ToDto());
+        }
+
+        [HttpDelete("{id:guid}/checklist/{itemId:guid}")]
+        public async Task<IActionResult> RemoveChecklistItem(Guid id, Guid itemId)
+        {
+            await _taskService.RemoveChecklistItemAsync(id, itemId, User.GetUserId(), User.GetRole());
+            return NoContent();
+        }
+
         /// <summary>Direct children only, not the full recursive subtree.</summary>
         [HttpGet("{id:guid}/subtasks")]
         public async Task<ActionResult<IReadOnlyList<TaskDto>>> GetSubtasks(Guid id)

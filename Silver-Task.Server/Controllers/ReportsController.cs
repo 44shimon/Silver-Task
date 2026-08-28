@@ -186,6 +186,13 @@ namespace Silver_Task.Server.Controllers
             return Ok(await _reportingService.GetLongestDependencyChainAsync(User.GetUserId(), User.GetRole(), projectId));
         }
 
+        [HttpGet("template-usage")]
+        public async Task<ActionResult<TemplateUsageReportDto>> GetTemplateUsageReport()
+        {
+            await EnsureCanViewReportsAsync();
+            return Ok(await _reportingService.GetTemplateUsageReportAsync(User.GetUserId(), User.GetRole()));
+        }
+
         /// <summary>Export applies EXACTLY the same authorization + query path as the matching
         /// live report endpoint above — never a separate, weaker code path (the spec's own
         /// explicit "export endpoints must apply exactly the same authorization rules" rule).

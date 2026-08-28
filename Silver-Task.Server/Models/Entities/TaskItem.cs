@@ -90,6 +90,9 @@ namespace Silver_Task.Server.Models.Entities
 
         public ICollection<TaskTag> TaskTags { get; set; } = [];
 
+        /// <summary>Phase 40 — see TaskChecklistItem's own doc comment.</summary>
+        public ICollection<TaskChecklistItem> ChecklistItems { get; set; } = [];
+
         /// <summary>Not persisted — populated in bulk (one aggregate query per task list, never
         /// per-task) by TaskService whenever it loads tasks, so TaskDto can show dependency
         /// counts on every list/table/kanban/etc. without an N+1 query per task. See

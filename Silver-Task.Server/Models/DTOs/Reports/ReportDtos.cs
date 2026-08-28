@@ -285,6 +285,30 @@ namespace Silver_Task.Server.Models.DTOs.Reports
         public int TotalFiles { get; set; }
     }
 
+    /// <summary>Phase 40 — integrates with the existing reporting engine rather than a second one
+    /// (spec #67). Scoped to the caller's own accessible projects/templates, same "Authenticated
+    /// user -> Authorization scope -> Database query -> Report" pattern every other report
+    /// follows.</summary>
+    public class TemplateUsageReportDto
+    {
+        public int ProjectsCreatedFromTemplate { get; set; }
+
+        public required List<TemplateUsageRowDto> MostUsedTemplates { get; set; }
+    }
+
+    public class TemplateUsageRowDto
+    {
+        public Guid TemplateId { get; set; }
+
+        public required string TemplateName { get; set; }
+
+        public required string Type { get; set; }
+
+        public int UsageCount { get; set; }
+
+        public DateTime? LastUsedAt { get; set; }
+    }
+
     /// <summary>Phase 39 — "Circular Dependency Attempts" from the spec's own suggested metric
     /// list is deliberately omitted: a rejected circular-dependency request fails validation
     /// before anything is written anywhere, so there is no persisted record of the attempt to

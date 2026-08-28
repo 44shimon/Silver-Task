@@ -57,12 +57,14 @@ namespace Silver_Task.Server.Services
             [UserRole.Manager] = new HashSet<string>
             {
                 Permissions.ProjectsView, Permissions.ProjectsCreate,
-                Permissions.ReportsView, Permissions.ReportsExport, Permissions.ReportsCreate
+                Permissions.ReportsView, Permissions.ReportsExport, Permissions.ReportsCreate,
+                Permissions.TemplatesView, Permissions.TemplatesCreate, Permissions.TemplatesUse, Permissions.TemplatesShare
             },
             [UserRole.Member] = new HashSet<string>
             {
                 Permissions.ProjectsView, Permissions.ProjectsCreate,
-                Permissions.ReportsView, Permissions.ReportsExport, Permissions.ReportsCreate
+                Permissions.ReportsView, Permissions.ReportsExport, Permissions.ReportsCreate,
+                Permissions.TemplatesView, Permissions.TemplatesCreate, Permissions.TemplatesUse, Permissions.TemplatesShare
             },
             [UserRole.Viewer] = new HashSet<string> { Permissions.ProjectsView }
         };

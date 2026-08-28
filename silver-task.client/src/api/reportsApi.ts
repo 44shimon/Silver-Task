@@ -20,6 +20,7 @@ import type {
   SaveReportRequest,
   TaskAgeReport,
   TaskSummaryReport,
+  TemplateUsageReport,
   TrendReport,
   UserWorkloadReport,
   WorkflowBottlenecksReport,
@@ -73,6 +74,7 @@ export const reportsApi = {
   bottlenecks: (filter: ReportFilters) => httpClient.get<WorkflowBottlenecksReport>(`/reports/bottlenecks${buildQuery(filter)}`),
   dependencyChain: (projectId: string) =>
     httpClient.get<LongestDependencyChainReport>(`/reports/dependency-chain?projectId=${projectId}`),
+  templateUsage: () => httpClient.get<TemplateUsageReport>('/reports/template-usage'),
   /** Not a fetch — builds a direct, same-origin download URL for an <a>/window.open, same
    * pattern as attachmentsApi.downloadUrl. */
   exportUrl: (reportType: ReportType, filter: ReportFilters, format: ExportFormat, extra?: Record<string, string | number | undefined>) =>

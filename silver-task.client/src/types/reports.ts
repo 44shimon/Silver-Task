@@ -330,3 +330,18 @@ export interface LongestDependencyChainReport {
   projectName: string;
   chain: DependencyChainNode[];
 }
+
+// ---------- Phase 40: template usage reports ----------
+
+export interface TemplateUsageRow {
+  templateId: string;
+  templateName: string;
+  type: string;
+  usageCount: number;
+  lastUsedAt: string | null;
+}
+
+export interface TemplateUsageReport {
+  projectsCreatedFromTemplate: number;
+  mostUsedTemplates: TemplateUsageRow[];
+}

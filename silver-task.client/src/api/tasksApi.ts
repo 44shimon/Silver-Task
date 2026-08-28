@@ -1,5 +1,5 @@
 import { httpClient } from './httpClient';
-import type { CreateTaskRequest, Task, UpdateTaskRequest } from '@/types/task';
+import type { CreateTaskRequest, Task, TaskChecklistItem, UpdateTaskRequest } from '@/types/task';
 import type { TaskActivity } from '@/types/activity';
 import type { Tag } from '@/types/tag';
 
@@ -32,4 +32,12 @@ export const tasksApi = {
   labels: (taskId: string) => httpClient.get<Tag[]>(`/tasks/${taskId}/labels`),
   addLabel: (taskId: string, name: string) => httpClient.post<Tag>(`/tasks/${taskId}/labels`, { name }),
   removeLabel: (taskId: string, tagId: string) => httpClient.delete<void>(`/tasks/${taskId}/labels/${tagId}`),
+  /** Phase 40 — a plain checkable list per task, replayed from a Task Template's/Project
+   * Template task's own checklistItems at instantiation time (see TemplateInstantiationService). */
+  checklist: (taskId: string) => httpClient.get<TaskChecklistItem[]>(`/tasks/${taskId}/checklist`),
+  addChecklistItem: (taskId: string, text: string) =>
+    httpClient.post<TaskChecklistItem>(`/tasks/${taskId}/checklist`, { text }),
+  setChecklistItemChecked: (taskId: string, itemId: string, isChecked: boolean) =>
+    httpClient.put<TaskChecklistItem>(`/tasks/${taskId}/checklist/${itemId}`, { isChecked }),
+  removeChecklistItem: (taskId: string, itemId: string) => httpClient.delete<void>(`/tasks/${taskId}/checklist/${itemId}`),
 };

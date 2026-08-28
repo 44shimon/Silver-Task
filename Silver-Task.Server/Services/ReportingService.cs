@@ -62,6 +62,10 @@ namespace Silver_Task.Server.Services
         /// TaskDependencyService.CreateAsync). See LongestDependencyChainReportDto's own doc
         /// comment for why this isn't labeled "Critical Path".</summary>
         Task<LongestDependencyChainReportDto> GetLongestDependencyChainAsync(Guid callerId, UserRole callerRole, Guid projectId);
+
+        // ---------- Phase 40: template usage ----------
+
+        Task<TemplateUsageReportDto> GetTemplateUsageReportAsync(Guid callerId, UserRole callerRole);
     }
 
     /// <summary>
@@ -958,6 +962,31 @@ namespace Silver_Task.Server.Services
                 .ToList();
 
             return new LongestDependencyChainReportDto { ProjectId = projectId, ProjectName = project.Name, Chain = chain };
+        }
+
+        public async Task<TemplateUsageReportDto> GetTemplateUsageReportAsync(Guid callerId, UserRole callerRole)
+        {
+            var isAdmin = callerRole == UserRole.Administrator;
+
+            var projectsCreatedFromTemplate = await _db.Projects.CountAsync(p =>
+                p.SourceProjectTemplateId != null && (isAdmin || p.OwnerId == callerId || p.Members.Any(m => m.UserId == callerId)));
+
+            var projectTemplates = await _db.ProjectTemplates
+                .Where(t => isAdmin || t.CreatedByUserId == callerId)
+                .Select(t => new TemplateUsageRowDto { TemplateId = t.Id, TemplateName = t.Name, Type = "Project", UsageCount = t.UsageCount, LastUsedAt = t.LastUsedAt })
+                .ToListAsync();
+            var taskTemplates = await _db.TaskTemplates
+                .Where(t => isAdmin || t.CreatedByUserId == callerId)
+                .Select(t => new TemplateUsageRowDto { TemplateId = t.Id, TemplateName = t.Name, Type = "Task", UsageCount = t.UsageCount, LastUsedAt = t.LastUsedAt })
+                .ToListAsync();
+
+            var mostUsed = projectTemplates.Concat(taskTemplates)
+                .Where(t => t.UsageCount > 0)
+                .OrderByDescending(t => t.UsageCount)
+                .Take(10)
+                .ToList();
+
+            return new TemplateUsageReportDto { ProjectsCreatedFromTemplate = projectsCreatedFromTemplate, MostUsedTemplates = mostUsed };
         }
     }
 }

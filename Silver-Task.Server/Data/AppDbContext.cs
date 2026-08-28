@@ -65,6 +65,32 @@ namespace Silver_Task.Server.Data
 
         public DbSet<UserReportFavorite> UserReportFavorites => Set<UserReportFavorite>();
 
+        public DbSet<ProjectTemplate> ProjectTemplates => Set<ProjectTemplate>();
+
+        public DbSet<ProjectTemplateTask> ProjectTemplateTasks => Set<ProjectTemplateTask>();
+
+        public DbSet<ProjectTemplateTaskDependency> ProjectTemplateTaskDependencies => Set<ProjectTemplateTaskDependency>();
+
+        public DbSet<ProjectTemplateTaskTag> ProjectTemplateTaskTags => Set<ProjectTemplateTaskTag>();
+
+        public DbSet<ProjectTemplateTaskCustomValue> ProjectTemplateTaskCustomValues => Set<ProjectTemplateTaskCustomValue>();
+
+        public DbSet<ProjectTemplateTaskChecklistItem> ProjectTemplateTaskChecklistItems => Set<ProjectTemplateTaskChecklistItem>();
+
+        public DbSet<TaskTemplate> TaskTemplates => Set<TaskTemplate>();
+
+        public DbSet<TaskTemplateTag> TaskTemplateTags => Set<TaskTemplateTag>();
+
+        public DbSet<TaskTemplateCustomValue> TaskTemplateCustomValues => Set<TaskTemplateCustomValue>();
+
+        public DbSet<TaskTemplateChecklistItem> TaskTemplateChecklistItems => Set<TaskTemplateChecklistItem>();
+
+        public DbSet<TemplateShare> TemplateShares => Set<TemplateShare>();
+
+        public DbSet<UserTemplateFavorite> UserTemplateFavorites => Set<UserTemplateFavorite>();
+
+        public DbSet<TaskChecklistItem> TaskChecklistItems => Set<TaskChecklistItem>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

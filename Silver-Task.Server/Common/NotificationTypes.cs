@@ -79,6 +79,12 @@ namespace Silver_Task.Server.Common
         /// counterpart.</summary>
         public const string TaskBecameBlocked = "TaskBecameBlocked";
 
+        /// <summary>Phase 40 — fires once for the caller after a project-from-template
+        /// instantiation succeeds (never once per generated task — see
+        /// ITemplateInstantiationService's own doc comment on why this is a single summary
+        /// notification, not a notification explosion for a 50-task project).</summary>
+        public const string TemplateProjectCreated = "TemplateProjectCreated";
+
         public static readonly IReadOnlyList<string> All =
         [
             TaskAssigned,
@@ -103,7 +109,8 @@ namespace Silver_Task.Server.Common
             TaskReopened,
             FileUploaded,
             ProjectStatusChanged,
-            TaskBecameBlocked
+            TaskBecameBlocked,
+            TemplateProjectCreated
         ];
     }
 }

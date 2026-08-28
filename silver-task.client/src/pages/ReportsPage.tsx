@@ -14,6 +14,7 @@ import { CustomReportSection } from '@/components/reports/CustomReportSection';
 import { MyReportsSection } from '@/components/reports/MyReportsSection';
 import { AdminReportsSection } from '@/components/reports/AdminReportsSection';
 import { DependencySection } from '@/components/reports/DependencySection';
+import { TemplateUsageSection } from '@/components/reports/TemplateUsageSection';
 import type { ReportConfiguration, ReportFilters, ReportGroupByField } from '@/types/reports';
 import './ReportsPage.css';
 
@@ -26,6 +27,7 @@ type TabKey =
   | 'completion-time'
   | 'dependencies'
   | 'custom'
+  | 'templates'
   | 'my'
   | 'admin';
 
@@ -38,6 +40,7 @@ const TABS: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: 'completion-time', label: 'Completion Time' },
   { key: 'dependencies', label: 'Dependencies' },
   { key: 'custom', label: 'Custom' },
+  { key: 'templates', label: 'Templates' },
   { key: 'my', label: 'My Reports' },
   { key: 'admin', label: 'Admin', adminOnly: true },
 ];
@@ -129,7 +132,7 @@ export function ReportsPage() {
         </div>
       )}
 
-      {activeTab !== 'my' && <ReportFilterBar filters={filters} onChange={setFilters} />}
+      {activeTab !== 'my' && activeTab !== 'templates' && <ReportFilterBar filters={filters} onChange={setFilters} />}
 
       <div className="reports-page__content">
         {activeTab === 'tasks' && <TaskSummarySection filters={filters} />}
@@ -140,6 +143,7 @@ export function ReportsPage() {
         {activeTab === 'completion-time' && <CompletionTimeSection filters={filters} />}
         {activeTab === 'dependencies' && <DependencySection filters={filters} />}
         {activeTab === 'custom' && <CustomReportSection filters={filters} groupBy={groupBy} onGroupByChange={setGroupBy} />}
+        {activeTab === 'templates' && <TemplateUsageSection />}
         {activeTab === 'my' && (
           <MyReportsSection
             currentReportType={exportReportType ?? 'TaskSummary'}

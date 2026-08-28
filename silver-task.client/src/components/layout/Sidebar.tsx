@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { NavLink } from 'react-router-dom';
-import { BarChart3, Clock, LayoutDashboard, LayoutGrid, ListChecks, Plus, ShieldCheck, Star } from 'lucide-react';
+import { BarChart3, Clock, LayoutDashboard, LayoutGrid, LayoutTemplate, ListChecks, Plus, ShieldCheck, Star } from 'lucide-react';
 import { useCreateProject, useProjects } from '@/hooks/useProjects';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Permissions } from '@/types/permissions';
@@ -75,6 +75,15 @@ export function Sidebar() {
           >
             <BarChart3 size={16} />
             <span>Reports</span>
+          </NavLink>
+        )}
+        {can(Permissions.TemplatesView) && (
+          <NavLink
+            to="/templates"
+            className={({ isActive }) => `sidebar__nav-item${isActive ? ' sidebar__nav-item--active' : ''}`}
+          >
+            <LayoutTemplate size={16} />
+            <span>Templates</span>
           </NavLink>
         )}
         {can(Permissions.AdministrationAccess) && (

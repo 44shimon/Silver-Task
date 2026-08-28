@@ -10,6 +10,7 @@ import { AssignedToDropdownCell } from './AssignedToDropdownCell';
 import { EditableDateCell } from './EditableDateCell';
 import { CustomFieldCell } from './CustomFieldCell';
 import { LabelsSection } from './LabelsSection';
+import { ChecklistSection } from './ChecklistSection';
 import { CommentsSection } from './CommentsSection';
 import { ActivityHistorySection } from './ActivityHistorySection';
 import { AttachmentsSection } from './AttachmentsSection';
@@ -145,6 +146,7 @@ export function TaskDetailPanel({
 
           <RecurrenceSection task={task} projectId={projectId} members={members} onOpenDetail={onOpenDetail} canEdit={canEdit} />
           <SubtasksSection task={task} projectId={projectId} members={members} onOpenDetail={onOpenDetail} canEdit={canEdit} />
+          <ChecklistSection taskId={task.id} canEdit={canEdit} />
           <DependenciesSection task={task} projectId={projectId} tasks={tasks} onOpenDetail={onOpenDetail} canEdit={canEdit} />
           <AttachmentsSection taskId={task.id} projectId={projectId} canEdit={canEdit} />
           <CommentsSection taskId={task.id} projectId={projectId} currentUserId={currentUserId} canEdit={canEdit} />

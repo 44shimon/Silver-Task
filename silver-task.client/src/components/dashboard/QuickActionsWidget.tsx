@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
-import { Calendar, FileText, ListChecks, Zap } from 'lucide-react';
+import { Calendar, FileText, LayoutTemplate, ListChecks, Zap } from 'lucide-react';
 import { useUserPreferences } from '@/hooks/useUserSettings';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Permissions } from '@/types/permissions';
 import { NewTaskButton } from '@/components/spreadsheet/NewTaskButton';
 import { DashboardWidget } from './DashboardWidget';
 import './QuickActionsWidget.css';
@@ -13,6 +15,7 @@ import './QuickActionsWidget.css';
 export function QuickActionsWidget() {
   const { data: preferences } = useUserPreferences();
   const defaultProjectId = preferences?.defaultProjectId;
+  const { can } = usePermissions();
 
   return (
     <DashboardWidget title="Quick Actions" icon={<Zap size={14} />}>
@@ -38,6 +41,12 @@ export function QuickActionsWidget() {
           <FileText size={13} />
           Files
         </Link>
+        {can(Permissions.TemplatesUse) && (
+          <Link to="/templates/new-project" className="quick-actions-widget__link">
+            <LayoutTemplate size={13} />
+            Create Project from Template
+          </Link>
+        )}
       </div>
     </DashboardWidget>
   );

@@ -25,6 +25,13 @@ namespace Silver_Task.Server.Data.Configurations
                 .WithMany(u => u.OwnedProjects)
                 .HasForeignKey(p => p.OwnerId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Phase 40 — SetNull: deleting the source template must never affect a project
+            // already created from it (see ProjectTemplate's own doc comment).
+            builder.HasOne(p => p.SourceProjectTemplate)
+                .WithMany()
+                .HasForeignKey(p => p.SourceProjectTemplateId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

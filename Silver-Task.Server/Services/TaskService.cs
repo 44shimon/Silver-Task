@@ -76,6 +76,16 @@ namespace Silver_Task.Server.Services
         Task<Tag> AddLabelAsync(Guid taskId, string tagName, Guid callerId, UserRole callerRole);
 
         Task RemoveLabelAsync(Guid taskId, Guid tagId, Guid callerId, UserRole callerRole);
+
+        /// <summary>Phase 40 — a lightweight per-task checklist, distinct from Subtasks (see
+        /// TaskChecklistItem's own doc comment). Same participate/edit-tier split as Labels.</summary>
+        Task<IReadOnlyList<TaskChecklistItem>> GetChecklistAsync(Guid taskId, Guid callerId, UserRole callerRole);
+
+        Task<TaskChecklistItem> AddChecklistItemAsync(Guid taskId, string text, Guid callerId, UserRole callerRole);
+
+        Task<TaskChecklistItem> SetChecklistItemCheckedAsync(Guid taskId, Guid itemId, bool isChecked, Guid callerId, UserRole callerRole);
+
+        Task RemoveChecklistItemAsync(Guid taskId, Guid itemId, Guid callerId, UserRole callerRole);
     }
 
     public class TaskService(
@@ -691,6 +701,61 @@ namespace Silver_Task.Server.Services
             task.UpdatedAt = DateTime.UtcNow;
             _db.TaskActivities.Add(BuildActivity(taskId, callerId, "Unlabeled", null, link.Tag?.Name, null));
 
+            await _db.SaveChangesAsync();
+        }
+
+        public async Task<IReadOnlyList<TaskChecklistItem>> GetChecklistAsync(Guid taskId, Guid callerId, UserRole callerRole)
+        {
+            var task = await LoadTaskAsync(taskId);
+            await _projectAccess.EnsureCanParticipateAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+
+            return await _db.TaskChecklistItems.Where(c => c.TaskId == taskId).OrderBy(c => c.SortOrder).ToListAsync();
+        }
+
+        public async Task<TaskChecklistItem> AddChecklistItemAsync(Guid taskId, string text, Guid callerId, UserRole callerRole)
+        {
+            var task = await LoadTaskAsync(taskId);
+            await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+
+            var trimmed = text.Trim();
+            if (trimmed.Length == 0)
+            {
+                throw new ValidationException("Checklist item text is required.");
+            }
+
+            var maxSortOrder = await _db.TaskChecklistItems.Where(c => c.TaskId == taskId).Select(c => (double?)c.SortOrder).MaxAsync() ?? -1;
+            var item = new TaskChecklistItem { Id = Guid.NewGuid(), TaskId = taskId, Text = trimmed, SortOrder = maxSortOrder + 1 };
+            _db.TaskChecklistItems.Add(item);
+            task.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+            return item;
+        }
+
+        public async Task<TaskChecklistItem> SetChecklistItemCheckedAsync(Guid taskId, Guid itemId, bool isChecked, Guid callerId, UserRole callerRole)
+        {
+            var task = await LoadTaskAsync(taskId);
+            await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+
+            var item = await _db.TaskChecklistItems.FirstOrDefaultAsync(c => c.Id == itemId && c.TaskId == taskId)
+                ?? throw new NotFoundException($"Checklist item '{itemId}' was not found.");
+            item.IsChecked = isChecked;
+            task.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+            return item;
+        }
+
+        public async Task RemoveChecklistItemAsync(Guid taskId, Guid itemId, Guid callerId, UserRole callerRole)
+        {
+            var task = await LoadTaskAsync(taskId);
+            await _projectAccess.EnsureCanEditAsync(task.ProjectId, task.Project!.OwnerId, callerId, callerRole);
+
+            var item = await _db.TaskChecklistItems.FirstOrDefaultAsync(c => c.Id == itemId && c.TaskId == taskId);
+            if (item is null)
+            {
+                return;
+            }
+            _db.TaskChecklistItems.Remove(item);
+            task.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
         }
 

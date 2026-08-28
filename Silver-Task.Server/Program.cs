@@ -133,6 +133,8 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IReportingService, ReportingService>();
 builder.Services.AddScoped<IReportExportService, ReportExportService>();
 builder.Services.AddScoped<ISavedReportService, SavedReportService>();
+builder.Services.AddScoped<ITemplateService, TemplateService>();
+builder.Services.AddScoped<ITemplateInstantiationService, TemplateInstantiationService>();
 builder.Services.AddHostedService<DueDateNotificationBackgroundService>();
 builder.Services.AddHostedService<RecurringTaskGenerationBackgroundService>();
 builder.Services.AddHostedService<AutomationQueueBackgroundService>();

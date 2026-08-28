@@ -1,0 +1,234 @@
+.template-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.template-wizard__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.template-wizard__header h1 {
+  font-size: 18px;
+  margin: 0;
+  color: var(--text-h);
+}
+
+.template-wizard__steps {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.template-wizard__step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.template-wizard__step--active {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.template-wizard__step--done {
+  color: var(--success);
+}
+
+.template-wizard__body {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  min-height: 220px;
+}
+
+.template-wizard__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.template-wizard__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.template-wizard__field input,
+.template-wizard__field select,
+.template-wizard__field textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.template-wizard__hint {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.75;
+  margin: 0;
+}
+
+.template-wizard__search {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+}
+
+.template-wizard__template-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.template-wizard__template-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.template-wizard__template-item:hover {
+  background: var(--bg-subtle);
+}
+
+.template-wizard__template-item--selected {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.template-wizard__template-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.template-wizard__template-meta {
+  display: block;
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
+.template-wizard__template-item p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.template-wizard__preview-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-h);
+}
+
+.template-wizard__preview-summary span {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+}
+
+.template-wizard__warnings {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: 12px;
+}
+
+.template-wizard__warnings ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.template-wizard__schedule {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.template-wizard__schedule li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  font-size: 12px;
+  color: var(--text-h);
+}
+
+.template-wizard__error {
+  color: #dc2626;
+  font-size: 12px;
+  margin: 0;
+}
+
+.template-wizard__actions {
+  display: flex;
+  justify-content: space-between;
+}
+
+.template-wizard__actions button {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  color: var(--text-h);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.template-wizard__primary {
+  background: var(--accent);
+  color: white;
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.template-wizard__actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

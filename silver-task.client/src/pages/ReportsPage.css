@@ -81,6 +81,12 @@
   gap: 16px;
 }
 
+.template-usage-section__summary {
+  font-size: 13px;
+  color: var(--text-h);
+  margin-bottom: 10px;
+}
+
 .report-section__stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));

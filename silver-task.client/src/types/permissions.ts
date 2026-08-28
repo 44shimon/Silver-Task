@@ -48,6 +48,13 @@ export const Permissions = {
   SettingsEdit: 'Settings.Edit',
 
   AdministrationAccess: 'Administration.Access',
+
+  TemplatesView: 'Templates.View',
+  TemplatesCreate: 'Templates.Create',
+  TemplatesEdit: 'Templates.Edit',
+  TemplatesDelete: 'Templates.Delete',
+  TemplatesUse: 'Templates.Use',
+  TemplatesShare: 'Templates.Share',
 } as const;
 
 export type PermissionCode = (typeof Permissions)[keyof typeof Permissions];
@@ -99,6 +106,13 @@ export const PERMISSION_LABELS: Record<string, string> = {
   [Permissions.SettingsEdit]: 'Edit System Settings',
 
   [Permissions.AdministrationAccess]: 'Access Admin Area',
+
+  [Permissions.TemplatesView]: 'View Templates',
+  [Permissions.TemplatesCreate]: 'Create Templates',
+  [Permissions.TemplatesEdit]: 'Edit Any Template',
+  [Permissions.TemplatesDelete]: 'Delete Any Template',
+  [Permissions.TemplatesUse]: 'Use Templates',
+  [Permissions.TemplatesShare]: 'Share Templates',
 };
 
 /** Group label -> permission codes, same grouping/order as the backend's Permissions.Groups —
@@ -128,4 +142,12 @@ export const PERMISSION_GROUPS: Record<string, string[]> = {
   Reports: [Permissions.ReportsView, Permissions.ReportsExport, Permissions.ReportsCreate, Permissions.ReportsManage],
   Settings: [Permissions.SettingsView, Permissions.SettingsEdit],
   Administration: [Permissions.AdministrationAccess],
+  Templates: [
+    Permissions.TemplatesView,
+    Permissions.TemplatesCreate,
+    Permissions.TemplatesEdit,
+    Permissions.TemplatesDelete,
+    Permissions.TemplatesUse,
+    Permissions.TemplatesShare,
+  ],
 };

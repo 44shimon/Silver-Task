@@ -1,0 +1,302 @@
+.templates-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.templates-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.templates-page__header h1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  margin: 0;
+  color: var(--text-h);
+}
+
+.templates-page__create-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.templates-page__create-actions button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.templates-page__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.templates-page__search {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+}
+
+.templates-page__filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.templates-page__filter {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.templates-page__filter--active {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.templates-page__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.templates-page__item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.templates-page__item--archived {
+  opacity: 0.7;
+}
+
+.templates-page__item-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.templates-page__favorite {
+  border: none;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+}
+
+.templates-page__type-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.templates-page__type-badge--project {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.templates-page__name {
+  border: none;
+  background: none;
+  color: var(--text-h);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.templates-page__archived-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.templates-page__owner {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.8;
+}
+
+.templates-page__description {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.templates-page__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.templates-page__meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.templates-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.templates-page__actions button,
+.templates-page__actions a {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  color: var(--text-h);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.templates-page__delete {
+  color: #dc2626;
+}
+
+.templates-page__share-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.templates-page__share-form input {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 12px;
+}
+
+.templates-page__error {
+  color: #dc2626;
+  font-size: 12px;
+  margin: 4px 0 0;
+  width: 100%;
+}
+
+.templates-page__modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.templates-page__modal {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 20px;
+  width: 360px;
+  max-width: 90vw;
+  box-shadow: var(--shadow);
+}
+
+.templates-page__modal h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  color: var(--text-h);
+}
+
+.templates-page__modal form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.templates-page__modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.templates-page__modal select,
+.templates-page__modal input {
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+}
+
+.templates-page__modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.templates-page__modal-actions button {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  color: var(--text-h);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.templates-page__modal-actions button[type='submit'] {
+  background: var(--accent);
+  color: white;
+  border-color: transparent;
+}
+
+.templates-page__modal-actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

@@ -1,0 +1,103 @@
+.checklist-section__progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.checklist-section__progress-label {
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.checklist-section__progress-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+
+.checklist-section__progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.checklist-section__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.checklist-section__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.checklist-section__item label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.checklist-section__text--checked {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.checklist-section__item button {
+  border: none;
+  background: none;
+  color: var(--text);
+  opacity: 0.6;
+  cursor: pointer;
+  display: flex;
+}
+
+.checklist-section__item button:hover {
+  opacity: 1;
+  color: #dc2626;
+}
+
+.checklist-section__add-form {
+  display: flex;
+  gap: 6px;
+}
+
+.checklist-section__add-form input {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 12px;
+}
+
+.checklist-section__add-form button {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.checklist-section__add-form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

@@ -85,6 +85,20 @@ namespace Silver_Task.Server.Common
         public const string ReportsCreate = "Reports.Create";
         public const string ReportsManage = "Reports.Manage";
 
+        // Templates (Phase 40; system-level, same reasoning as Reports — a template isn't
+        // project-scoped, and the actual DATA a template can touch (users it assigns, custom
+        // fields/tags it references) is always separately re-validated at use time by
+        // ITemplateInstantiationService, never trusted from the template's own stored config
+        // alone. View/Create/Use are granted broadly (Manager/Member); Edit/Delete/Share require
+        // ownership (or Administrator) — enforced imperatively in TemplateService, same as
+        // SavedReport's own EnsureCanModify pattern, not blanket-granted here.
+        public const string TemplatesView = "Templates.View";
+        public const string TemplatesCreate = "Templates.Create";
+        public const string TemplatesEdit = "Templates.Edit";
+        public const string TemplatesDelete = "Templates.Delete";
+        public const string TemplatesUse = "Templates.Use";
+        public const string TemplatesShare = "Templates.Share";
+
         // Settings (system-level)
         public const string SettingsView = "Settings.View";
         public const string SettingsEdit = "Settings.Edit";
@@ -103,6 +117,7 @@ namespace Silver_Task.Server.Common
             CustomFieldsManage,
             AutomationsView, AutomationsCreate, AutomationsEdit, AutomationsDelete, AutomationsExecute,
             ReportsView, ReportsExport, ReportsCreate, ReportsManage,
+            TemplatesView, TemplatesCreate, TemplatesEdit, TemplatesDelete, TemplatesUse, TemplatesShare,
             SettingsView, SettingsEdit,
             AdministrationAccess
         ];
@@ -120,6 +135,7 @@ namespace Silver_Task.Server.Common
             ["Custom Fields"] = [CustomFieldsManage],
             ["Automations"] = [AutomationsView, AutomationsCreate, AutomationsEdit, AutomationsDelete, AutomationsExecute],
             ["Reports"] = [ReportsView, ReportsExport, ReportsCreate, ReportsManage],
+            ["Templates"] = [TemplatesView, TemplatesCreate, TemplatesEdit, TemplatesDelete, TemplatesUse, TemplatesShare],
             ["Settings"] = [SettingsView, SettingsEdit],
             ["Administration"] = [AdministrationAccess]
         };

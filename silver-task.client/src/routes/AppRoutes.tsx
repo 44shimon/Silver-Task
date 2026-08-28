@@ -3,6 +3,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/auth/RequireAuth';
 import { RequireAdmin } from '@/components/auth/RequireAdmin';
 import { RequireReportsAccess } from '@/components/auth/RequireReportsAccess';
+import { RequireTemplatesAccess } from '@/components/auth/RequireTemplatesAccess';
 import { MyTasksPage } from '@/pages/MyTasksPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { LandingRedirect } from '@/pages/LandingRedirect';
@@ -28,6 +29,10 @@ import { NotificationSettingsPage } from '@/pages/settings/NotificationSettingsP
 import { SecuritySettingsPage } from '@/pages/settings/SecuritySettingsPage';
 import { DashboardSettingsPage } from '@/pages/settings/DashboardSettingsPage';
 import { ReportsPage } from '@/pages/ReportsPage';
+import { TemplatesPage } from '@/pages/TemplatesPage';
+import { ProjectTemplateBuilderPage } from '@/pages/templates/ProjectTemplateBuilderPage';
+import { TaskTemplateBuilderPage } from '@/pages/templates/TaskTemplateBuilderPage';
+import { CreateProjectFromTemplateWizardPage } from '@/pages/templates/CreateProjectFromTemplateWizardPage';
 
 export function AppRoutes() {
   return (
@@ -60,6 +65,38 @@ export function AppRoutes() {
                     <RequireReportsAccess>
                       <ReportsPage />
                     </RequireReportsAccess>
+                  }
+                />
+                <Route
+                  path="/templates"
+                  element={
+                    <RequireTemplatesAccess>
+                      <TemplatesPage />
+                    </RequireTemplatesAccess>
+                  }
+                />
+                <Route
+                  path="/templates/new-project"
+                  element={
+                    <RequireTemplatesAccess>
+                      <CreateProjectFromTemplateWizardPage />
+                    </RequireTemplatesAccess>
+                  }
+                />
+                <Route
+                  path="/templates/project/:id"
+                  element={
+                    <RequireTemplatesAccess>
+                      <ProjectTemplateBuilderPage />
+                    </RequireTemplatesAccess>
+                  }
+                />
+                <Route
+                  path="/templates/task/:id"
+                  element={
+                    <RequireTemplatesAccess>
+                      <TaskTemplateBuilderPage />
+                    </RequireTemplatesAccess>
                   }
                 />
                 <Route path="/settings" element={<SettingsLayout />}>

@@ -84,6 +84,10 @@ export function useLongestDependencyChain(projectId: string | undefined) {
   });
 }
 
+export function useTemplateUsageReport() {
+  return useQuery({ queryKey: ['reports', 'template-usage'], queryFn: reportsApi.templateUsage });
+}
+
 export function useSavedReports() {
   return useQuery({ queryKey: savedReportsKey, queryFn: savedReportsApi.list });
 }

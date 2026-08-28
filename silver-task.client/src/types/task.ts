@@ -65,6 +65,13 @@ export interface Task {
   updatedAt: string;
 }
 
+export interface TaskChecklistItem {
+  id: string;
+  text: string;
+  isChecked: boolean;
+  sortOrder: number;
+}
+
 export interface CreateTaskRequest {
   title: string;
   description?: string;

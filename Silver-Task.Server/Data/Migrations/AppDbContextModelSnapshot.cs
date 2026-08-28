@@ -632,6 +632,12 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("SourceProjectTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("SourceTemplateSnapshotAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -642,6 +648,8 @@ namespace Silver_Task.Server.Data.Migrations
                     b.HasIndex("IsArchived");
 
                     b.HasIndex("OwnerId");
+
+                    b.HasIndex("SourceProjectTemplateId");
 
                     b.ToTable("Projects", (string)null);
                 });
@@ -676,6 +684,241 @@ namespace Silver_Task.Server.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("ProjectMembers", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.ProjectTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastUsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<int>("UsageCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("IsArchived");
+
+                    b.ToTable("ProjectTemplates", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.ProjectTemplateTask", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AssignedToUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AssignmentMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)");
+
+                    b.Property<int?>("DueOffsetDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("EstimatedDurationDays")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ParentTemplateTaskId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("ProjectTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<double>("SortOrder")
+                        .HasColumnType("double precision");
+
+                    b.Property<int?>("StartOffsetDays")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedToUserId");
+
+                    b.HasIndex("ParentTemplateTaskId");
+
+                    b.HasIndex("ProjectTemplateId");
+
+                    b.ToTable("ProjectTemplateTasks", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.ProjectTemplateTaskChecklistItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProjectTemplateTaskId")
+                        .HasColumnType("uuid");
+
+                    b.Property<double>("SortOrder")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectTemplateTaskId");
+
+                    b.ToTable("ProjectTemplateTaskChecklistItems", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.ProjectTemplateTaskCustomValue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CustomFieldId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProjectTemplateTaskId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Value")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomFieldId");
+
+                    b.HasIndex("ProjectTemplateTaskId", "CustomFieldId")
+                        .IsUnique();
+
+                    b.ToTable("ProjectTemplateTaskCustomValues", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.ProjectTemplateTaskDependency", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<string>("DependencyType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("DependsOnTemplateTaskId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProjectTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TemplateTaskId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DependsOnTemplateTaskId");
+
+                    b.HasIndex("ProjectTemplateId");
+
+                    b.HasIndex("TemplateTaskId", "DependsOnTemplateTaskId", "DependencyType")
+                        .IsUnique();
+
+                    b.ToTable("ProjectTemplateTaskDependencies", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProjectTemplateTaskDependencies_NoSelfDependency", "\"TemplateTaskId\" != \"DependsOnTemplateTaskId\"");
+                        });
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.ProjectTemplateTaskTag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProjectTemplateTaskId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TagId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TagId");
+
+                    b.HasIndex("ProjectTemplateTaskId", "TagId")
+                        .IsUnique();
+
+                    b.ToTable("ProjectTemplateTaskTags", (string)null);
                 });
 
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.RecurringTask", b =>
@@ -998,6 +1241,38 @@ namespace Silver_Task.Server.Data.Migrations
                     b.ToTable("TaskActivities", (string)null);
                 });
 
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskChecklistItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<bool>("IsChecked")
+                        .HasColumnType("boolean");
+
+                    b.Property<double>("SortOrder")
+                        .HasColumnType("double precision");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TaskId");
+
+                    b.ToTable("TaskChecklistItems", (string)null);
+                });
+
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskComment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1229,6 +1504,194 @@ namespace Silver_Task.Server.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("TaskTags", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("AssignedToUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AssignmentMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)");
+
+                    b.Property<int?>("DueOffsetDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("EstimatedDurationDays")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastUsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int?>("StartOffsetDays")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<int>("UsageCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedToUserId");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("IsArchived");
+
+                    b.ToTable("TaskTemplates", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskTemplateChecklistItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<double>("SortOrder")
+                        .HasColumnType("double precision");
+
+                    b.Property<Guid>("TaskTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TaskTemplateId");
+
+                    b.ToTable("TaskTemplateChecklistItems", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskTemplateCustomValue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CustomFieldId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TaskTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Value")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomFieldId");
+
+                    b.HasIndex("TaskTemplateId", "CustomFieldId")
+                        .IsUnique();
+
+                    b.ToTable("TaskTemplateCustomValues", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskTemplateTag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TagId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TaskTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TagId");
+
+                    b.HasIndex("TaskTemplateId", "TagId")
+                        .IsUnique();
+
+                    b.ToTable("TaskTemplateTags", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.TemplateShare", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<Guid?>("ProjectTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SharedWithUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TaskTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SharedWithUserId");
+
+                    b.HasIndex("ProjectTemplateId", "SharedWithUserId")
+                        .IsUnique();
+
+                    b.HasIndex("TaskTemplateId", "SharedWithUserId")
+                        .IsUnique();
+
+                    b.ToTable("TemplateShares", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TemplateShares_ExactlyOneParent", "(CASE WHEN \"ProjectTemplateId\" IS NOT NULL THEN 1 ELSE 0 END) + (CASE WHEN \"TaskTemplateId\" IS NOT NULL THEN 1 ELSE 0 END) = 1");
+                        });
                 });
 
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.User", b =>
@@ -1463,6 +1926,44 @@ namespace Silver_Task.Server.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("UserReportFavorites", (string)null);
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.UserTemplateFavorite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<Guid?>("ProjectTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TaskTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectTemplateId");
+
+                    b.HasIndex("TaskTemplateId");
+
+                    b.HasIndex("UserId", "ProjectTemplateId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "TaskTemplateId")
+                        .IsUnique();
+
+                    b.ToTable("UserTemplateFavorites", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_UserTemplateFavorites_ExactlyOneParent", "(CASE WHEN \"ProjectTemplateId\" IS NOT NULL THEN 1 ELSE 0 END) + (CASE WHEN \"TaskTemplateId\" IS NOT NULL THEN 1 ELSE 0 END) = 1");
+                        });
                 });
 
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.Attachment", b =>
@@ -1703,7 +2204,14 @@ namespace Silver_Task.Server.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Silver_Task.Server.Models.Entities.ProjectTemplate", "SourceProjectTemplate")
+                        .WithMany()
+                        .HasForeignKey("SourceProjectTemplateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Owner");
+
+                    b.Navigation("SourceProjectTemplate");
                 });
 
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.ProjectMember", b =>
@@ -1723,6 +2231,118 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Navigation("Project");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.ProjectTemplate", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedBy");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.ProjectTemplateTask", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.User", "AssignedTo")
+                        .WithMany()
+                        .HasForeignKey("AssignedToUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.ProjectTemplateTask", "ParentTemplateTask")
+                        .WithMany("Subtasks")
+                        .HasForeignKey("ParentTemplateTaskId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.ProjectTemplate", "ProjectTemplate")
+                        .WithMany("Tasks")
+                        .HasForeignKey("ProjectTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AssignedTo");
+
+                    b.Navigation("ParentTemplateTask");
+
+                    b.Navigation("ProjectTemplate");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.ProjectTemplateTaskChecklistItem", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.ProjectTemplateTask", "ProjectTemplateTask")
+                        .WithMany("ChecklistItems")
+                        .HasForeignKey("ProjectTemplateTaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProjectTemplateTask");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.ProjectTemplateTaskCustomValue", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.CustomField", "CustomField")
+                        .WithMany()
+                        .HasForeignKey("CustomFieldId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.ProjectTemplateTask", "ProjectTemplateTask")
+                        .WithMany("CustomValues")
+                        .HasForeignKey("ProjectTemplateTaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CustomField");
+
+                    b.Navigation("ProjectTemplateTask");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.ProjectTemplateTaskDependency", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.ProjectTemplateTask", "DependsOnTemplateTask")
+                        .WithMany()
+                        .HasForeignKey("DependsOnTemplateTaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.ProjectTemplate", "ProjectTemplate")
+                        .WithMany("Dependencies")
+                        .HasForeignKey("ProjectTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.ProjectTemplateTask", "TemplateTask")
+                        .WithMany()
+                        .HasForeignKey("TemplateTaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DependsOnTemplateTask");
+
+                    b.Navigation("ProjectTemplate");
+
+                    b.Navigation("TemplateTask");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.ProjectTemplateTaskTag", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.ProjectTemplateTask", "ProjectTemplateTask")
+                        .WithMany("Tags")
+                        .HasForeignKey("ProjectTemplateTaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.Tag", "Tag")
+                        .WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProjectTemplateTask");
+
+                    b.Navigation("Tag");
                 });
 
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.RecurringTask", b =>
@@ -1852,6 +2472,17 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskChecklistItem", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.TaskItem", "Task")
+                        .WithMany("ChecklistItems")
+                        .HasForeignKey("TaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Task");
+                });
+
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskComment", b =>
                 {
                     b.HasOne("Silver_Task.Server.Models.Entities.Automation", "Automation")
@@ -1975,6 +2606,98 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Navigation("Task");
                 });
 
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskTemplate", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.User", "AssignedTo")
+                        .WithMany()
+                        .HasForeignKey("AssignedToUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AssignedTo");
+
+                    b.Navigation("CreatedBy");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskTemplateChecklistItem", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.TaskTemplate", "TaskTemplate")
+                        .WithMany("ChecklistItems")
+                        .HasForeignKey("TaskTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TaskTemplate");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskTemplateCustomValue", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.CustomField", "CustomField")
+                        .WithMany()
+                        .HasForeignKey("CustomFieldId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.TaskTemplate", "TaskTemplate")
+                        .WithMany("CustomValues")
+                        .HasForeignKey("TaskTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CustomField");
+
+                    b.Navigation("TaskTemplate");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskTemplateTag", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.Tag", "Tag")
+                        .WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.TaskTemplate", "TaskTemplate")
+                        .WithMany("Tags")
+                        .HasForeignKey("TaskTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tag");
+
+                    b.Navigation("TaskTemplate");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.TemplateShare", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.ProjectTemplate", "ProjectTemplate")
+                        .WithMany("Shares")
+                        .HasForeignKey("ProjectTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.User", "SharedWithUser")
+                        .WithMany()
+                        .HasForeignKey("SharedWithUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.TaskTemplate", "TaskTemplate")
+                        .WithMany("Shares")
+                        .HasForeignKey("TaskTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("ProjectTemplate");
+
+                    b.Navigation("SharedWithUser");
+
+                    b.Navigation("TaskTemplate");
+                });
+
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.User", b =>
                 {
                     b.HasOne("Silver_Task.Server.Models.Entities.User", "DeletedByUser")
@@ -2052,6 +2775,31 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.UserTemplateFavorite", b =>
+                {
+                    b.HasOne("Silver_Task.Server.Models.Entities.ProjectTemplate", "ProjectTemplate")
+                        .WithMany("FavoritedBy")
+                        .HasForeignKey("ProjectTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.TaskTemplate", "TaskTemplate")
+                        .WithMany("FavoritedBy")
+                        .HasForeignKey("TaskTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("Silver_Task.Server.Models.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProjectTemplate");
+
+                    b.Navigation("TaskTemplate");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.Attachment", b =>
                 {
                     b.Navigation("FavoritedBy");
@@ -2095,6 +2843,28 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Navigation("Tasks");
                 });
 
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.ProjectTemplate", b =>
+                {
+                    b.Navigation("Dependencies");
+
+                    b.Navigation("FavoritedBy");
+
+                    b.Navigation("Shares");
+
+                    b.Navigation("Tasks");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.ProjectTemplateTask", b =>
+                {
+                    b.Navigation("ChecklistItems");
+
+                    b.Navigation("CustomValues");
+
+                    b.Navigation("Subtasks");
+
+                    b.Navigation("Tags");
+                });
+
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.RecurringTask", b =>
                 {
                     b.Navigation("Exceptions");
@@ -2120,6 +2890,8 @@ namespace Silver_Task.Server.Data.Migrations
 
                     b.Navigation("Attachments");
 
+                    b.Navigation("ChecklistItems");
+
                     b.Navigation("Comments");
 
                     b.Navigation("CustomValues");
@@ -2127,6 +2899,19 @@ namespace Silver_Task.Server.Data.Migrations
                     b.Navigation("Subtasks");
 
                     b.Navigation("TaskTags");
+                });
+
+            modelBuilder.Entity("Silver_Task.Server.Models.Entities.TaskTemplate", b =>
+                {
+                    b.Navigation("ChecklistItems");
+
+                    b.Navigation("CustomValues");
+
+                    b.Navigation("FavoritedBy");
+
+                    b.Navigation("Shares");
+
+                    b.Navigation("Tags");
                 });
 
             modelBuilder.Entity("Silver_Task.Server.Models.Entities.User", b =>
