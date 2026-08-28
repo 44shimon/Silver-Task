@@ -17,6 +17,24 @@ export function AppShell({ children }: AppShellProps) {
   useNotificationHub();
   useLastVisitedPage();
 
+  // Phase 42 — Ctrl+K (Cmd+K on Mac) focuses the global search box. No keyboard-shortcut system
+  // existed anywhere in this app before (confirmed by research), so this is a fresh, minimal
+  // addition scoped to exactly the one shortcut the spec asks for — not a general command-palette
+  // framework. Registered once for the whole authenticated app, same as useNotificationHub above.
+  useEffect(() => {
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      const isShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k';
+      if (!isShortcut) {
+        return;
+      }
+      event.preventDefault();
+      document.getElementById('global-search-input')?.focus();
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // System (the default) leaves the attribute unset entirely, so index.css's
   // prefers-color-scheme media query keeps governing — Light/Dark force an explicit override
   // regardless of OS preference. Applied here (not per-page) so it's in effect everywhere
