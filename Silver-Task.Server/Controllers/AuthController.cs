@@ -49,10 +49,19 @@ namespace Silver_Task.Server.Controllers
 
         private void SetAuthCookie(string token, DateTime expiresAtUtc)
         {
+            // Secure must follow the actual client-facing scheme (Request.IsHttps, which
+            // ForwardedHeadersMiddleware/X-Forwarded-Proto keeps accurate behind nginx — see
+            // Program.cs), not a hardcoded true. A cookie marked Secure is silently refused by
+            // the browser over a plain-HTTP connection: login still looks like it succeeds
+            // (the SPA seeds its "current user" cache straight from this response body, see
+            // useAuth.ts), but the cookie is never actually stored, so every subsequent
+            // authenticated request 401s. Found for real on an HTTP-only/IP install (no
+            // domain — install-debian.sh's own default, non-HTTPS path) where changing your
+            // password failed with "Request failed with status 401".
             Response.Cookies.Append(AuthCookie.Name, token, new CookieOptions
             {
                 HttpOnly = true,
-                Secure = true,
+                Secure = Request.IsHttps,
                 SameSite = SameSiteMode.Strict,
                 Expires = expiresAtUtc,
                 Path = "/"
