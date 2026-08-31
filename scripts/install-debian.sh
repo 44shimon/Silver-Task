@@ -245,6 +245,9 @@ rsync -a --delete \
     --exclude 'App_Data/' --exclude '.vs/' \
     "$REPO_ROOT/" "$SILVERTASK_SOURCE_DIR/" \
     || st_fail "Copying application source failed."
+# Pre-authorize root (update-debian.sh always runs as root) to run git against this tree even
+# after it's chowned to $SILVERTASK_SERVICE_USER below — see st_trust_git_dir in common.sh.
+st_trust_git_dir "$SILVERTASK_SOURCE_DIR"
 
 # --- File storage ---
 st_step "Configuring file storage at $STORAGE_ROOT"

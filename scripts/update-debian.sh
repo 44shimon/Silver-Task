@@ -55,6 +55,7 @@ if [ ! -d "$SILVERTASK_SOURCE_DIR/.git" ]; then
     st_fail "$SILVERTASK_SOURCE_DIR is not a git checkout — cannot update automatically." \
         "Re-run scripts/install-debian.sh from a git-cloned copy of the repository to restore update capability."
 fi
+st_trust_git_dir "$SILVERTASK_SOURCE_DIR"
 (
     cd "$SILVERTASK_SOURCE_DIR"
     git fetch --all --tags >> "$SILVERTASK_LOG_FILE" 2>&1

@@ -51,6 +51,18 @@ st_fail() {
     exit 1
 }
 
+# Marks a directory as a trusted git repository for root. The installed source tree ends up
+# owned by $SILVERTASK_SERVICE_USER (so the running app can read/write everything beneath the
+# same install root), but git operations against it (update-debian.sh's fetch/checkout/pull)
+# always run as root — modern git refuses to operate inside a repo it doesn't own ("detected
+# dubious ownership") unless the path is explicitly marked safe. Guarded against duplicate
+# entries since install/update can both call this across multiple runs.
+st_trust_git_dir() {
+    local dir="$1"
+    git config --global --get-all safe.directory 2>/dev/null | grep -qxF "$dir" \
+        || git config --global --add safe.directory "$dir"
+}
+
 # Loads a systemd EnvironmentFile-format file (plain KEY=VALUE per line, no shell quoting or
 # expansion — values are taken completely literally) into the current shell's exported
 # environment. Deliberately NOT a plain `source`/`.`: bash would execute the file as shell
