@@ -26,7 +26,14 @@ Description=Silver Task (ASP.NET Core, serves API + bundled SPA)
 After=network.target postgresql.service
 
 [Service]
-Type=notify
+# Type=simple, not notify: notify requires the app to call sd_notify(READY=1) via ASP.NET
+# Core's .UseSystemd() host integration, which this app does not use. Without that, a
+# Type=notify unit waits for a signal that never arrives and the start times out — found for
+# real on the Debian 13 test server ("Job for silvertask.service failed because a timeout was
+# exceeded"). Type=simple considers the service started as soon as the process is exec'd;
+# actual readiness is verified separately, over HTTP, by scripts/install-debian.sh's own
+# post-start health check against /api/health/ready.
+Type=simple
 WorkingDirectory=/opt/silvertask/publish
 ExecStart=/usr/bin/dotnet /opt/silvertask/publish/Silver-Task.Server.dll
 Restart=always
