@@ -16,7 +16,10 @@
 # Adjust WorkingDirectory/ExecStart to the actual publish output path
 # (`dotnet publish Silver-Task.Server/Silver-Task.Server.csproj -c Release -o <publish-dir>`),
 # and User to a dedicated non-root service account with write access only to that directory and
-# to the configured Attachments:StorageRoot.
+# to the configured Attachments:StorageRoot. ExecStart below assumes `dotnet` resolves via PATH
+# (e.g. `command -v dotnet`) — scripts/install-debian.sh installs it via Microsoft's official
+# dotnet-install.sh to /usr/share/dotnet with a /usr/local/bin/dotnet symlink, not via apt, so
+# adjust the path below if you installed .NET a different way (e.g. apt's /usr/bin/dotnet).
 
 [Unit]
 Description=Silver Task (ASP.NET Core, serves API + bundled SPA)

@@ -150,29 +150,43 @@ apt-get install -y -qq \
     || st_fail "Installing base packages failed." "Check $SILVERTASK_LOG_FILE for apt's output."
 st_info "Base packages installed."
 
+# Both .NET and Node.js are installed via their vendors' own direct HTTPS binary downloads,
+# NOT via packages.microsoft.com/NodeSource's apt repos. Found the hard way: Microsoft's repo
+# signing key uses an older SHA1-based certification signature that Debian 13 (trixie)'s
+# tightened apt/sequoia cryptographic policy rejects outright ("SHA1 is not considered secure
+# since 2026-02-01") — not a wrong-Debian-version-config problem, a hard policy rejection with
+# no apt-side workaround short of lowering the whole system's crypto policy (not something an
+# installer should ever do). Downloading the official tarball/install script directly sidesteps
+# third-party apt-repo trust chains entirely and works identically across Debian versions.
+DOTNET_ARCH="x64"; [ "$(dpkg --print-architecture)" = "arm64" ] && DOTNET_ARCH="arm64"
 if ! command -v dotnet >/dev/null 2>&1; then
     st_step "Installing .NET SDK 10"
-    curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
-        || st_fail "Could not download the Microsoft package repository config."
-    dpkg -i /tmp/packages-microsoft-prod.deb >> "$SILVERTASK_LOG_FILE" 2>&1
-    rm -f /tmp/packages-microsoft-prod.deb
-    apt-get update -qq
-    apt-get install -y -qq dotnet-sdk-10.0 >> "$SILVERTASK_LOG_FILE" 2>&1 \
-        || st_fail "Installing dotnet-sdk-10.0 failed." "Check $SILVERTASK_LOG_FILE."
-    st_info "$(dotnet --version) SDK installed."
+    curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
+        || st_fail "Could not download dotnet-install.sh." "Check https://dot.net/v1/dotnet-install.sh is reachable."
+    bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet --architecture "$DOTNET_ARCH" >> "$SILVERTASK_LOG_FILE" 2>&1 \
+        || st_fail "Installing .NET SDK 10 failed." "Check $SILVERTASK_LOG_FILE."
+    rm -f /tmp/dotnet-install.sh
+    ln -sf /usr/share/dotnet/dotnet /usr/local/bin/dotnet
+    st_info "$(dotnet --version) SDK installed to /usr/share/dotnet."
 else
     st_info ".NET SDK already present: $(dotnet --version)"
 fi
 
+NODE_ARCH="x64"; [ "$(dpkg --print-architecture)" = "arm64" ] && NODE_ARCH="arm64"
 if ! command -v node >/dev/null 2>&1; then
     st_step "Installing Node.js (required to build the frontend)"
-    curl -fsSL https://deb.nodesource.com/setup_22.x -o /tmp/nodesource_setup.sh \
-        || st_fail "Could not download the NodeSource setup script."
-    bash /tmp/nodesource_setup.sh >> "$SILVERTASK_LOG_FILE" 2>&1
-    rm -f /tmp/nodesource_setup.sh
-    apt-get install -y -qq nodejs >> "$SILVERTASK_LOG_FILE" 2>&1 \
-        || st_fail "Installing Node.js failed." "Check $SILVERTASK_LOG_FILE."
-    st_info "Node $(node --version) installed."
+    NODE_TARBALL="$(curl -fsSL "https://nodejs.org/dist/latest-v22.x/" | grep -oP "node-v22\.[0-9.]+-linux-${NODE_ARCH}\.tar\.xz" | head -1)"
+    [ -z "$NODE_TARBALL" ] && st_fail "Could not determine the latest Node.js 22.x download filename." "Check https://nodejs.org/dist/latest-v22.x/ manually and adjust the script if their listing format changed."
+    curl -fsSL "https://nodejs.org/dist/latest-v22.x/$NODE_TARBALL" -o /tmp/node.tar.xz \
+        || st_fail "Node.js download failed."
+    mkdir -p /opt/nodejs
+    tar -xJf /tmp/node.tar.xz -C /opt/nodejs --strip-components=1 \
+        || st_fail "Extracting the Node.js archive failed."
+    rm -f /tmp/node.tar.xz
+    ln -sf /opt/nodejs/bin/node /usr/local/bin/node
+    ln -sf /opt/nodejs/bin/npm /usr/local/bin/npm
+    ln -sf /opt/nodejs/bin/npx /usr/local/bin/npx
+    st_info "Node $(node --version) installed to /opt/nodejs."
 else
     st_info "Node.js already present: $(node --version)"
 fi
@@ -285,9 +299,10 @@ st_info "Migrations applied."
 
 # --- systemd service ---
 st_step "Installing systemd service"
+DOTNET_BIN="$(command -v dotnet)" || st_fail "dotnet not found on PATH after installation." "This should not happen — check the .NET install step above in $SILVERTASK_LOG_FILE."
 sed \
     -e "s#WorkingDirectory=.*#WorkingDirectory=$SILVERTASK_PUBLISH_DIR#" \
-    -e "s#ExecStart=.*#ExecStart=/usr/bin/dotnet $SILVERTASK_PUBLISH_DIR/Silver-Task.Server.dll#" \
+    -e "s#ExecStart=.*#ExecStart=$DOTNET_BIN $SILVERTASK_PUBLISH_DIR/Silver-Task.Server.dll#" \
     -e "s#User=.*#User=$SILVERTASK_SERVICE_USER#" \
     -e "s#EnvironmentFile=.*#EnvironmentFile=$SILVERTASK_ENV_FILE#" \
     "$REPO_ROOT/deploy/silvertask.service" > "/etc/systemd/system/${SILVERTASK_SERVICE_NAME}.service"
