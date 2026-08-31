@@ -121,15 +121,15 @@ if [ -n "${ConnectionStrings__DefaultConnection:-}" ]; then
     DB_NAME=$(echo "$ConnectionStrings__DefaultConnection" | grep -oP '(?<=Database=)[^;]*' || true)
     DB_USER=$(echo "$ConnectionStrings__DefaultConnection" | grep -oP '(?<=Username=)[^;]*' || true)
     if [ -n "${DB_NAME:-}" ]; then
-        sudo -u postgres psql -c "DROP DATABASE IF EXISTS $DB_NAME;" >> "$SILVERTASK_LOG_FILE" 2>&1 || st_warn "Could not drop database $DB_NAME — it may not exist or PostgreSQL may not be running."
+        st_run_as_postgres psql -c "DROP DATABASE IF EXISTS $DB_NAME;" >> "$SILVERTASK_LOG_FILE" 2>&1 || st_warn "Could not drop database $DB_NAME — it may not exist or PostgreSQL may not be running."
         st_info "Database $DB_NAME dropped."
     fi
     if [ -n "${DB_USER:-}" ]; then
-        sudo -u postgres psql -c "DROP ROLE IF EXISTS $DB_USER;" >> "$SILVERTASK_LOG_FILE" 2>&1 || st_warn "Could not drop role $DB_USER."
+        st_run_as_postgres psql -c "DROP ROLE IF EXISTS $DB_USER;" >> "$SILVERTASK_LOG_FILE" 2>&1 || st_warn "Could not drop role $DB_USER."
         st_info "Database role $DB_USER dropped."
     fi
 else
-    st_warn "No database connection string found (env file already missing?) — cannot determine database name to drop. Remove it manually if needed: sudo -u postgres psql -l"
+    st_warn "No database connection string found (env file already missing?) — cannot determine database name to drop. Remove it manually if needed: runuser -u postgres -- psql -l"
 fi
 
 st_step "Deleting uploaded files"

@@ -245,13 +245,13 @@ if [ -f "$SILVERTASK_ENV_FILE" ]; then
 fi
 DB_PASSWORD="${DB_PASSWORD:-$(st_generate_secret 24)}"
 
-if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1; then
-    sudo -u postgres psql -c "CREATE ROLE $DB_USER LOGIN PASSWORD '$DB_PASSWORD';" >> "$SILVERTASK_LOG_FILE" 2>&1
+if ! st_run_as_postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1; then
+    st_run_as_postgres psql -c "CREATE ROLE $DB_USER LOGIN PASSWORD '$DB_PASSWORD';" >> "$SILVERTASK_LOG_FILE" 2>&1
 else
-    sudo -u postgres psql -c "ALTER ROLE $DB_USER WITH PASSWORD '$DB_PASSWORD';" >> "$SILVERTASK_LOG_FILE" 2>&1
+    st_run_as_postgres psql -c "ALTER ROLE $DB_USER WITH PASSWORD '$DB_PASSWORD';" >> "$SILVERTASK_LOG_FILE" 2>&1
 fi
-if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" | grep -q 1; then
-    sudo -u postgres psql -c "CREATE DATABASE $DB_NAME OWNER $DB_USER;" >> "$SILVERTASK_LOG_FILE" 2>&1
+if ! st_run_as_postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" | grep -q 1; then
+    st_run_as_postgres psql -c "CREATE DATABASE $DB_NAME OWNER $DB_USER;" >> "$SILVERTASK_LOG_FILE" 2>&1
     st_info "Database '$DB_NAME' created."
 else
     st_info "Database '$DB_NAME' already exists — not recreated (never drops an existing production database)."

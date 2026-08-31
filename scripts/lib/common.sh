@@ -51,6 +51,17 @@ st_fail() {
     exit 1
 }
 
+# Runs a command as the `postgres` OS user. Local PostgreSQL connections use peer
+# authentication (Debian's default cluster config), which requires actually switching to that
+# OS user, not just supplying app-level DB credentials. Uses `runuser`, not `sudo`: every
+# script that calls this already runs as root itself (st_require_root), and `sudo` is an
+# optional package that isn't guaranteed to be present on a fresh/minimal Debian install —
+# found for real on a fresh Debian 13 test server that had no sudo binary at all. `runuser` is
+# part of util-linux, which is `Essential: yes` on Debian and always present.
+st_run_as_postgres() {
+    runuser -u postgres -- "$@"
+}
+
 st_require_root() {
     if [ "$(id -u)" -ne 0 ]; then
         st_fail "This script must be run as root (or via sudo)." "sudo $0 $*"
