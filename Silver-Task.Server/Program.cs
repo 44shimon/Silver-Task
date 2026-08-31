@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -180,10 +181,40 @@ if (args.Contains("--seed"))
     return;
 }
 
+// Phase 48 — must be one of the first middlewares registered, before anything that reads
+// Request.Scheme/Request.Host (UseHttpsRedirection right below it, in particular). Without this,
+// running behind a reverse proxy that terminates TLS (the deployment topology this app is built
+// for — see README "Production deployment checklist") means Kestrel only ever sees plain HTTP
+// from the proxy, so UseHttpsRedirection would think every request needs redirecting even though
+// the original client connection was already HTTPS. Defaults to trusting only loopback proxies
+// (i.e. nginx/Caddy running on the same host as Kestrel); a reverse proxy on a different
+// host/network must list its address under ForwardedHeaders:KnownProxies (see
+// deploy/silvertask.env.example) or ForwardedHeadersMiddleware will discard the headers it sends.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+foreach (var proxy in app.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
+{
+    if (System.Net.IPAddress.TryParse(proxy, out var address))
+    {
+        forwardedHeadersOptions.KnownProxies.Add(address);
+    }
+}
+app.UseForwardedHeaders(forwardedHeadersOptions);
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseDefaultFiles();
-app.MapStaticAssets();
+// Phase 48 — AllowAnonymous is required here: MapStaticAssets registers as endpoint-routed
+// endpoints (not classic static-file middleware), so without it the global FallbackPolicy
+// (Program.cs above, "any endpoint without an explicit [Authorize]/[AllowAnonymous] requires
+// auth") applies to the SPA's own JS/CSS bundle. That's invisible in dev (Vite's SpaProxy serves
+// the SPA from a separate process entirely, never hitting this code path) and only surfaces in a
+// real published build — caught during Phase 48's production-build verification, where every
+// static asset request was returning 401, which would have completely locked every user out of
+// even loading the login page.
+app.MapStaticAssets().AllowAnonymous();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -202,6 +233,9 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 
-app.MapFallbackToFile("/index.html");
+// Same reasoning as MapStaticAssets above — the SPA shell itself must be loadable
+// unauthenticated (the client-side router shows the login page when there's no session; the
+// server can't require a session just to hand back the HTML shell that asks for one).
+app.MapFallbackToFile("/index.html").AllowAnonymous();
 
 app.Run();

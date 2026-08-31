@@ -598,6 +598,137 @@ queue/retry pipeline rather than building either again.
   simulated SMTP failure, and — across two full app restarts — no duplicate digest for the same
   day).
 
+## V1.0.0 release readiness (Phase 47)
+
+Silver-Task 1.0.0 is the first release candidate. This section records the pre-release audit —
+what was checked, what was fixed, and what's intentionally deferred — rather than re-describing
+features already covered above.
+
+**Audit method**: three parallel read-only code audits (security/authorization, performance/
+database, migration/data-integrity) plus a live pass against the running dev server and database
+(smoke test, IDOR/auth probes, an actual `pg_dump`/restore, and a from-empty migration run) — not
+a new automated test suite (still a separate, not-yet-started phase; see "Running tests" above).
+
+**Fixed this phase** (the only two High-severity findings across all three audits):
+- `SearchService.SearchProjectsAsync` issued one `ProjectAccessService.GetProjectRoleAsync` DB
+  round-trip per matched project instead of a single batched query — fixed to match the pattern
+  `SearchTasksAsync` already used a few lines above it in the same file.
+- `AutomationService.QueryAutomationsAsync` took its project/global scope filter as a plain
+  `Func<Automation,bool>`, forcing EF Core to materialize (with `Conditions`/`Actions` eagerly
+  included) **every** non-deleted automation in the system before filtering in memory — on every
+  request to open a single project's Automations tab. Fixed by changing the parameter to
+  `Expression<Func<Automation,bool>>` so the scope filter translates into SQL; this also surfaced
+  and fixed a second, previously-inert bug in the same method (`string.Contains(..,
+  StringComparison.OrdinalIgnoreCase)` for the search box, which only "worked" because it used to
+  run in memory — replaced with `EF.Functions.ILike`, the pattern already used everywhere else in
+  this codebase for case-insensitive search).
+- Added `GET /api/health/ready` (anonymous, checks `Database.CanConnectAsync()`) alongside the
+  existing `GET /api/health` liveness check — a load balancer/orchestrator should probe `/ready`
+  to decide whether to route traffic to an instance, and `/health` for a cheap liveness ping.
+
+**Known limitations / deferred findings** (Medium/Low — not release blockers per the gate below,
+listed here so they're tracked rather than silently dropped):
+- `SavedReport`/`SavedView`/`ProjectTemplate`/`TaskTemplate`'s `CreatedByUserId` FK is `Cascade`,
+  while `Project.OwnerId` is `Restrict` — inconsistent policy for artifacts other users can depend
+  on via their own `*Share` tables. Currently inert: `UserService.DeleteAsync` never hard-deletes a
+  user (soft delete via `IsActive`/`IsDeleted` only), so this cascade path can't fire today. Worth
+  revisiting only if a hard-delete admin path is ever added.
+- Several background/list queries load a full (but currently modest) result set into memory before
+  aggregating or checking (`ReportingService`'s non-paginated report methods, `UserService.GetAllAsync`,
+  `ProjectService.GetAllForUserAsync`, `AutomationOverdueCheckBackgroundService`'s unbounded sweep
+  query, a per-candidate dedup check in `NotificationService.CreateDueSoonAndOverdueNotificationsAsync`).
+  None are expected to cause problems at V1 launch scale (dozens of users, hundreds of tasks); each
+  is a candidate for the same batching/pagination treatment already applied elsewhere once real
+  usage data shows it's needed.
+- `TaskActivities` has separate single-column indexes on `TaskId` and `CreatedAt` rather than a
+  composite `(TaskId, CreatedAt)` — fine at expected activity-history volume, would help once task
+  histories get long.
+- Frontend bundle is ~910KB (234KB gzipped) in one chunk (Vite's own size warning) — route-level
+  code-splitting is a real but separate improvement, not attempted here.
+- No automated test suite (unchanged from every prior phase's own note) — authorization discipline
+  in particular is currently held together by consistent hand-written patterns (verified extensively
+  in this audit) rather than something CI would catch on regression.
+
+**Security audit result**: no Critical, High, or Medium findings. Authorization was checked across
+every controller/service pair (IDOR via substituted GUIDs, cross-project access, admin-route
+gating, unauthenticated access) both by static review and live probes against the running app —
+every probe returned the expected 401/403/404, never leaked data. One Low finding (a hardcoded
+demo-seed password) is already correctly gated to `--seed` + `Environment.IsDevelopment()` and
+cannot run in production.
+
+**Migration audit result**: PASS. All 24 migrations apply cleanly to a brand-new empty database
+(verified by actually running `dotnet ef database update` against a fresh scratch database, not
+just generating a script) and the resulting schema matches the existing dev database's table count
+exactly. Both `Up()`/`Down()` of the two hand-edited Phase 45/46 migrations were re-verified for
+correctness.
+
+### Backup & restore (tested, not just documented)
+
+Database backup/restore was performed for real against the dev database as part of this phase,
+using PostgreSQL's own `pg_dump`/`pg_restore` (adjust host/db/user for your environment):
+
+```bash
+# Backup (custom format — supports selective/parallel restore)
+pg_dump -h <host> -U <user> -d <database> -F c -f silvertask_backup.dump
+
+# Restore into a fresh database
+createdb -h <host> -U <user> <restore_target_db>
+pg_restore -h <host> -U <user> -d <restore_target_db> silvertask_backup.dump
+```
+
+This was run end-to-end during the Phase 47 audit: a real dump of the dev database, restored into
+a separate scratch database, with row counts, `__EFMigrationsHistory` count, and foreign-key
+constraint count all confirmed to match exactly between source and restored copies before the
+scratch database was dropped.
+
+**File storage backup**: attachments live under `Attachments:StorageRoot` (default
+`Silver-Task.Server/App_Data/attachments`) as a plain directory of server-generated-GUID-named
+files — back it up with any file-level copy/sync tool (it has no database dependency of its own;
+the `Attachments` table is the source of truth for filenames/metadata, the directory is the source
+of truth for bytes, and both must be backed up together to be consistent). Restore is the reverse:
+restore the database first, then restore the directory to the same `StorageRoot` path.
+
+**Recommended production cadence**: nightly full `pg_dump` + continuous WAL archiving if the
+hosting Postgres supports point-in-time recovery; file storage backed up on the same schedule as
+the database so the two stay consistent.
+
+### Production deployment checklist
+
+- [ ] `ConnectionStrings__DefaultConnection` set via environment variable (never `appsettings.json`)
+- [ ] `Jwt__Secret` set via environment variable, 32+ random bytes (app throws at startup if unset)
+- [ ] `Smtp__Host`/`Smtp__Port`/`Smtp__EnableSsl`/`Smtp__Username`/`Smtp__Password`/
+      `Smtp__FromAddress`/`Smtp__FromName` set if email notifications are wanted (app runs fully
+      functional without them — email is simply off)
+- [ ] `Cors:AllowedOrigins` configured to the real production origin(s) — empty by default, which
+      means CORS allows nothing cross-origin (safe default, but must be set for any deployment
+      where the SPA and API aren't served from the exact same origin)
+- [ ] Reverse proxy terminates TLS and forwards to the app; `app.UseHttpsRedirection()` is already
+      active in `Program.cs`
+- [ ] Load balancer/orchestrator health checks point at `GET /api/health` (liveness) and
+      `GET /api/health/ready` (readiness — verifies DB connectivity)
+- [ ] `dotnet ef database update` run against the production database before first traffic
+      (idempotent — safe to run on every deploy)
+- [ ] Admin → Email → Send Test Email used to confirm SMTP configuration once deployed, before
+      relying on it
+- [ ] Backup cadence configured per the "Backup & restore" section above
+- [ ] Confirm no `.env`/real secrets are present in the deployed image/container beyond what's
+      injected via environment variables at runtime
+
+### Disaster recovery procedure
+
+1. Provision a fresh PostgreSQL instance (or confirm the existing one is reachable).
+2. Restore the most recent database backup: `pg_restore -h <host> -U <user> -d <database>
+   <backup.dump>` (create the target database first if it doesn't exist).
+3. Restore the most recent attachment storage backup to the configured `Attachments:StorageRoot`
+   path, from the same backup generation as the database restore in step 2 (mismatched generations
+   mean either orphaned files with no DB row, or DB rows pointing at missing files — both are
+   survivable but should be reconciled, not silently left).
+4. Point the application's `ConnectionStrings__DefaultConnection` at the restored database and
+   start the app — `dotnet ef database update` is safe to run again here even if the restored
+   database is already fully migrated (idempotent).
+5. Verify via `GET /api/health/ready`, then a real login + smoke test of the golden path before
+   resuming production traffic.
+
 ## GitHub setup
 
 - Never commit `.env`, real connection strings, credentials, or secrets — `.gitignore` blocks `.env*`

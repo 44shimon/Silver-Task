@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
@@ -145,21 +146,24 @@ namespace Silver_Task.Server.Services
         }
 
         private async Task<IReadOnlyList<Automation>> QueryAutomationsAsync(
-            Func<Automation, bool> scopeFilter, string? search, AutomationTriggerType? triggerType, bool? isActive, Guid? createdByUserId)
+            Expression<Func<Automation, bool>> scopeFilter, string? search, AutomationTriggerType? triggerType, bool? isActive, Guid? createdByUserId)
         {
+            // Phase 47 perf audit finding — scopeFilter used to be a plain Func<>, forcing
+            // .AsEnumerable() before it could be applied and materializing every non-deleted
+            // automation in the system (with Conditions/Actions eagerly included) on every call,
+            // including opening a single project's Automations tab. An Expression<Func<>> lets
+            // EF Core translate the scope filter into the SQL WHERE clause instead.
             var query = _db.Automations
                 .Include(a => a.CreatedBy)
                 .Include(a => a.Conditions)
                 .Include(a => a.Actions)
                 .Where(a => !a.IsDeleted)
-                .AsEnumerable()
-                .Where(scopeFilter)
-                .AsQueryable();
+                .Where(scopeFilter);
 
             if (!string.IsNullOrWhiteSpace(search))
             {
                 var normalized = search.Trim();
-                query = query.Where(a => a.Name.Contains(normalized, StringComparison.OrdinalIgnoreCase));
+                query = query.Where(a => EF.Functions.ILike(a.Name, $"%{normalized}%"));
             }
             if (triggerType.HasValue)
             {
@@ -174,7 +178,7 @@ namespace Silver_Task.Server.Services
                 query = query.Where(a => a.CreatedByUserId == createdByUserId.Value);
             }
 
-            return [.. query.OrderByDescending(a => a.CreatedAt)];
+            return await query.OrderByDescending(a => a.CreatedAt).ToListAsync();
         }
 
         public async Task<Automation> GetByIdAsync(Guid automationId, Guid callerId, UserRole callerRole)

@@ -323,10 +323,21 @@ namespace Silver_Task.Server.Services
             var isAdmin = callerRole == UserRole.Administrator;
             var phraseForScoring = string.Join(' ', words);
 
+            // Batch-loaded once instead of one GetProjectRoleAsync call per candidate (Phase 47
+            // perf audit finding) — mirrors the same fix already applied to SearchTasksAsync's
+            // roleByProject dictionary a few lines above in this file.
+            var roleByProject = new Dictionary<Guid, ProjectRole?>();
+            if (!isAdmin)
+            {
+                roleByProject = await _db.ProjectMembers
+                    .Where(m => candidateIds.Contains(m.ProjectId) && m.UserId == callerId)
+                    .ToDictionaryAsync(m => m.ProjectId, m => (ProjectRole?)m.Role);
+            }
+
             var results = new List<SearchResultDto>();
             foreach (var project in candidates)
             {
-                var callerProjectRole = isAdmin ? null : await _projectAccess.GetProjectRoleAsync(project.Id, callerId);
+                var callerProjectRole = isAdmin ? null : roleByProject.GetValueOrDefault(project.Id);
                 CustomFieldPrivacy.RedactProjectValues(project, callerId, callerRole, callerProjectRole);
 
                 var (score, snippet) = ScoreAndSnippet(project.Name, project.Description, project.CustomValues.Select(v => (v.CustomField?.Name ?? "", v.Value ?? "")), phraseForScoring);

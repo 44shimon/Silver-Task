@@ -1,0 +1,42 @@
+# Silver-Task v1.0.0 — example systemd unit for running the published app as a persistent
+# service (survives terminal disconnect, service restart, and — once enabled — server reboot).
+#
+# Install:
+#   sudo cp deploy/silvertask.service /etc/systemd/system/silvertask.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable silvertask     # start automatically on boot
+#   sudo systemctl start silvertask
+#
+# Logs:
+#   journalctl -u silvertask -f
+#
+# Restart after a new deployment:
+#   sudo systemctl restart silvertask
+#
+# Adjust WorkingDirectory/ExecStart to the actual publish output path
+# (`dotnet publish Silver-Task.Server/Silver-Task.Server.csproj -c Release -o <publish-dir>`),
+# and User to a dedicated non-root service account with write access only to that directory and
+# to the configured Attachments:StorageRoot.
+
+[Unit]
+Description=Silver Task (ASP.NET Core, serves API + bundled SPA)
+After=network.target postgresql.service
+
+[Service]
+Type=notify
+WorkingDirectory=/opt/silvertask/publish
+ExecStart=/usr/bin/dotnet /opt/silvertask/publish/Silver-Task.Server.dll
+Restart=always
+RestartSec=10
+KillSignal=SIGINT
+SyslogIdentifier=silvertask
+User=silvertask
+Environment=ASPNETCORE_ENVIRONMENT=Production
+# Bind Kestrel to loopback only — the reverse proxy (see deploy/nginx.conf) is what's actually
+# internet-facing; Kestrel itself should never be reachable directly from outside the host.
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5000
+# Real values injected via EnvironmentFile below, never hardcoded here or committed to git.
+EnvironmentFile=/etc/silvertask/silvertask.env
+
+[Install]
+WantedBy=multi-user.target
