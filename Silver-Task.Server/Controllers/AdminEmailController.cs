@@ -85,10 +85,6 @@ namespace Silver_Task.Server.Controllers
         [HttpPost("templates/{notificationType}/reset")]
         public async Task<IActionResult> ResetTemplate(string notificationType)
         {
-            if (!DefaultEmailTemplates.ByType.ContainsKey(notificationType))
-            {
-                throw new ValidationException($"'{notificationType}' does not support a custom email template.");
-            }
             await _templateService.ResetAsync(notificationType);
             return NoContent();
         }
@@ -96,13 +92,28 @@ namespace Silver_Task.Server.Controllers
         [HttpPost("templates/{notificationType}/preview")]
         public async Task<ActionResult<EmailTemplatePreviewDto>> PreviewTemplate(string notificationType)
         {
+            var appName = await _systemSettings.GetStringAsync(SystemSettingKeys.ApplicationName);
+            var appBaseUrl = await AppUrlResolver.ResolveAsync(_systemSettings, _configuration);
+
+            if (DefaultDigestTemplates.ByType.ContainsKey(notificationType))
+            {
+                var sampleDigestVariables = new DigestTemplateVariables(
+                    UserName: "Jane Doe", DigestDate: DateTime.UtcNow.ToString("MM/dd/yyyy"),
+                    AssignmentCount: 3, MentionCount: 2, CommentCount: 5, DueTodayCount: 2, OverdueCount: 1,
+                    ActionUrl: "/notifications");
+                var sampleContentHtml =
+                    """<h3 style="font-size:13px;margin:16px 0 6px">ASSIGNMENTS</h3><ul style="margin:0;padding-left:18px;font-size:13px"><li>Complete Final Inspection &mdash; 123 Main Street Renovation</li><li>Submit Permit Application &mdash; 123 Main Street Renovation</li></ul>""";
+
+                var (digestSubject, digestHtml) = await _templateService.RenderDigestAsync(
+                    notificationType, sampleDigestVariables, sampleContentHtml, appName, appBaseUrl);
+                return Ok(new EmailTemplatePreviewDto { Subject = digestSubject, HtmlBody = digestHtml });
+            }
+
             if (!DefaultEmailTemplates.ByType.ContainsKey(notificationType))
             {
                 throw new ValidationException($"'{notificationType}' does not support a custom email template.");
             }
 
-            var appName = await _systemSettings.GetStringAsync(SystemSettingKeys.ApplicationName);
-            var appBaseUrl = await AppUrlResolver.ResolveAsync(_systemSettings, _configuration);
             var sampleVariables = new EmailTemplateVariables(
                 UserName: "Jane Doe",
                 ActorName: "John Smith",

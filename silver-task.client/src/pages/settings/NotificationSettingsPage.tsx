@@ -5,7 +5,7 @@ import {
   useUpdatePreferences,
   useUserPreferences,
 } from '@/hooks/useUserSettings';
-import type { DigestFrequency } from '@/types/settings';
+import { EMAIL_DELIVERY_MODE_LABELS, type EmailDeliveryMode } from '@/types/settings';
 import { ApiError } from '@/api/httpClient';
 import './SettingsForm.css';
 import './NotificationSettingsPage.css';
@@ -55,31 +55,43 @@ const GROUPS: { title: string; types: string[] }[] = [
   { title: 'System', types: ['SystemRoleChanged'] },
 ];
 
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
 export function NotificationSettingsPage() {
   const { data: settings, isLoading, isError } = useNotificationSettings();
   const updateSettings = useUpdateNotificationSettings();
   const { data: preferences } = useUserPreferences();
   const updatePreferences = useUpdatePreferences();
 
-  const [digestFrequency, setDigestFrequency] = useState<DigestFrequency>('Immediately');
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
   const [quietHoursStart, setQuietHoursStart] = useState('20:00');
   const [quietHoursEnd, setQuietHoursEnd] = useState('07:00');
+  const [dailyDigestTime, setDailyDigestTime] = useState('08:00');
+  const [weeklyDigestDay, setWeeklyDigestDay] = useState('Monday');
+  const [weeklyDigestTime, setWeeklyDigestTime] = useState('08:00');
   // Same "adjust state during render" seeding pattern as PreferencesSettingsPage — sync once
   // when the query result first arrives, without an effect that just triggers a second render.
   const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
   if (preferences && !hasLoadedPreferences) {
     setHasLoadedPreferences(true);
-    setDigestFrequency(preferences.digestFrequency);
     setQuietHoursEnabled(preferences.quietHoursEnabled);
     setQuietHoursStart(preferences.quietHoursStart?.slice(0, 5) ?? '20:00');
     setQuietHoursEnd(preferences.quietHoursEnd?.slice(0, 5) ?? '07:00');
+    setDailyDigestTime(preferences.dailyDigestTime.slice(0, 5));
+    setWeeklyDigestDay(preferences.weeklyDigestDay);
+    setWeeklyDigestTime(preferences.weeklyDigestTime.slice(0, 5));
   }
 
-  function toggle(notificationType: string, channel: 'inAppEnabled' | 'emailEnabled', value: boolean) {
+  function toggleInApp(notificationType: string, value: boolean) {
     const current = settings?.find((s) => s.notificationType === notificationType);
     if (!current) return;
-    updateSettings.mutate([{ ...current, [channel]: value }]);
+    updateSettings.mutate([{ ...current, inAppEnabled: value }]);
+  }
+
+  function setEmailMode(notificationType: string, mode: EmailDeliveryMode) {
+    const current = settings?.find((s) => s.notificationType === notificationType);
+    if (!current) return;
+    updateSettings.mutate([{ ...current, emailDeliveryMode: mode }]);
   }
 
   // The single master email switch (Phase 45) — same "mutate the full preferences object
@@ -91,14 +103,16 @@ export function NotificationSettingsPage() {
     updatePreferences.mutate({ ...preferences, emailNotificationsEnabled: value });
   }
 
-  function saveDigestAndQuietHours() {
+  function saveSchedule() {
     if (!preferences) return;
     updatePreferences.mutate({
       ...preferences,
-      digestFrequency,
       quietHoursEnabled,
       quietHoursStart: quietHoursEnabled ? `${quietHoursStart}:00` : null,
       quietHoursEnd: quietHoursEnabled ? `${quietHoursEnd}:00` : null,
+      dailyDigestTime: `${dailyDigestTime}:00`,
+      weeklyDigestDay,
+      weeklyDigestTime: `${weeklyDigestTime}:00`,
     });
   }
 
@@ -154,17 +168,27 @@ export function NotificationSettingsPage() {
                     aria-checked={setting.inAppEnabled}
                     aria-label={`${LABELS[type] ?? type} — in-app`}
                     disabled={updateSettings.isPending}
-                    onClick={() => toggle(type, 'inAppEnabled', !setting.inAppEnabled)}
+                    onClick={() => toggleInApp(type, !setting.inAppEnabled)}
                   />
-                  <button
-                    type="button"
-                    className={`settings-toggle${setting.emailEnabled ? ' settings-toggle--on' : ''}`}
-                    role="switch"
-                    aria-checked={setting.emailEnabled}
-                    aria-label={`${LABELS[type] ?? type} — email`}
-                    disabled={updateSettings.isPending}
-                    onClick={() => toggle(type, 'emailEnabled', !setting.emailEnabled)}
-                  />
+                  {setting.alwaysImmediate ? (
+                    <span className="notification-settings-page__always-immediate" title="Always sent immediately — too important to delay.">
+                      Always immediate
+                    </span>
+                  ) : (
+                    <select
+                      className="notification-settings-page__mode-select"
+                      value={setting.emailDeliveryMode}
+                      disabled={updateSettings.isPending}
+                      aria-label={`${LABELS[type] ?? type} — email delivery`}
+                      onChange={(e) => setEmailMode(type, e.target.value as EmailDeliveryMode)}
+                    >
+                      {(Object.keys(EMAIL_DELIVERY_MODE_LABELS) as EmailDeliveryMode[]).map((mode) => (
+                        <option key={mode} value={mode}>
+                          {EMAIL_DELIVERY_MODE_LABELS[mode]}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               );
             })}
@@ -179,20 +203,38 @@ export function NotificationSettingsPage() {
       )}
 
       <div className="notification-settings-page__group">
-        <h3>Email Digest &amp; Quiet Hours</h3>
-        <div className="settings-form__field">
-          <label>Email digest frequency</label>
-          <select value={digestFrequency} onChange={(e) => setDigestFrequency(e.target.value as DigestFrequency)}>
-            <option value="Immediately">Immediately — email as each notification happens</option>
-            <option value="Daily">Daily — one summary email per day</option>
-            <option value="Never">Never — no notification emails</option>
-          </select>
+        <h3>Digest Schedule &amp; Quiet Hours</h3>
+        <p className="settings-form__hint">
+          Applies to any category above set to Daily Digest or Weekly Digest, in your own time zone
+          ({preferences?.timeZone ?? '…'}). Change your time zone on the Preferences tab.
+        </p>
+
+        <div className="notification-settings-page__schedule-row">
+          <div className="settings-form__field">
+            <label>Daily digest time</label>
+            <input type="time" value={dailyDigestTime} onChange={(e) => setDailyDigestTime(e.target.value)} />
+          </div>
+          <div className="settings-form__field">
+            <label>Weekly digest day</label>
+            <select value={weeklyDigestDay} onChange={(e) => setWeeklyDigestDay(e.target.value)}>
+              {WEEKDAYS.map((day) => (
+                <option key={day} value={day}>{day}</option>
+              ))}
+            </select>
+          </div>
+          <div className="settings-form__field">
+            <label>Weekly digest time</label>
+            <input type="time" value={weeklyDigestTime} onChange={(e) => setWeeklyDigestTime(e.target.value)} />
+          </div>
         </div>
 
         <div className="settings-toggle-row">
           <div className="settings-toggle-row__label">
             <span className="settings-toggle-row__title">Quiet hours</span>
-            <span className="settings-toggle-row__description">Suppress notification emails during this window (in-app notifications are always still saved).</span>
+            <span className="settings-toggle-row__description">
+              Suppress Immediately-mode emails during this window (in-app notifications are always still saved;
+              digest emails already go out at the scheduled time above, so this doesn&rsquo;t affect them).
+            </span>
           </div>
           <button
             type="button"
@@ -217,7 +259,7 @@ export function NotificationSettingsPage() {
           </div>
         )}
 
-        <button type="button" className="settings-form__save" onClick={saveDigestAndQuietHours} disabled={updatePreferences.isPending || !preferences}>
+        <button type="button" className="settings-form__save" onClick={saveSchedule} disabled={updatePreferences.isPending || !preferences}>
           {updatePreferences.isPending ? 'Saving...' : 'Save'}
         </button>
         {updatePreferences.isError && (

@@ -29,8 +29,6 @@ namespace Silver_Task.Server.Services
             new(StringComparer.OrdinalIgnoreCase) { "table", "kanban", "calendar", "timeline", "gantt" };
         private static readonly HashSet<string> ValidDateFormats =
             new(StringComparer.OrdinalIgnoreCase) { "MM/dd/yyyy", "dd/MM/yyyy", "yyyy-MM-dd", "dd MMM yyyy" };
-        private static readonly HashSet<string> ValidDigestFrequencies =
-            new(StringComparer.OrdinalIgnoreCase) { "Immediately", "Daily", "Never" };
         private static readonly HashSet<string> ValidLandingPages =
             new(StringComparer.OrdinalIgnoreCase) { "Dashboard", "MyTasks", "LastVisited" };
 
@@ -57,7 +55,10 @@ namespace Silver_Task.Server.Services
                 TimeZone = await _systemSettings.GetStringAsync(SystemSettingKeys.DefaultTimeZone),
                 DateFormat = await _systemSettings.GetStringAsync(SystemSettingKeys.DefaultDateFormat),
                 TimeFormat = await _systemSettings.GetStringAsync(SystemSettingKeys.DefaultTimeFormat),
-                ItemsPerPage = await _systemSettings.GetIntAsync(SystemSettingKeys.DefaultItemsPerPage)
+                ItemsPerPage = await _systemSettings.GetIntAsync(SystemSettingKeys.DefaultItemsPerPage),
+                DailyDigestTime = TimeOnly.ParseExact(await _systemSettings.GetStringAsync(SystemSettingKeys.DefaultDailyDigestTime), "HH:mm"),
+                WeeklyDigestDay = await _systemSettings.GetStringAsync(SystemSettingKeys.DefaultWeeklyDigestDay),
+                WeeklyDigestTime = TimeOnly.ParseExact(await _systemSettings.GetStringAsync(SystemSettingKeys.DefaultWeeklyDigestTime), "HH:mm")
             };
             _db.UserPreferences.Add(preference);
             await _db.SaveChangesAsync();
@@ -106,13 +107,13 @@ namespace Silver_Task.Server.Services
                     throw new ValidationException("You can only set a default project you have access to.");
                 }
             }
-            if (!ValidDigestFrequencies.Contains(request.DigestFrequency))
-            {
-                throw new ValidationException($"'{request.DigestFrequency}' is not a valid digest frequency.");
-            }
             if (request.QuietHoursEnabled && (request.QuietHoursStart is null || request.QuietHoursEnd is null))
             {
                 throw new ValidationException("Quiet hours requires both a start and end time.");
+            }
+            if (!Enum.TryParse<DayOfWeek>(request.WeeklyDigestDay, ignoreCase: true, out _))
+            {
+                throw new ValidationException($"'{request.WeeklyDigestDay}' is not a valid day of week.");
             }
             if (!ValidLandingPages.Contains(request.DefaultLandingPage))
             {
@@ -138,11 +139,13 @@ namespace Silver_Task.Server.Services
             preference.TimeFormat = request.TimeFormat;
             preference.TimeZone = request.TimeZone.Trim();
             preference.ItemsPerPage = request.ItemsPerPage;
-            preference.DigestFrequency = request.DigestFrequency;
             preference.EmailNotificationsEnabled = request.EmailNotificationsEnabled;
             preference.QuietHoursEnabled = request.QuietHoursEnabled;
             preference.QuietHoursStart = request.QuietHoursEnabled ? request.QuietHoursStart : null;
             preference.QuietHoursEnd = request.QuietHoursEnabled ? request.QuietHoursEnd : null;
+            preference.DailyDigestTime = request.DailyDigestTime;
+            preference.WeeklyDigestDay = request.WeeklyDigestDay;
+            preference.WeeklyDigestTime = request.WeeklyDigestTime;
             preference.DefaultLandingPage = request.DefaultLandingPage;
             preference.DashboardLayout = request.DashboardLayout;
             preference.UpdatedAt = DateTime.UtcNow;

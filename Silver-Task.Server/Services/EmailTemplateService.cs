@@ -9,10 +9,11 @@ namespace Silver_Task.Server.Services
 {
     public interface IEmailTemplateService
     {
-        /// <summary>Every customizable type (Common.DefaultEmailTemplates.ByType's keys), each
-        /// merged with its stored override row if one exists — this is what backs the admin
-        /// Email Templates list/editor, not a raw dump of the EmailTemplates table (a type with
-        /// no override row still needs to show up, carrying its built-in default text).</summary>
+        /// <summary>Every customizable type — Common.DefaultEmailTemplates.ByType's keys plus
+        /// Common.DefaultDigestTemplates.ByType's keys (Phase 46) — each merged with its stored
+        /// override row if one exists. This is what backs the admin Email Templates list/editor,
+        /// not a raw dump of the EmailTemplates table (a type with no override row still needs to
+        /// show up, carrying its built-in default text).</summary>
         Task<IReadOnlyList<EmailTemplate>> GetAllAsync();
 
         Task<EmailTemplate?> GetOverrideAsync(string notificationType);
@@ -33,6 +34,15 @@ namespace Silver_Task.Server.Services
         /// the handful the admin screen exposes for customization.</summary>
         Task<(string Subject, string HtmlBody)> RenderEmailAsync(
             string notificationType, EmailTemplateVariables variables, string title, string message, string appName, string appBaseUrl);
+
+        /// <summary>Phase 46 — the Daily/Weekly digest analog of RenderEmailAsync. digestType must
+        /// be Common.DefaultDigestTemplates.DailyDigestType or WeeklyDigestType. digestContentHtml
+        /// is the already-built, already-per-item-HTML-encoded section markup (see
+        /// DigestGenerationService) — swapped into the {{DigestContent}} token *after* every other
+        /// variable is substituted and the composed body is HTML-encoded as a whole, so it's the
+        /// only way real markup can enter the email (see the class doc comment).</summary>
+        Task<(string Subject, string HtmlBody)> RenderDigestAsync(
+            string digestType, DigestTemplateVariables variables, string digestContentHtml, string appName, string appBaseUrl);
     }
 
     /// <summary>
@@ -57,7 +67,7 @@ namespace Silver_Task.Server.Services
         {
             var overrides = await _db.EmailTemplates.Include(t => t.UpdatedByUser).ToDictionaryAsync(t => t.NotificationType);
 
-            return DefaultEmailTemplates.ByType.Keys
+            return DefaultEmailTemplates.ByType.Keys.Concat(DefaultDigestTemplates.ByType.Keys)
                 .Select(type => overrides.TryGetValue(type, out var existing)
                     ? existing
                     : new EmailTemplate { NotificationType = type })
@@ -69,16 +79,17 @@ namespace Silver_Task.Server.Services
 
         public async Task<EmailTemplate> UpsertAsync(Guid updatedByUserId, string notificationType, EmailTemplate fields)
         {
-            if (!DefaultEmailTemplates.ByType.ContainsKey(notificationType))
+            var isDigest = DefaultDigestTemplates.ByType.ContainsKey(notificationType);
+            if (!isDigest && !DefaultEmailTemplates.ByType.ContainsKey(notificationType))
             {
                 throw new ValidationException($"'{notificationType}' does not support a custom email template.");
             }
 
-            ValidateField(fields.SubjectTemplate, nameof(fields.SubjectTemplate));
-            ValidateField(fields.HeadingTemplate, nameof(fields.HeadingTemplate));
-            ValidateField(fields.BodyTemplate, nameof(fields.BodyTemplate));
-            ValidateField(fields.CtaText, nameof(fields.CtaText));
-            ValidateField(fields.FooterTemplate, nameof(fields.FooterTemplate));
+            ValidateField(fields.SubjectTemplate, nameof(fields.SubjectTemplate), isDigest);
+            ValidateField(fields.HeadingTemplate, nameof(fields.HeadingTemplate), isDigest);
+            ValidateField(fields.BodyTemplate, nameof(fields.BodyTemplate), isDigest);
+            ValidateField(fields.CtaText, nameof(fields.CtaText), isDigest);
+            ValidateField(fields.FooterTemplate, nameof(fields.FooterTemplate), isDigest);
 
             var existing = await _db.EmailTemplates.FirstOrDefaultAsync(t => t.NotificationType == notificationType);
             if (existing is null)
@@ -101,6 +112,11 @@ namespace Silver_Task.Server.Services
 
         public async Task ResetAsync(string notificationType)
         {
+            if (!DefaultDigestTemplates.ByType.ContainsKey(notificationType) && !DefaultEmailTemplates.ByType.ContainsKey(notificationType))
+            {
+                throw new ValidationException($"'{notificationType}' does not support a custom email template.");
+            }
+
             var existing = await _db.EmailTemplates.FirstOrDefaultAsync(t => t.NotificationType == notificationType);
             if (existing is not null)
             {
@@ -139,10 +155,30 @@ namespace Silver_Task.Server.Services
             return NotificationTemplates.RenderCard(appName, appBaseUrl, subject, heading, body, cta, variables.ActionUrl, footer);
         }
 
+        public async Task<(string Subject, string HtmlBody)> RenderDigestAsync(
+            string digestType, DigestTemplateVariables variables, string digestContentHtml, string appName, string appBaseUrl)
+        {
+            var defaults = DefaultDigestTemplates.ByType[digestType];
+            var overrideRow = await GetOverrideAsync(digestType);
+            var vars = variables.ToDictionary();
+
+            var subject = Substitute(overrideRow?.SubjectTemplate ?? defaults.Subject, vars);
+            var heading = Substitute(overrideRow?.HeadingTemplate ?? defaults.Heading, vars);
+            var body = Substitute(overrideRow?.BodyTemplate ?? defaults.Body, vars);
+            var cta = Substitute(overrideRow?.CtaText ?? defaults.CtaText, vars);
+            var footer = overrideRow?.FooterTemplate is null ? null : Substitute(overrideRow.FooterTemplate, vars);
+
+            var (renderedSubject, html) = NotificationTemplates.RenderCard(appName, appBaseUrl, subject, heading, body, cta, variables.ActionUrl, footer);
+
+            // The one place real markup enters — see the interface method's own doc comment on
+            // why doing this *after* RenderCard's whole-string HTML-encoding is what makes it safe.
+            return (renderedSubject, html.Replace("{{DigestContent}}", digestContentHtml));
+        }
+
         private static string Substitute(string template, IReadOnlyDictionary<string, string> variables) =>
             TokenPattern.Replace(template, match => variables.TryGetValue(match.Groups[1].Value, out var value) ? value : match.Value);
 
-        private static void ValidateField(string? value, string fieldName)
+        private static void ValidateField(string? value, string fieldName, bool isDigest)
         {
             if (value is null)
             {
@@ -157,8 +193,12 @@ namespace Silver_Task.Server.Services
             // reference something that doesn't exist (it would otherwise silently render as
             // literal "{{Typo}}" text, which is confusing rather than dangerous, but rejecting it
             // up front is a better admin experience and matches the spec's own "validate
-            // templates before saving" requirement).
-            var known = new EmailTemplateVariables("", "", null, null, null, null).ToDictionary().Keys;
+            // templates before saving" requirement). Digest templates additionally allow
+            // {{DigestContent}} (substituted separately — see RenderDigestAsync), which is never a
+            // valid token on a per-notification template.
+            var known = isDigest
+                ? new DigestTemplateVariables("", "", 0, 0, 0, 0, 0, "").ToDictionary().Keys.Append("DigestContent").ToHashSet()
+                : new EmailTemplateVariables("", "", null, null, null, null).ToDictionary().Keys.ToHashSet();
             foreach (Match match in TokenPattern.Matches(value))
             {
                 var token = match.Groups[1].Value;

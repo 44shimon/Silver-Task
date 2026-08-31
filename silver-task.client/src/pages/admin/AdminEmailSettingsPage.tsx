@@ -20,6 +20,8 @@ const TEMPLATE_LABELS: Record<string, string> = {
   TaskDueSoon: 'Task Due Soon',
   TaskOverdue: 'Task Overdue',
   UserAddedToProject: 'Added to a Project',
+  DailyDigest: 'Daily Digest',
+  WeeklyDigest: 'Weekly Digest',
 };
 
 export function AdminEmailSettingsPage() {
@@ -50,9 +52,12 @@ export function AdminEmailSettingsPage() {
         <h2>Email Templates</h2>
         <p className="admin-email-settings__hint">
           Customize the subject, heading, body, and button text for these notification emails. Leave a field blank to use the
-          built-in default. Available variables: <code>{'{{UserName}}'}</code>, <code>{'{{ActorName}}'}</code>,{' '}
+          built-in default. Notification variables: <code>{'{{UserName}}'}</code>, <code>{'{{ActorName}}'}</code>,{' '}
           <code>{'{{TaskName}}'}</code>, <code>{'{{ProjectName}}'}</code>, <code>{'{{DueDate}}'}</code>,{' '}
-          <code>{'{{ActionUrl}}'}</code>.
+          <code>{'{{ActionUrl}}'}</code>. Daily/Weekly Digest variables: <code>{'{{UserName}}'}</code>,{' '}
+          <code>{'{{DigestDate}}'}</code>, <code>{'{{AssignmentCount}}'}</code>, <code>{'{{MentionCount}}'}</code>,{' '}
+          <code>{'{{CommentCount}}'}</code>, <code>{'{{DueTodayCount}}'}</code>, <code>{'{{OverdueCount}}'}</code>,{' '}
+          <code>{'{{DigestContent}}'}</code>, <code>{'{{ActionUrl}}'}</code>.
         </p>
         <EmailTemplateManager />
       </section>

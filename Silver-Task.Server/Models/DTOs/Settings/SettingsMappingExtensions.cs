@@ -25,11 +25,13 @@ namespace Silver_Task.Server.Models.DTOs.Settings
             TimeFormat = preference.TimeFormat,
             TimeZone = preference.TimeZone,
             ItemsPerPage = preference.ItemsPerPage,
-            DigestFrequency = preference.DigestFrequency,
             EmailNotificationsEnabled = preference.EmailNotificationsEnabled,
             QuietHoursEnabled = preference.QuietHoursEnabled,
             QuietHoursStart = preference.QuietHoursStart,
             QuietHoursEnd = preference.QuietHoursEnd,
+            DailyDigestTime = preference.DailyDigestTime,
+            WeeklyDigestDay = preference.WeeklyDigestDay,
+            WeeklyDigestTime = preference.WeeklyDigestTime,
             DefaultLandingPage = preference.DefaultLandingPage,
             DashboardLayout = preference.DashboardLayout
         };
@@ -38,7 +40,8 @@ namespace Silver_Task.Server.Models.DTOs.Settings
         {
             NotificationType = setting.NotificationType,
             InAppEnabled = setting.InAppEnabled,
-            EmailEnabled = setting.EmailEnabled
+            EmailDeliveryMode = setting.EmailDeliveryMode,
+            AlwaysImmediate = NotificationPriorities.For(setting.NotificationType) == Models.Entities.Enums.NotificationPriority.Urgent
         };
     }
 }

@@ -53,5 +53,11 @@ namespace Silver_Task.Server.Common
         public const string EmailNotificationsEnabled = "Notifications.EmailNotificationsEnabled";
         public const string DailyDigestEnabled = "Notifications.DailyDigestEnabled";
         public const string MaxNotificationBatchSize = "Notifications.MaxBatchSize";
+        // Phase 46 — defaults applied to a brand-new user's UserPreference row (see
+        // UserPreferencesService.GetOrCreateAsync), same "admin default, user can override"
+        // pattern as DefaultTimeZone/DefaultDateFormat.
+        public const string DefaultDailyDigestTime = "Notifications.DefaultDailyDigestTime";
+        public const string DefaultWeeklyDigestDay = "Notifications.DefaultWeeklyDigestDay";
+        public const string DefaultWeeklyDigestTime = "Notifications.DefaultWeeklyDigestTime";
     }
 }

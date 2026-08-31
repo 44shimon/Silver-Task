@@ -82,6 +82,28 @@ namespace Silver_Task.Server.Services
 
         public async Task AttemptDeliveryAsync(EmailDelivery delivery, CancellationToken cancellationToken)
         {
+            // Phase 46 — digest rows carry their own pre-rendered content (built once, at
+            // generation time, from a live re-query of the user's authorized data — see
+            // DigestGenerationService's own doc comment on why re-rendering per attempt would be
+            // both wrong, since the window would shift, and redundant). Only the recipient's
+            // continued existence needs re-checking here; there's no single task/project to
+            // re-validate against for a multi-item digest.
+            if (delivery.RenderedHtmlBody is not null)
+            {
+                var digestRecipient = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == delivery.RecipientUserId, cancellationToken);
+                if (digestRecipient is null || !digestRecipient.IsActive)
+                {
+                    Cancel(delivery);
+                    await _db.SaveChangesAsync(cancellationToken);
+                    return;
+                }
+
+                var digestResult = await _emailService.SendAsync(digestRecipient.Email, digestRecipient.Name, delivery.RenderedSubject ?? delivery.Title, delivery.RenderedHtmlBody);
+                ApplyResult(delivery, digestResult);
+                await _db.SaveChangesAsync(cancellationToken);
+                return;
+            }
+
             var validation = await ValidateAsync(delivery, cancellationToken);
             if (validation is null)
             {

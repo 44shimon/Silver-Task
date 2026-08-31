@@ -23,9 +23,6 @@ namespace Silver_Task.Server.Models.DTOs.Settings
         [Range(5, 200)]
         public int ItemsPerPage { get; set; } = 25;
 
-        [Required]
-        public required string DigestFrequency { get; set; }
-
         public bool EmailNotificationsEnabled { get; set; } = true;
 
         public bool QuietHoursEnabled { get; set; }
@@ -33,6 +30,13 @@ namespace Silver_Task.Server.Models.DTOs.Settings
         public TimeOnly? QuietHoursStart { get; set; }
 
         public TimeOnly? QuietHoursEnd { get; set; }
+
+        public TimeOnly DailyDigestTime { get; set; } = new(8, 0);
+
+        [Required]
+        public required string WeeklyDigestDay { get; set; }
+
+        public TimeOnly WeeklyDigestTime { get; set; } = new(8, 0);
 
         [Required]
         public required string DefaultLandingPage { get; set; }

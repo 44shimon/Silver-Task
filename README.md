@@ -541,6 +541,63 @@ replacing it. What Phase 45 adds:
   and a live manual run-through (test email, template preview, queue → retry → cancel-on-deleted-task,
   master-toggle suppression, in-app/email independence) against the seeded dev database.
 
+## Notification digests (Phase 46)
+
+Replaces the Phase 36 global "Daily digest" mechanism (a single per-user `DigestFrequency`
+switch, sent inline with no retry) with per-notification-type delivery modes and real Daily/Weekly
+digest scheduling, reusing Phase 44's `Notification` records and Phase 45's `EmailDelivery`
+queue/retry pipeline rather than building either again.
+
+- **Delivery modes** — `UserNotificationSetting.EmailDeliveryMode` (`Immediately` / `DailyDigest` /
+  `WeeklyDigest` / `Off`) replaces the old per-type `EmailEnabled` bool, one value per notification
+  type (same EAV-style row Phase 36 already used for `InAppEnabled`, which is untouched — email
+  delivery mode never affects whether something shows up in the Notification Center).
+  Urgent-priority types (currently only `TaskOverdue`) always send immediately regardless of the
+  stored mode — enforced both when the setting is saved (`UserNotificationSettingsService.UpdateAsync`)
+  and when a notification is raised (`NotificationService.NotifyAsync`), and shown as "Always
+  immediate" (dropdown disabled) in Settings → Notifications.
+- **Schedule** — `UserPreference.DailyDigestTime`/`WeeklyDigestDay`/`WeeklyDigestTime` (defaults
+  from admin-configurable `Notifications.DefaultDailyDigestTime`/`DefaultWeeklyDigestDay`/
+  `DefaultWeeklyDigestTime` system settings, same pattern as `DefaultTimeZone`), interpreted in the
+  user's own `TimeZone`. `DigestSchedulerBackgroundService` ticks every 10 minutes; a user is due
+  when their local time has passed the configured time and `LastDailyDigestAt`/`LastWeeklyDigestAt`
+  (advanced atomically with digest generation) isn't already today/this ISO week — deliberately no
+  upper time-window bound, so a missed run (app was offline) still catches up the same day once the
+  app resumes, without a separate "missed schedule" mechanism.
+- **Content** — `DigestGenerationService` builds sections entirely from existing data: notification
+  records for "what happened" (Assignments/Mentions/Comments/Status Changes/Priority Changes/Due
+  Date Changes/Completed/Project Changes, each capped at 10 items with a "+N more" link, repeated
+  same-task notifications collapsed into "N updates to X"), and live `Tasks`/`Projects` queries for
+  "what's on your plate" (Overdue/Due Today/Upcoming, plus Completed This Week on the weekly
+  digest) — re-joined against current project membership/ownership so access lost since a
+  notification was raised silently excludes that item, not just its project name. No digest is
+  enqueued when there's nothing to say (`LastDigestAt` still advances either way, so an empty
+  window is never rescanned).
+- **Delivery** — digest HTML is rendered once, at generation time, into `EmailDelivery.RenderedSubject`/
+  `RenderedHtmlBody` and enqueued through the *same* Phase 45 queue/retry (2 min → 10 min backoff,
+  `Failed` after 3 attempts) — never a second retry loop. A retry re-sends the exact same rendered
+  content rather than re-scanning the window.
+- **Templates** — two new admin-customizable pseudo-types (`DailyDigest`/`WeeklyDigest`,
+  `Common/DefaultDigestTemplates.cs`) in the *same* `EmailTemplate` table/admin editor Phase 45
+  built, with their own variable allow-list (`{{UserName}}`, `{{DigestDate}}`,
+  `{{AssignmentCount}}`, `{{MentionCount}}`, `{{CommentCount}}`, `{{DueTodayCount}}`,
+  `{{OverdueCount}}`, `{{DigestContent}}`, `{{ActionUrl}}`). `{{DigestContent}}` is the one
+  variable substituted *after* every other token is substituted and the composed body is
+  HTML-encoded as a whole — the only place real section markup enters the email, so admin template
+  text still can't inject markup.
+- **Known limitations** — (1) a notification type with `InAppEnabled = false` never produces a
+  `Notification` row, so it can never appear in a digest even if its email mode is Daily/Weekly
+  (digest content is deliberately sourced only from existing records, not a parallel event log —
+  the sensible default is both channels enabled, so this only affects an explicit unusual
+  combination); (2) no distributed lock — like every other background service in this app, the
+  scheduler assumes a single running instance; (3) no new automated test project, same rationale as
+  Phase 45. Verified via `dotnet build`/`npm run build`/`npm run typecheck`/`npm run lint`, a
+  reviewed EF Core migration (including a hand-written backfill of `EmailEnabled` →
+  `EmailDeliveryMode`), and a live run-through against the seeded dev database (per-category
+  suppression while in-app stays independent, digest generation/content/enqueue, retry after a
+  simulated SMTP failure, and — across two full app restarts — no duplicate digest for the same
+  day).
+
 ## GitHub setup
 
 - Never commit `.env`, real connection strings, credentials, or secrets — `.gitignore` blocks `.env*`

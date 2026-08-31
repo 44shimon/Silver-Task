@@ -4,6 +4,7 @@ using Silver_Task.Server.Common.Exceptions;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.DTOs.Settings;
 using Silver_Task.Server.Models.Entities;
+using Silver_Task.Server.Models.Entities.Enums;
 
 namespace Silver_Task.Server.Services
 {
@@ -31,18 +32,23 @@ namespace Silver_Task.Server.Services
             return NotificationTypes.All
                 .Select(type => stored.TryGetValue(type, out var existing)
                     ? existing
-                    : new UserNotificationSetting { UserId = userId, NotificationType = type, InAppEnabled = true, EmailEnabled = true })
+                    : new UserNotificationSetting { UserId = userId, NotificationType = type, InAppEnabled = true, EmailDeliveryMode = NotificationDeliveryModes.Immediately })
                 .ToList();
         }
 
         public async Task<IReadOnlyList<UserNotificationSetting>> UpdateAsync(Guid userId, UpdateNotificationSettingsRequest request)
         {
             var knownTypes = new HashSet<string>(NotificationTypes.All, StringComparer.OrdinalIgnoreCase);
+            var knownModes = new HashSet<string>(NotificationDeliveryModes.All, StringComparer.OrdinalIgnoreCase);
             foreach (var setting in request.Settings)
             {
                 if (!knownTypes.Contains(setting.NotificationType))
                 {
                     throw new ValidationException($"'{setting.NotificationType}' is not a recognized notification type.");
+                }
+                if (!knownModes.Contains(setting.EmailDeliveryMode))
+                {
+                    throw new ValidationException($"'{setting.EmailDeliveryMode}' is not a recognized email delivery mode.");
                 }
             }
 
@@ -52,10 +58,18 @@ namespace Silver_Task.Server.Services
 
             foreach (var setting in request.Settings)
             {
+                // Defense in depth, not just a UI lock (spec's own "override behavior" rule) — an
+                // Urgent-priority type (currently only TaskOverdue) always sends immediately
+                // regardless of what a caller posts, matching NotificationService.MaybeSendEmailAsync's
+                // own enforcement of the same rule at send time.
+                var emailMode = NotificationPriorities.For(setting.NotificationType) == NotificationPriority.Urgent
+                    ? NotificationDeliveryModes.Immediately
+                    : setting.EmailDeliveryMode;
+
                 if (existing.TryGetValue(setting.NotificationType, out var row))
                 {
                     row.InAppEnabled = setting.InAppEnabled;
-                    row.EmailEnabled = setting.EmailEnabled;
+                    row.EmailDeliveryMode = emailMode;
                     row.UpdatedAt = DateTime.UtcNow;
                 }
                 else
@@ -66,7 +80,7 @@ namespace Silver_Task.Server.Services
                         UserId = userId,
                         NotificationType = setting.NotificationType,
                         InAppEnabled = setting.InAppEnabled,
-                        EmailEnabled = setting.EmailEnabled
+                        EmailDeliveryMode = emailMode
                     });
                 }
             }

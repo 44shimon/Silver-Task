@@ -12,6 +12,7 @@ namespace Silver_Task.Server.Data.Configurations
             builder.HasKey(s => s.Id);
 
             builder.Property(s => s.NotificationType).IsRequired().HasMaxLength(50);
+            builder.Property(s => s.EmailDeliveryMode).IsRequired().HasMaxLength(20);
             builder.Property(s => s.UpdatedAt).HasDefaultValueSql("timezone('utc', now())");
 
             builder.HasIndex(s => new { s.UserId, s.NotificationType }).IsUnique();

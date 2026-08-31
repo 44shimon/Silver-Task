@@ -16,8 +16,6 @@ namespace Silver_Task.Server.Models.DTOs.Settings
 
         public int ItemsPerPage { get; set; } = 25;
 
-        public string DigestFrequency { get; set; } = "Immediately";
-
         /// <summary>Phase 45 — master switch, checked before any per-type email preference.</summary>
         public bool EmailNotificationsEnabled { get; set; } = true;
 
@@ -26,6 +24,14 @@ namespace Silver_Task.Server.Models.DTOs.Settings
         public TimeOnly? QuietHoursStart { get; set; }
 
         public TimeOnly? QuietHoursEnd { get; set; }
+
+        /// <summary>Phase 46 — local time (this user's TimeZone above) their Daily Digest sends.</summary>
+        public TimeOnly DailyDigestTime { get; set; } = new(8, 0);
+
+        /// <summary>Phase 46 — a System.DayOfWeek name, e.g. "Monday".</summary>
+        public string WeeklyDigestDay { get; set; } = "Monday";
+
+        public TimeOnly WeeklyDigestTime { get; set; } = new(8, 0);
 
         public string DefaultLandingPage { get; set; } = "Dashboard";
 

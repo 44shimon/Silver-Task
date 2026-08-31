@@ -7,7 +7,9 @@ namespace Silver_Task.Server.Models.DTOs.Email
     {
         public static EmailTemplateDto ToDto(this EmailTemplate template)
         {
-            var defaults = DefaultEmailTemplates.ByType[template.NotificationType];
+            var defaults = DefaultEmailTemplates.ByType.TryGetValue(template.NotificationType, out var notificationDefault)
+                ? notificationDefault
+                : DefaultDigestTemplates.ByType[template.NotificationType];
             return new EmailTemplateDto
             {
                 NotificationType = template.NotificationType,

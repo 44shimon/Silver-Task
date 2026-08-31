@@ -229,6 +229,15 @@ namespace Silver_Task.Server.Services
                     throw new ValidationException($"'{value}' is not a recognized time zone.");
                 }
             }
+            if (key is SystemSettingKeys.DefaultDailyDigestTime or SystemSettingKeys.DefaultWeeklyDigestTime &&
+                !TimeOnly.TryParseExact(value, "HH:mm", out _))
+            {
+                throw new ValidationException($"'{value}' is not a valid time (expected HH:mm, e.g. 08:00).");
+            }
+            if (key is SystemSettingKeys.DefaultWeeklyDigestDay && !Enum.TryParse<DayOfWeek>(value, out _))
+            {
+                throw new ValidationException($"'{value}' is not a valid day of week.");
+            }
             if (key is SystemSettingKeys.DefaultTaskStatus && !Enum.TryParse<TaskItemStatus>(value, out _))
             {
                 throw new ValidationException($"'{value}' is not a valid task status.");

@@ -28,37 +28,47 @@ namespace Silver_Task.Server.Models.Entities
 
         public int ItemsPerPage { get; set; } = 25;
 
-        /// <summary>Phase 36 — "Immediately" (default) means each eligible notification emails as
-        /// it happens (the existing, pre-Phase-36 behavior); "Daily" batches non-urgent email into
-        /// one digest and suppresses the individual emails that would otherwise fire (Urgent-
-        /// priority notifications, e.g. TaskOverdue, still send immediately regardless — see
-        /// NotificationService's own doc comment); "Never" sends no notification email at all.
-        /// Purely an email-channel setting — in-app notifications are unaffected either way.</summary>
-        public string DigestFrequency { get; set; } = "Immediately";
-
         /// <summary>Phase 45 — the single master email on/off switch, checked before every
-        /// per-type UserNotificationSetting.EmailEnabled check (see
-        /// NotificationService.MaybeSendEmailAsync). Distinct from DigestFrequency == "Never"
-        /// (which also suppresses all email) only in that this is a single obvious top-level
-        /// toggle rather than a value buried in a frequency dropdown — the two are independent
-        /// switches that both have to allow an email through. Never affects in-app notifications
-        /// or account-critical email (there is no password-reset/security email path in this app
+        /// per-type UserNotificationSetting.EmailDeliveryMode check (see
+        /// NotificationService.MaybeSendEmailAsync). Never affects in-app notifications or
+        /// account-critical email (there is no password-reset/security email path in this app
         /// that goes through NotifyAsync at all, so this switch has nothing unsafe to disable).</summary>
         public bool EmailNotificationsEnabled { get; set; } = true;
 
         public bool QuietHoursEnabled { get; set; }
 
         /// <summary>Interpreted in this user's own TimeZone (above), not UTC — see
-        /// NotificationService.IsWithinQuietHours. Suppresses *email* only; in-app notifications
-        /// are always stored regardless (per the spec's own "do not lose notifications" rule).</summary>
+        /// NotificationService.IsWithinQuietHours. Suppresses immediate-mode email only —
+        /// Daily/Weekly digest sends (which the user already scheduled at a time of their own
+        /// choosing via DailyDigestTime/WeeklyDigestTime below) are not additionally gated by
+        /// quiet hours, and in-app notifications are always stored regardless either way (per the
+        /// spec's own "do not lose notifications" rule).</summary>
         public TimeOnly? QuietHoursStart { get; set; }
 
         public TimeOnly? QuietHoursEnd { get; set; }
 
-        /// <summary>Bookkeeping for NotificationDigestBackgroundService — the last time this user
-        /// was sent a daily digest, so a user's digest is never sent twice in the same local day
-        /// no matter how often the sweep ticks.</summary>
-        public DateTime? LastDigestSentAt { get; set; }
+        /// <summary>Phase 46 — local time of day (interpreted in TimeZone above) a Daily Digest
+        /// email goes out, for any notification type this user has set to "DailyDigest" mode (see
+        /// UserNotificationSetting.EmailDeliveryMode). Checked by DigestSchedulerBackgroundService.</summary>
+        public TimeOnly DailyDigestTime { get; set; } = new(8, 0);
+
+        /// <summary>Phase 46 — day of week (a System.DayOfWeek name, e.g. "Monday") a Weekly
+        /// Digest goes out.</summary>
+        public string WeeklyDigestDay { get; set; } = "Monday";
+
+        public TimeOnly WeeklyDigestTime { get; set; } = new(8, 0);
+
+        /// <summary>Phase 46 — the last time this user was successfully sent (i.e. the digest was
+        /// generated and enqueued into EmailDeliveries — not necessarily yet delivered, since
+        /// delivery itself retries independently) a Daily Digest, so a user's digest is never
+        /// generated twice for the same local calendar day no matter how often the scheduler
+        /// ticks. Advanced atomically with the EmailDelivery enqueue — see
+        /// DigestGenerationService's own doc comment on why this is what makes retries safe.</summary>
+        public DateTime? LastDailyDigestAt { get; set; }
+
+        /// <summary>Phase 46 — same as LastDailyDigestAt, for the Weekly Digest (compared by ISO
+        /// week, not calendar day).</summary>
+        public DateTime? LastWeeklyDigestAt { get; set; }
 
         /// <summary>Phase 37 — "Dashboard" (default), "MyTasks", or "LastVisited". Read by the
         /// frontend's landing-redirect at "/" (see routes/AppRoutes.tsx); "LastVisited" is

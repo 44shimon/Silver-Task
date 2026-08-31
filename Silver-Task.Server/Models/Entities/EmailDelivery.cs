@@ -39,6 +39,17 @@ namespace Silver_Task.Server.Models.Entities
 
         public Guid? ProjectId { get; set; }
 
+        /// <summary>Phase 46 — set only for digest rows (NotificationType "DailyDigest"/
+        /// "WeeklyDigest"), where DigestGenerationService renders the full multi-section email
+        /// once at generation time rather than per-attempt. When set, EmailDeliveryService skips
+        /// the normal per-notification template rendering/entity-existence re-checks (already
+        /// done, against a live query, at generation time — see that class's own doc comment) and
+        /// sends this content directly, so a retry re-sends the exact same digest rather than
+        /// re-scanning the window and risking a different result each attempt.</summary>
+        public string? RenderedSubject { get; set; }
+
+        public string? RenderedHtmlBody { get; set; }
+
         public EmailDeliveryStatus Status { get; set; } = EmailDeliveryStatus.Queued;
 
         public int AttemptCount { get; set; }

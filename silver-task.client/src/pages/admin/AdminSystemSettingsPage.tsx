@@ -125,9 +125,17 @@ const SECTIONS: { id: SystemSettingSection; title: string; fields: FieldConfig[]
     title: 'Notifications',
     fields: [
       { key: 'Notifications.EmailNotificationsEnabled', title: 'Email notifications enabled', kind: 'boolean' },
-      { key: 'Notifications.DailyDigestEnabled', title: 'Allow daily digest emails', kind: 'boolean' },
+      { key: 'Notifications.DailyDigestEnabled', title: 'Allow Daily/Weekly digest emails', kind: 'boolean' },
       { key: 'Notifications.RetentionDays', title: 'Notification retention (days)', kind: 'number', min: 7, max: 3650 },
-      { key: 'Notifications.MaxBatchSize', title: 'Max notifications per background sweep', kind: 'number', min: 10, max: 10000 },
+      { key: 'Notifications.MaxBatchSize', title: 'Max notifications/users per background sweep', kind: 'number', min: 10, max: 10000 },
+      { key: 'Notifications.DefaultDailyDigestTime', title: 'Default daily digest time (HH:mm)', kind: 'text' },
+      {
+        key: 'Notifications.DefaultWeeklyDigestDay',
+        title: 'Default weekly digest day',
+        kind: 'select',
+        options: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day) => ({ value: day, label: day })),
+      },
+      { key: 'Notifications.DefaultWeeklyDigestTime', title: 'Default weekly digest time (HH:mm)', kind: 'text' },
     ],
   },
 ];

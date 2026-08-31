@@ -97,9 +97,15 @@ namespace Silver_Task.Server.Common
             new(SystemSettingKeys.EmailNotificationsEnabled, SystemSettingSection.Notifications,
                 "false", "bool", "Global switch for outgoing notification emails. Off by default until SMTP is configured."),
             new(SystemSettingKeys.DailyDigestEnabled, SystemSettingSection.Notifications,
-                "true", "bool", "Allow users to receive a daily email digest instead of individual emails (still gated by the switch above)."),
+                "true", "bool", "Allow users to receive Daily/Weekly digest emails instead of individual emails (still gated by the switch above)."),
             new(SystemSettingKeys.MaxNotificationBatchSize, SystemSettingSection.Notifications,
-                "100", "int", "Maximum notifications processed per background sweep/digest run, to bound worst-case load.")
+                "100", "int", "Maximum notifications/users processed per background sweep/digest run, to bound worst-case load."),
+            new(SystemSettingKeys.DefaultDailyDigestTime, SystemSettingSection.Notifications,
+                "08:00", "string", "Local time of day a new user's Daily Digest defaults to, in HH:mm 24-hour format."),
+            new(SystemSettingKeys.DefaultWeeklyDigestDay, SystemSettingSection.Notifications,
+                "Monday", "string", "Day of week a new user's Weekly Digest defaults to."),
+            new(SystemSettingKeys.DefaultWeeklyDigestTime, SystemSettingSection.Notifications,
+                "08:00", "string", "Local time of day a new user's Weekly Digest defaults to, in HH:mm 24-hour format.")
         ];
 
         public static readonly IReadOnlyDictionary<string, SystemSettingDefinition> ByKey =

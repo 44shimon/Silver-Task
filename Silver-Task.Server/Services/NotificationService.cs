@@ -165,7 +165,7 @@ namespace Silver_Task.Server.Services
                 }
             }
 
-            var (inAppEnabled, emailEnabled) = await GetChannelSettingAsync(recipientUserId, type);
+            var (inAppEnabled, emailMode) = await GetChannelSettingAsync(recipientUserId, type);
             var resolvedPriority = priority ?? NotificationPriorities.For(type);
             var resolvedActionUrl = actionUrl ?? DefaultActionUrl(taskId, projectId);
 
@@ -193,10 +193,17 @@ namespace Silver_Task.Server.Services
                 notificationId = notification.Id;
             }
 
-            if (emailEnabled)
+            // Phase 46 — Urgent-priority types (currently only TaskOverdue) always send
+            // immediately regardless of the stored EmailDeliveryMode (the same override rule
+            // UserNotificationSettingsService.UpdateAsync already enforces when the mode is
+            // saved — this is the send-time half of that defense-in-depth pair). DailyDigest/
+            // WeeklyDigest modes enqueue nothing here: the just-added Notification row (if any)
+            // is exactly what DigestGenerationService reads when its scheduled sweep runs.
+            var effectiveEmailMode = resolvedPriority == NotificationPriority.Urgent ? NotificationDeliveryModes.Immediately : emailMode;
+            if (effectiveEmailMode == NotificationDeliveryModes.Immediately)
             {
                 await MaybeSendEmailAsync(
-                    notificationId, recipientUserId, recipient.Email, actorUserId, resolvedPriority, type, title, message, resolvedActionUrl, taskId, projectId);
+                    notificationId, recipientUserId, recipient.Email, actorUserId, type, title, message, resolvedActionUrl, taskId, projectId);
             }
         }
 
@@ -431,14 +438,14 @@ namespace Silver_Task.Server.Services
         /// owns (never a second, parallel preference store) — a narrow single-type query instead
         /// of that service's GetAllAsync, since NotifyAsync only ever needs one type's value and
         /// GetAllAsync always materializes every known type.</summary>
-        private async Task<(bool InApp, bool Email)> GetChannelSettingAsync(Guid userId, string type)
+        private async Task<(bool InApp, string EmailMode)> GetChannelSettingAsync(Guid userId, string type)
         {
             var setting = await _db.UserNotificationSettings
                 .Where(s => s.UserId == userId && s.NotificationType == type)
-                .Select(s => new { s.InAppEnabled, s.EmailEnabled })
+                .Select(s => new { s.InAppEnabled, s.EmailDeliveryMode })
                 .FirstOrDefaultAsync();
 
-            return setting is null ? (true, true) : (setting.InAppEnabled, setting.EmailEnabled);
+            return setting is null ? (true, NotificationDeliveryModes.Immediately) : (setting.InAppEnabled, setting.EmailDeliveryMode);
         }
 
         private static string? DefaultActionUrl(Guid? taskId, Guid? projectId)
@@ -454,14 +461,16 @@ namespace Silver_Task.Server.Services
             return null;
         }
 
-        /// <summary>The email side of NotifyAsync — gated independently by (in order) whether
-        /// SMTP is even configured, the admin's global Notifications.EmailNotificationsEnabled
-        /// switch, this user's own EmailNotificationsEnabled master switch (Phase 45 — distinct
-        /// from the per-type toggle already checked by GetChannelSettingAsync before this is even
-        /// called), this user's DigestFrequency (Daily batches non-Urgent email into the digest
-        /// instead — see UserPreference.DigestFrequency's own doc comment; Never sends none), and
-        /// finally quiet hours (suppresses email only — the in-app row, if any, is unaffected
-        /// either way, satisfying the spec's "do not lose notifications" rule).
+        /// <summary>The "Immediately" email path — called only when NotifyAsync has already
+        /// resolved this (user, type) pair's effective mode to Immediately (either the user chose
+        /// it, or the type is Urgent-priority and the choice was overridden). Gated independently
+        /// by (in order) whether SMTP is even configured, the admin's global
+        /// Notifications.EmailNotificationsEnabled switch, this user's own
+        /// EmailNotificationsEnabled master switch (Phase 45), and quiet hours (suppresses email
+        /// only — the in-app row, if any, is unaffected either way, satisfying the spec's "do not
+        /// lose notifications" rule; deliberately does NOT apply to Daily/Weekly digest sends,
+        /// which already go out at a time the user chose themselves — see
+        /// UserPreference.QuietHoursStart's own doc comment).
         ///
         /// Phase 45 — no longer renders/sends inline: it enqueues a self-contained EmailDelivery
         /// row (Status = Queued) and returns immediately. EmailDeliveryBackgroundService owns
@@ -470,7 +479,7 @@ namespace Silver_Task.Server.Services
         /// EmailDeliveryService for why sending must never happen inline on the caller's request
         /// thread (spec's own "email should not block normal task operations" requirement).</summary>
         private async Task MaybeSendEmailAsync(
-            Guid? notificationId, Guid userId, string email, Guid? actorUserId, NotificationPriority priority,
+            Guid? notificationId, Guid userId, string email, Guid? actorUserId,
             string type, string title, string message, string? actionUrl, Guid? taskId, Guid? projectId)
         {
             if (!_emailService.IsConfigured)
@@ -485,18 +494,6 @@ namespace Silver_Task.Server.Services
             var preference = await _db.UserPreferences.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == userId);
             if (preference is not null && !preference.EmailNotificationsEnabled)
             {
-                return;
-            }
-            if (preference?.DigestFrequency == "Never")
-            {
-                return;
-            }
-            if (preference?.DigestFrequency == "Daily" && priority != NotificationPriority.Urgent)
-            {
-                // Batched into the next daily digest instead — see
-                // NotificationDigestBackgroundService, and "do not send duplicate emails when
-                // immediate notification is enabled" (the inverse: Daily users don't also get
-                // the immediate one).
                 return;
             }
             if (preference is not null && preference.QuietHoursEnabled && IsWithinQuietHours(preference, DateTime.UtcNow))

@@ -1,7 +1,14 @@
 export type Theme = 'Light' | 'Dark' | 'System';
 export type TimeFormat = '12h' | '24h';
-export type DigestFrequency = 'Immediately' | 'Daily' | 'Never';
 export type DefaultLandingPage = 'Dashboard' | 'MyTasks' | 'LastVisited';
+/** Mirrors Common/NotificationDeliveryModes.cs. */
+export type EmailDeliveryMode = 'Immediately' | 'DailyDigest' | 'WeeklyDigest' | 'Off';
+export const EMAIL_DELIVERY_MODE_LABELS: Record<EmailDeliveryMode, string> = {
+  Immediately: 'Immediately',
+  DailyDigest: 'Daily Digest',
+  WeeklyDigest: 'Weekly Digest',
+  Off: 'Off',
+};
 
 export interface UserPreferences {
   theme: Theme;
@@ -12,10 +19,6 @@ export interface UserPreferences {
   timeFormat: TimeFormat;
   timeZone: string;
   itemsPerPage: number;
-  /** Immediately (default): each eligible email sends as it happens. Daily: batched into one
-   * digest email (Urgent notifications, e.g. overdue, still send immediately regardless). Never:
-   * no notification email at all. Purely an email-channel setting — in-app is unaffected. */
-  digestFrequency: DigestFrequency;
   /** Phase 45 — master switch, checked before any per-type email preference (see
    * UserPreference.EmailNotificationsEnabled server-side). */
   emailNotificationsEnabled: boolean;
@@ -23,6 +26,11 @@ export interface UserPreferences {
   /** "HH:mm:ss" (TimeOnly on the wire) — only meaningful when quietHoursEnabled is true. */
   quietHoursStart: string | null;
   quietHoursEnd: string | null;
+  /** Phase 46 — "HH:mm:ss" (TimeOnly), interpreted in timeZone above. */
+  dailyDigestTime: string;
+  /** A System.DayOfWeek name, e.g. "Monday". */
+  weeklyDigestDay: string;
+  weeklyDigestTime: string;
   defaultLandingPage: DefaultLandingPage;
   /** Raw JSON string (DashboardLayout) — parsed/shaped entirely client-side, see
    * @/types/dashboard's DashboardLayout interface. Null means "no customization saved yet". */
@@ -48,7 +56,11 @@ export interface ChangePasswordRequest {
 export interface NotificationSetting {
   notificationType: string;
   inAppEnabled: boolean;
-  emailEnabled: boolean;
+  emailDeliveryMode: EmailDeliveryMode;
+  /** True for Urgent-priority types (currently only TaskOverdue) — the server always overrides
+   * these to Immediately regardless of what's stored/posted; the UI disables the dropdown and
+   * shows why rather than letting the user pick a mode that silently has no effect. */
+  alwaysImmediate: boolean;
 }
 
 /** Mirrors Common/SystemSettingDefinitions.cs's SystemSettingSection enum server-side. */

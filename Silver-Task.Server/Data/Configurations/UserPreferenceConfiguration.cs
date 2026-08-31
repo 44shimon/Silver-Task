@@ -16,14 +16,15 @@ namespace Silver_Task.Server.Data.Configurations
             builder.Property(p => p.DateFormat).IsRequired().HasMaxLength(20);
             builder.Property(p => p.TimeFormat).IsRequired().HasMaxLength(10);
             builder.Property(p => p.TimeZone).IsRequired().HasMaxLength(100);
-            builder.Property(p => p.DigestFrequency).IsRequired().HasMaxLength(20);
             builder.Property(p => p.DefaultLandingPage).IsRequired().HasMaxLength(20);
             builder.Property(p => p.DashboardLayout).HasColumnType("text");
-            // Explicit DB-level default (not just the C# initializer, which migrations don't see)
-            // so existing rows backfilled by this column's own migration come back enabled, not
-            // silently opted out — matching every new row's default and the spec's own "sensible
-            // defaults ON" requirement.
+            builder.Property(p => p.WeeklyDigestDay).IsRequired().HasMaxLength(10).HasDefaultValue("Monday");
+            // Explicit DB-level defaults (not just the C# initializer, which migrations don't see)
+            // so existing rows backfilled by these columns' own migration come back at the same
+            // sensible default every new row gets, not a zeroed-out/incorrect value.
             builder.Property(p => p.EmailNotificationsEnabled).HasDefaultValue(true);
+            builder.Property(p => p.DailyDigestTime).HasDefaultValue(new TimeOnly(8, 0));
+            builder.Property(p => p.WeeklyDigestTime).HasDefaultValue(new TimeOnly(8, 0));
 
             builder.Property(p => p.CreatedAt).HasDefaultValueSql("timezone('utc', now())");
             builder.Property(p => p.UpdatedAt).HasDefaultValueSql("timezone('utc', now())");

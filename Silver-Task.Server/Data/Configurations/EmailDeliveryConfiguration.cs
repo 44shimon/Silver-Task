@@ -18,6 +18,8 @@ namespace Silver_Task.Server.Data.Configurations
             builder.Property(d => d.ActionUrl).HasMaxLength(500);
             builder.Property(d => d.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
             builder.Property(d => d.LastError).HasMaxLength(500);
+            builder.Property(d => d.RenderedSubject).HasMaxLength(200);
+            builder.Property(d => d.RenderedHtmlBody).HasColumnType("text");
 
             // The background worker's own polling query (IEmailDeliveryService.ClaimDueAsync).
             builder.HasIndex(d => new { d.Status, d.NextAttemptAt });
