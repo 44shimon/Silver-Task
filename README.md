@@ -127,10 +127,16 @@ cd Silver-Task
 sudo ./scripts/install-debian.sh
 ```
 
-Answer the prompts (or pass `--non-interactive` — see below), wait for the build and health check
-to complete, then open the URL the installer prints and register the first account — it
-automatically becomes Administrator (the application's own bootstrap rule, not something the
-installer does for you).
+Answer the prompts (or pass `--non-interactive` — see below), including an administrator email —
+the installer creates that account for you once the app is healthy, with a randomly generated
+password printed once at the end (it automatically becomes Administrator; that's the application's
+own bootstrap rule for the first account ever created, not something the installer has to
+special-case). Leave the email prompt blank to skip and create the account yourself later, e.g.:
+
+```bash
+curl -X POST http://127.0.0.1:5000/api/users -H 'Content-Type: application/json' \
+  -d '{"name":"Your Name","email":"you@example.com","password":"a-strong-password"}'
+```
 
 ## Production Installation (Debian)
 

@@ -20,6 +20,11 @@
 #   --domain=tasks.example.com     Public domain. Omit for IP-only access (no HTTPS/certbot).
 #   --http-port=80                 Public HTTP port (redirects to HTTPS if a domain is set).
 #   --https-port=443               Public HTTPS port (ignored if no domain — see --domain).
+#   --admin-email=you@example.com  Creates the Administrator account automatically once the
+#                                   app is up, with a randomly generated password printed at
+#                                   the end of installation. Omit to skip and create it
+#                                   yourself later (see README "Quick Start").
+#   --admin-name=...               Display name for the account above (default: Administrator).
 #   --smtp-host=... --smtp-port=587 --smtp-username=... --smtp-password=... --smtp-from=...
 #                                   Optional. Silver Task runs fully functional without email.
 #   --skip-ssl                     Configure nginx for HTTP only, even if --domain is set
@@ -29,6 +34,7 @@
 #
 # Equivalent environment variables (useful for CI/config-management, e.g. Ansible):
 #   SILVERTASK_DOMAIN, SILVERTASK_HTTP_PORT, SILVERTASK_HTTPS_PORT, SILVERTASK_SKIP_SSL,
+#   SILVERTASK_ADMIN_EMAIL, SILVERTASK_ADMIN_NAME,
 #   SILVERTASK_SMTP_HOST, SILVERTASK_SMTP_PORT, SILVERTASK_SMTP_USERNAME,
 #   SILVERTASK_SMTP_PASSWORD, SILVERTASK_SMTP_FROM
 
@@ -45,6 +51,8 @@ SKIP_SSL="${SILVERTASK_SKIP_SSL:-false}"
 DOMAIN="${SILVERTASK_DOMAIN:-}"
 HTTP_PORT="${SILVERTASK_HTTP_PORT:-80}"
 HTTPS_PORT="${SILVERTASK_HTTPS_PORT:-443}"
+ADMIN_EMAIL="${SILVERTASK_ADMIN_EMAIL:-}"
+ADMIN_NAME="${SILVERTASK_ADMIN_NAME:-Administrator}"
 SMTP_HOST="${SILVERTASK_SMTP_HOST:-}"
 SMTP_PORT="${SILVERTASK_SMTP_PORT:-587}"
 SMTP_USERNAME="${SILVERTASK_SMTP_USERNAME:-}"
@@ -53,7 +61,7 @@ SMTP_FROM="${SILVERTASK_SMTP_FROM:-}"
 STORAGE_ROOT="/var/lib/silver-task/attachments"
 
 print_help() {
-    sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,39p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 for arg in "$@"; do
@@ -65,6 +73,8 @@ for arg in "$@"; do
         --domain=*) DOMAIN="${arg#*=}" ;;
         --http-port=*) HTTP_PORT="${arg#*=}" ;;
         --https-port=*) HTTPS_PORT="${arg#*=}" ;;
+        --admin-email=*) ADMIN_EMAIL="${arg#*=}" ;;
+        --admin-name=*) ADMIN_NAME="${arg#*=}" ;;
         --smtp-host=*) SMTP_HOST="${arg#*=}" ;;
         --smtp-port=*) SMTP_PORT="${arg#*=}" ;;
         --smtp-username=*) SMTP_USERNAME="${arg#*=}" ;;
@@ -117,6 +127,16 @@ if [ "$NON_INTERACTIVE" = false ]; then
         read -r -p "HTTP port for local/IP access [$HTTP_PORT]: " input; HTTP_PORT="${input:-$HTTP_PORT}"
         SKIP_SSL=true
         st_info "No domain given — installing for HTTP/IP access only. You can re-run later with --domain to add HTTPS."
+    fi
+    echo
+    echo "An administrator account can be created automatically once installation finishes —"
+    echo "its password is randomly generated and shown once at the end. Leave blank to skip"
+    echo "and create one yourself later (see README \"Quick Start\")."
+    read -r -p "Administrator email: [${ADMIN_EMAIL}] " input
+    ADMIN_EMAIL="${input:-$ADMIN_EMAIL}"
+    if [ -n "$ADMIN_EMAIL" ]; then
+        read -r -p "Administrator name [${ADMIN_NAME}]: " input
+        ADMIN_NAME="${input:-$ADMIN_NAME}"
     fi
     echo
     echo "Email (SMTP) is optional — Silver Task works fully without it (email notifications simply stay off)."
@@ -427,6 +447,36 @@ if ! st_health_check "$HEALTH_URL" 15 3; then
         "Check: systemctl status $SILVERTASK_SERVICE_NAME, journalctl -u $SILVERTASK_SERVICE_NAME -n 100, and $SILVERTASK_LOG_FILE"
 fi
 
+# --- Administrator account ---
+# POST /api/users (Controllers/UsersController.cs) is open to anonymous requests only while
+# zero users exist in the system, and that first account is always forced to Administrator
+# regardless of the Role field sent — this is the application's own bootstrap rule, there is
+# no separate "make me admin" step. Talks directly to Kestrel on its fixed internal loopback
+# address (deploy/silvertask.service: ASPNETCORE_URLS=http://127.0.0.1:5000), not through
+# nginx on $HTTP_PORT, so this works identically regardless of domain/HTTPS/redirect config.
+ADMIN_CREATED=false
+if [ -n "$ADMIN_EMAIL" ]; then
+    st_step "Creating administrator account"
+    ADMIN_PASSWORD="$(st_generate_password 20)"
+    ADMIN_PAYLOAD="$(printf '{"name":"%s","email":"%s","password":"%s"}' \
+        "$(st_json_escape "$ADMIN_NAME")" "$(st_json_escape "$ADMIN_EMAIL")" "$(st_json_escape "$ADMIN_PASSWORD")")"
+    ADMIN_HTTP_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:5000/api/users" \
+        -H "Content-Type: application/json" -d "$ADMIN_PAYLOAD" 2>>"$SILVERTASK_LOG_FILE" || true)"
+    case "$ADMIN_HTTP_STATUS" in
+        200|201)
+            st_info "Administrator account created for $ADMIN_EMAIL."
+            ADMIN_CREATED=true
+            ;;
+        401|403)
+            st_info "An account already exists — skipping automatic administrator creation (expected on a re-run)."
+            ;;
+        *)
+            st_warn "Could not automatically create the administrator account (HTTP ${ADMIN_HTTP_STATUS:-no response}). See $SILVERTASK_LOG_FILE."
+            st_warn "Create one manually: curl -X POST http://127.0.0.1:5000/api/users -H 'Content-Type: application/json' -d '{\"name\":\"...\",\"email\":\"...\",\"password\":\"...\"}'"
+            ;;
+    esac
+fi
+
 SCHEME="http"; PORT_SUFFIX=":$HTTP_PORT"
 if [ -n "$DOMAIN" ] && [ "$SKIP_SSL" = false ]; then
     SCHEME="https"; PORT_SUFFIX=""; [ "$HTTPS_PORT" != "443" ] && PORT_SUFFIX=":$HTTPS_PORT"
@@ -447,8 +497,28 @@ st_info " Environment file:  $SILVERTASK_ENV_FILE"
 st_info " File storage:      $STORAGE_ROOT"
 st_info " Service:           systemctl status $SILVERTASK_SERVICE_NAME"
 st_info " Logs:              journalctl -u $SILVERTASK_SERVICE_NAME -f"
-st_info ""
-st_info " NEXT STEP: open $FINAL_URL and register the first account."
-st_info " Silver Task automatically grants Administrator to the first user ever registered —"
-st_info " there is no separate admin-creation step; this is the application's own bootstrap rule."
 st_info "=================================================================="
+if [ "$ADMIN_CREATED" = true ]; then
+    # Deliberately plain `echo`, not st_info/st_warn — those also write to
+    # $SILVERTASK_LOG_FILE, and this password is never written to any file by this script
+    # (same "never log secrets" rule already applied to the DB password and JWT secret above).
+    echo
+    echo "=================================================================="
+    echo " Administrator account created — shown once, save it now:"
+    echo "=================================================================="
+    echo " Email:    $ADMIN_EMAIL"
+    echo " Password: $ADMIN_PASSWORD"
+    echo "=================================================================="
+    echo " Log in at $FINAL_URL. You can change this password anytime after"
+    echo " logging in, or from another admin account via Admin -> Users."
+    echo "=================================================================="
+else
+    st_info ""
+    st_info " NEXT STEP: create your administrator account, then log in at $FINAL_URL:"
+    st_info "   curl -X POST http://127.0.0.1:5000/api/users -H 'Content-Type: application/json' \\"
+    st_info "     -d '{\"name\":\"Your Name\",\"email\":\"you@example.com\",\"password\":\"a-strong-password\"}'"
+    st_info " This only works for the very first account — Silver Task automatically grants it"
+    st_info " Administrator, with no separate admin-creation step. Every account after that is"
+    st_info " created from inside the app by an existing Administrator (Admin -> Users)."
+    st_info "=================================================================="
+fi

@@ -197,6 +197,38 @@ st_is_installed() {
     [ -d "$SILVERTASK_INSTALL_DIR" ] && [ -f "$SILVERTASK_ENV_FILE" ] && [ -f "/etc/systemd/system/${SILVERTASK_SERVICE_NAME}.service" ]
 }
 
+# Generates a random password guaranteed to contain at least one uppercase letter, one
+# lowercase letter, one digit, and one symbol — satisfies even the strictest setting of the
+# app's own configurable Security.RequirePasswordComplexity policy (Services/UserService.cs),
+# not just whatever the default happens to be today. Retries rather than hand-assembling the
+# guaranteed characters into the string, to avoid predictable character positions.
+st_generate_password() {
+    local length="${1:-20}"
+    local charset='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#%^*_+-'
+    local pass
+    while :; do
+        pass="$(tr -dc "$charset" < /dev/urandom 2>/dev/null | head -c "$length")"
+        [ "${#pass}" -eq "$length" ] || continue
+        echo "$pass" | grep -q '[A-Z]' || continue
+        echo "$pass" | grep -q '[a-z]' || continue
+        echo "$pass" | grep -q '[0-9]' || continue
+        echo "$pass" | grep -qE '[^A-Za-z0-9]' || continue
+        break
+    done
+    printf '%s' "$pass"
+}
+
+# Escapes backslash and double-quote for embedding a value inside a hand-built JSON string
+# literal. Deliberately minimal (no control-character/unicode handling) — every caller only
+# ever feeds this single-line values from a `read -r` prompt or a CLI flag, which cannot
+# contain embedded newlines/control characters in the first place.
+st_json_escape() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    printf '%s' "$s"
+}
+
 # --- Confirmation prompt for destructive actions. Always requires an exact match, never a
 # bare Enter/Y shortcut, for anything that can delete data. ---
 st_confirm_destructive() {
