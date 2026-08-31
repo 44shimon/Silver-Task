@@ -1,4 +1,9 @@
-# Silver Task v1.0.0 — Production Deployment Runbook
+# Silver Task — Manual Production Deployment Runbook
+
+> **On a fresh Debian 12+ server, use `scripts/install-debian.sh` instead** (see the main
+> `README.md` → "Production Installation") — it automates every step below. This document remains
+> as the manual reference for non-Debian deployments, understanding exactly what the installer
+> does under the hood, or troubleshooting a step in isolation.
 
 This document is the Phase 48 deliverable: everything needed to deploy Silver Task to a real
 production environment. It was prepared and verified against a locally-built **Release
@@ -6,6 +11,7 @@ configuration, published artifact** — the same artifact a real deployment woul
 repository has no actual production server, domain, or hosting account connected to it. Steps
 below marked **[VERIFIED]** were actually run and confirmed during this phase; steps marked
 **[REQUIRES YOUR INFRASTRUCTURE]** are written and ready but need a real target to execute against.
+(Phase 50 subsequently automated all of this for Debian specifically — see `scripts/`.)
 
 ## What was actually verified in this phase
 
@@ -65,7 +71,8 @@ below needs a real server/hosting account before it can be executed, not just do
 ## Deployment steps
 
 1. **[REQUIRES YOUR INFRASTRUCTURE] Backup first.** Before touching production, take a real
-   backup (see README → "Backup & restore", the exact procedure verified in Phase 47):
+   backup (see README → "Backup", the exact procedure verified in Phase 47; or just run
+   `scripts/backup-debian.sh` if this is a Debian install):
    `pg_dump -h <host> -U <user> -d <database> -F c -f backup.dump`, plus a copy of the
    `Attachments:StorageRoot` directory. Confirm the backup file is non-empty and record its
    location per your existing operational procedure.
@@ -118,7 +125,7 @@ deployed URL once it exists, since only that run counts as an actual production 
 - [ ] Test email sends successfully via Admin → Email → Send Test Email (uses real SMTP config,
       the safe built-in way to verify email delivery without spamming real users)
 - [ ] Daily/Weekly digest generates correctly for a test account with a type set to Daily/Weekly
-      digest mode (see README → "Notification digests" for exactly how this was verified against
+      digest mode (see README's Appendix → "Notification digests (Phase 46)" for exactly how this was verified against
       a real send-and-retry cycle in Phase 46)
 - [ ] Automations trigger/condition/action pipeline fires once per event, no duplicate execution
 - [ ] `GET /api/health` and `GET /api/health/ready` both return healthy
@@ -179,8 +186,8 @@ appropriately-scoped v1.0.0 answer to "can the outside world tell if this is bro
      restoring from the pre-deployment backup (step 1 of "Deployment steps") over running `Down()`
      against live data.
 4. **Full restore fallback**: if rollback via steps 2–3 isn't sufficient, restore the
-   pre-deployment database backup and attachment storage backup per README → "Disaster recovery
-   procedure," then redeploy the previous application version.
+   pre-deployment database backup and attachment storage backup per README → "Restore," then
+   redeploy the previous application version.
 5. **Never** perform a destructive database operation (`Down()`, a restore, a manual `DROP`)
    without a verified-good backup already in hand — this is the same rule Phase 47 established
    for the original migration, restated here because it applies equally to a rollback.
