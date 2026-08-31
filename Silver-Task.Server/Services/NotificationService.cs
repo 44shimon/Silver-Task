@@ -72,6 +72,22 @@ namespace Silver_Task.Server.Services
 
         Task BulkDeleteAsync(IReadOnlyList<Guid> ids, Guid userId);
 
+        /// <summary>Phase 44 — deletes every READ notification the caller owns, leaving unread
+        /// ones untouched regardless of age (the "Clear read notifications" convenience action —
+        /// spec's own explicit "must not delete unread" rule for any cleanup action, not just the
+        /// background retention sweep).</summary>
+        Task ClearReadAsync(Guid userId);
+
+        /// <summary>Phase 44 — mutes TASK-scoped notifications for this (user, task) pair. Caller
+        /// is responsible for verifying the user can access the task before calling this (see
+        /// TasksController.Mute, which reuses ITaskService.GetByIdAsync's own authorization check
+        /// rather than duplicating it here).</summary>
+        Task MuteTaskAsync(Guid taskId, Guid userId);
+
+        Task UnmuteTaskAsync(Guid taskId, Guid userId);
+
+        Task<bool> IsTaskMutedAsync(Guid taskId, Guid userId);
+
         /// <summary>Called periodically by DueDateNotificationBackgroundService — scans assigned,
         /// still-open tasks for ones due today/tomorrow or already overdue, and raises TaskDueSoon
         /// / TaskOverdue notifications. Safe to call repeatedly: a task+user+type that already has
@@ -80,9 +96,10 @@ namespace Silver_Task.Server.Services
         Task CreateDueSoonAndOverdueNotificationsAsync();
 
         /// <summary>Called periodically by NotificationRetentionBackgroundService — bulk-deletes
-        /// notifications older than the configured retention window. Never touches recent
-        /// notifications regardless of read state (the spec's own "do not automatically delete
-        /// recent notifications" instruction) — only age matters, not IsRead.</summary>
+        /// READ notifications older than the configured retention window. Unread notifications
+        /// are never touched by this regardless of age (Phase 44's own explicit "do not delete
+        /// unread notifications unexpectedly" rule) — only a read, aged-out notification is
+        /// eligible for automatic cleanup.</summary>
         Task PurgeExpiredAsync();
     }
 
@@ -130,6 +147,20 @@ namespace Silver_Task.Server.Services
                 var alreadyRaised = await _db.Notifications
                     .AnyAsync(n => n.UserId == recipientUserId && n.Type == type && n.EventId == eid);
                 if (alreadyRaised)
+                {
+                    return;
+                }
+            }
+
+            // Phase 44 — a per-task mute suppresses every task-scoped notification type for that
+            // one task, EXCEPT mentions, which stay visible even on a muted task (spec's own
+            // explicit "mentions should generally remain visible even if ordinary comment
+            // notifications are disabled" rule, extended the same way to task mute).
+            if (taskId is Guid mutedCandidateTaskId && type != NotificationTypes.MentionedInComment)
+            {
+                var isMuted = await _db.TaskNotificationMutes
+                    .AnyAsync(m => m.UserId == recipientUserId && m.TaskId == mutedCandidateTaskId);
+                if (isMuted)
                 {
                     return;
                 }
@@ -292,6 +323,41 @@ namespace Silver_Task.Server.Services
                 .ExecuteDeleteAsync();
         }
 
+        public async Task ClearReadAsync(Guid userId)
+        {
+            await _db.Notifications.Where(n => n.UserId == userId && n.IsRead).ExecuteDeleteAsync();
+        }
+
+        public async Task MuteTaskAsync(Guid taskId, Guid userId)
+        {
+            var alreadyMuted = await _db.TaskNotificationMutes.AnyAsync(m => m.UserId == userId && m.TaskId == taskId);
+            if (alreadyMuted)
+            {
+                return;
+            }
+            _db.TaskNotificationMutes.Add(new TaskNotificationMute
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                TaskId = taskId,
+                CreatedAt = DateTime.UtcNow
+            });
+            await _db.SaveChangesAsync();
+        }
+
+        public async Task UnmuteTaskAsync(Guid taskId, Guid userId)
+        {
+            var mute = await _db.TaskNotificationMutes.FirstOrDefaultAsync(m => m.UserId == userId && m.TaskId == taskId);
+            if (mute != null)
+            {
+                _db.TaskNotificationMutes.Remove(mute);
+                await _db.SaveChangesAsync();
+            }
+        }
+
+        public Task<bool> IsTaskMutedAsync(Guid taskId, Guid userId) =>
+            _db.TaskNotificationMutes.AnyAsync(m => m.UserId == userId && m.TaskId == taskId);
+
         public async Task CreateDueSoonAndOverdueNotificationsAsync()
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -340,7 +406,11 @@ namespace Silver_Task.Server.Services
         {
             var retentionDays = await _systemSettings.GetIntAsync(SystemSettingKeys.NotificationRetentionDays);
             var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
-            await _db.Notifications.Where(n => n.CreatedAt < cutoff).ExecuteDeleteAsync();
+            // Phase 44 — only READ notifications age out; unread ones are never auto-deleted
+            // regardless of age (spec's own explicit "do not delete unread notifications
+            // unexpectedly" rule) — a notification the user hasn't seen yet stays until they act
+            // on it, no matter how long that takes.
+            await _db.Notifications.Where(n => n.CreatedAt < cutoff && n.IsRead).ExecuteDeleteAsync();
         }
 
         private async Task<Notification> LoadOwnNotificationAsync(Guid notificationId, Guid userId)

@@ -40,4 +40,9 @@ export const tasksApi = {
   setChecklistItemChecked: (taskId: string, itemId: string, isChecked: boolean) =>
     httpClient.put<TaskChecklistItem>(`/tasks/${taskId}/checklist/${itemId}`, { isChecked }),
   removeChecklistItem: (taskId: string, itemId: string) => httpClient.delete<void>(`/tasks/${taskId}/checklist/${itemId}`),
+  /** Phase 44 — per-caller "Mute Notifications" on this one task; never affects the user's
+   * global notification type preferences (Settings > Notifications). */
+  muteStatus: (taskId: string) => httpClient.get<{ isMuted: boolean }>(`/tasks/${taskId}/mute`),
+  mute: (taskId: string) => httpClient.put<void>(`/tasks/${taskId}/mute`),
+  unmute: (taskId: string) => httpClient.delete<void>(`/tasks/${taskId}/mute`),
 };

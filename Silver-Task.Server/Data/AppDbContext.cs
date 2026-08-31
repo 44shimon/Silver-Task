@@ -99,6 +99,8 @@ namespace Silver_Task.Server.Data
 
         public DbSet<UserSavedViewFavorite> UserSavedViewFavorites => Set<UserSavedViewFavorite>();
 
+        public DbSet<TaskNotificationMute> TaskNotificationMutes => Set<TaskNotificationMute>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

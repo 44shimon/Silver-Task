@@ -1,9 +1,9 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
-import { ArrowRightLeft, X } from 'lucide-react';
+import { ArrowRightLeft, Bell, BellOff, X } from 'lucide-react';
 import type { Task } from '@/types/task';
 import type { CustomField } from '@/types/customField';
 import type { UserSummary } from '@/types/project';
-import { taskFieldChange, useUpdateTask } from '@/hooks/useTasks';
+import { taskFieldChange, useSetTaskMuted, useTaskMuteStatus, useUpdateTask } from '@/hooks/useTasks';
 import { StatusDropdownCell } from './StatusDropdownCell';
 import { PriorityDropdownCell } from './PriorityDropdownCell';
 import { AssignedToDropdownCell } from './AssignedToDropdownCell';
@@ -55,6 +55,8 @@ export function TaskDetailPanel({
   canOverrideDependencies,
 }: TaskDetailPanelProps) {
   const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const { data: muteStatus } = useTaskMuteStatus(task.id);
+  const setMuted = useSetTaskMuted(task.id);
 
   useEffect(() => {
     function handleKeyDown(event: globalThis.KeyboardEvent) {
@@ -71,6 +73,16 @@ export function TaskDetailPanel({
       <div className="task-detail-panel" onClick={(e) => e.stopPropagation()}>
         <div className="task-detail-panel__header">
           <TaskTitleField task={task} projectId={projectId} readOnly={!canEdit} />
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={muteStatus?.isMuted ? 'Unmute notifications for this task' : 'Mute notifications for this task'}
+            title={muteStatus?.isMuted ? 'Unmute Notifications' : 'Mute Notifications'}
+            disabled={setMuted.isPending}
+            onClick={() => setMuted.mutate(!muteStatus?.isMuted)}
+          >
+            {muteStatus?.isMuted ? <BellOff size={16} /> : <Bell size={16} />}
+          </button>
           {canEdit && (
             <button
               type="button"

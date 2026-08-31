@@ -30,4 +30,6 @@ export const notificationsApi = {
   bulkMarkRead: (ids: string[]) => httpClient.post<void>('/notifications/bulk/read', { ids }),
   bulkDismiss: (ids: string[]) => httpClient.post<void>('/notifications/bulk/dismiss', { ids }),
   remove: (id: string) => httpClient.delete<void>(`/notifications/${id}`),
+  /** Phase 44 — "Clear read notifications"; never removes an unread one. */
+  clearRead: () => httpClient.delete<void>('/notifications/read'),
 };

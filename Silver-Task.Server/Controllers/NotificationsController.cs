@@ -111,5 +111,14 @@ namespace Silver_Task.Server.Controllers
             await _notificationService.DeleteAsync(id, User.GetUserId());
             return NoContent();
         }
+
+        /// <summary>Phase 44 — "Clear read notifications" (spec #70): removes every read
+        /// notification the caller owns, never an unread one, regardless of age.</summary>
+        [HttpDelete("read")]
+        public async Task<IActionResult> ClearRead()
+        {
+            await _notificationService.ClearReadAsync(User.GetUserId());
+            return NoContent();
+        }
     }
 }

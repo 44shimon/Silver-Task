@@ -286,3 +286,33 @@ export function useSetTaskCustomValue(projectId: string) {
     },
   });
 }
+
+/** Phase 44 — "Mute Notifications" status for the current caller on one task. A small,
+ * dedicated query rather than a field on Task/TaskDto, since it's per-caller and only ever
+ * needed while the task detail panel is open. */
+export function useTaskMuteStatus(taskId: string | undefined) {
+  return useQuery({
+    queryKey: ['tasks', taskId, 'mute'],
+    queryFn: () => tasksApi.muteStatus(taskId!),
+    enabled: !!taskId,
+  });
+}
+
+export function useSetTaskMuted(taskId: string) {
+  const queryClient = useQueryClient();
+  const queryKey = ['tasks', taskId, 'mute'];
+  return useMutation({
+    mutationFn: (muted: boolean) => (muted ? tasksApi.mute(taskId) : tasksApi.unmute(taskId)),
+    onMutate: async (muted) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<{ isMuted: boolean }>(queryKey);
+      queryClient.setQueryData(queryKey, { isMuted: muted });
+      return { previous };
+    },
+    onError: (_error, _muted, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKey, context.previous);
+      }
+    },
+  });
+}

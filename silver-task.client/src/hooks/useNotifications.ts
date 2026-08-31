@@ -155,6 +155,16 @@ export function useBulkDismiss() {
   });
 }
 
+/** Phase 44 — "Clear read notifications" (spec #70); the unread count is unaffected since only
+ * already-read notifications are ever removed by this. */
+export function useClearReadNotifications() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => notificationsApi.clearRead(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+  });
+}
+
 /**
  * Phase 36 real-time push — connects to the server's NotificationHub (cookie-auth, same as every
  * other request) and invalidates the notification queries whenever the server pushes

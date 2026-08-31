@@ -3,6 +3,7 @@ import { Search } from 'lucide-react';
 import {
   useBulkDismiss,
   useBulkMarkRead,
+  useClearReadNotifications,
   useMarkAllNotificationsRead,
   useNotifications,
 } from '@/hooks/useNotifications';
@@ -36,6 +37,7 @@ export function NotificationsPage() {
   const markAllRead = useMarkAllNotificationsRead();
   const bulkMarkRead = useBulkMarkRead();
   const bulkDismiss = useBulkDismiss();
+  const clearRead = useClearReadNotifications();
   const { data: projects } = useProjects();
 
   const { data, isLoading, isError, refetch } = useNotifications({
@@ -85,6 +87,18 @@ export function NotificationsPage() {
           </button>
           <button type="button" className="notifications-page__mark-all" onClick={() => markAllRead.mutate()} disabled={markAllRead.isPending}>
             Mark all read
+          </button>
+          <button
+            type="button"
+            className="notifications-page__mark-all"
+            disabled={clearRead.isPending}
+            onClick={() => {
+              if (window.confirm('Clear all read notifications? Unread notifications will not be affected.')) {
+                clearRead.mutate();
+              }
+            }}
+          >
+            Clear read
           </button>
         </div>
       </div>

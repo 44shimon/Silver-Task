@@ -19,13 +19,15 @@ namespace Silver_Task.Server.Controllers
         ICommentService commentService,
         IAttachmentService attachmentService,
         ITaskDependencyService dependencyService,
-        IRecurringTaskService recurringTaskService) : ControllerBase
+        IRecurringTaskService recurringTaskService,
+        INotificationService notificationService) : ControllerBase
     {
         private readonly ITaskService _taskService = taskService;
         private readonly ICommentService _commentService = commentService;
         private readonly IAttachmentService _attachmentService = attachmentService;
         private readonly ITaskDependencyService _dependencyService = dependencyService;
         private readonly IRecurringTaskService _recurringTaskService = recurringTaskService;
+        private readonly INotificationService _notificationService = notificationService;
 
         /// <summary>Global task search (Topbar) — case-insensitive partial match across title,
         /// description, project name, assignee name, and Text/LongText custom fields, scoped to
@@ -304,6 +306,37 @@ namespace Silver_Task.Server.Controllers
         public async Task<IActionResult> RemoveLabel(Guid id, Guid tagId)
         {
             await _taskService.RemoveLabelAsync(id, tagId, User.GetUserId(), User.GetRole());
+            return NoContent();
+        }
+
+        /// <summary>Phase 44 — "Mute Notifications" on the task detail panel. Reuses
+        /// ITaskService.GetByIdAsync's own authorization check (throws 404/403 exactly like
+        /// opening the task would) rather than duplicating a project-access check here, so a
+        /// caller can only mute a task they can actually see.</summary>
+        [HttpGet("{id:guid}/mute")]
+        public async Task<ActionResult<TaskMuteStatusDto>> GetMuteStatus(Guid id)
+        {
+            var callerId = User.GetUserId();
+            await _taskService.GetByIdAsync(id, callerId, User.GetRole());
+            var isMuted = await _notificationService.IsTaskMutedAsync(id, callerId);
+            return Ok(new TaskMuteStatusDto { IsMuted = isMuted });
+        }
+
+        [HttpPut("{id:guid}/mute")]
+        public async Task<IActionResult> Mute(Guid id)
+        {
+            var callerId = User.GetUserId();
+            await _taskService.GetByIdAsync(id, callerId, User.GetRole());
+            await _notificationService.MuteTaskAsync(id, callerId);
+            return NoContent();
+        }
+
+        [HttpDelete("{id:guid}/mute")]
+        public async Task<IActionResult> Unmute(Guid id)
+        {
+            var callerId = User.GetUserId();
+            await _taskService.GetByIdAsync(id, callerId, User.GetRole());
+            await _notificationService.UnmuteTaskAsync(id, callerId);
             return NoContent();
         }
     }
