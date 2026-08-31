@@ -144,7 +144,7 @@ st_step "Installing system dependencies"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq || st_fail "apt-get update failed."
 apt-get install -y -qq \
-    curl ca-certificates gnupg apt-transport-https lsb-release \
+    curl ca-certificates gnupg apt-transport-https lsb-release openssl \
     postgresql postgresql-contrib nginx ufw rsync \
     >> "$SILVERTASK_LOG_FILE" 2>&1 \
     || st_fail "Installing base packages failed." "Check $SILVERTASK_LOG_FILE for apt's output."

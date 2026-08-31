@@ -103,8 +103,17 @@ st_check_resources() {
 }
 
 st_check_internet() {
-    if ! curl -fsS --max-time 5 -o /dev/null https://deb.debian.org 2>/dev/null; then
-        st_fail "No internet connectivity (could not reach deb.debian.org)." "This installer needs internet access to install packages and clone the repository."
+    # Deliberately NOT using curl here — this check runs during pre-flight, before the
+    # "install system dependencies" step that's what actually installs curl. A minimal/fresh
+    # Debian install may not have curl (or wget) pre-installed at all, which would make a
+    # curl-based check fail with "command not found" and get misreported as "no internet"
+    # (found via a real Debian 13 test run — see the script's own change history). Bash's
+    # /dev/tcp pseudo-device needs nothing beyond bash itself: it opens a raw TCP connection,
+    # which is exactly "is there a route to the internet" without depending on any tool this
+    # script hasn't installed yet.
+    if ! timeout 5 bash -c 'exec 3<>/dev/tcp/deb.debian.org/443' 2>/dev/null; then
+        st_fail "No internet connectivity (could not open a TCP connection to deb.debian.org:443)." \
+            "Check network/DNS/firewall configuration. If deb.debian.org is reachable but this still fails, your kernel may have /dev/tcp disabled — check 'bash -c \"echo > /dev/tcp/deb.debian.org/443\"' manually."
     fi
     st_info "Internet connectivity check passed."
 }
