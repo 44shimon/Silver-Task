@@ -304,10 +304,7 @@ st_info "Build succeeded."
 st_step "Running database migrations"
 (
     cd "$SILVERTASK_SOURCE_DIR"
-    set -a
-    # shellcheck disable=SC1090
-    source "$SILVERTASK_ENV_FILE"
-    set +a
+    st_load_env_file "$SILVERTASK_ENV_FILE"
     dotnet ef database update --project Silver-Task.Server --startup-project Silver-Task.Server >> "$SILVERTASK_LOG_FILE" 2>&1
 ) || st_fail "Database migration failed." "Check $SILVERTASK_LOG_FILE. The application was NOT started with a partially-migrated database."
 st_info "Migrations applied."

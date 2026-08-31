@@ -89,10 +89,7 @@ st_info "Build succeeded."
 st_step "Running database migrations"
 (
     cd "$SILVERTASK_SOURCE_DIR"
-    set -a
-    # shellcheck disable=SC1090
-    source "$SILVERTASK_ENV_FILE"
-    set +a
+    st_load_env_file "$SILVERTASK_ENV_FILE"
     dotnet ef database update --project Silver-Task.Server --startup-project Silver-Task.Server >> "$SILVERTASK_LOG_FILE" 2>&1
 ) || st_fail "Migration failed during update." \
     "The previous application version is still installed at $PREVIOUS_PUBLISH_DIR but NOT currently running the service — restore it manually (see README 'Rollback procedure') and restore the pre-update backup taken above before retrying."

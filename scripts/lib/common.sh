@@ -51,6 +51,30 @@ st_fail() {
     exit 1
 }
 
+# Loads a systemd EnvironmentFile-format file (plain KEY=VALUE per line, no shell quoting or
+# expansion — values are taken completely literally) into the current shell's exported
+# environment. Deliberately NOT a plain `source`/`.`: bash would execute the file as shell
+# code, and any value containing shell-special characters gets silently mangled. Concretely,
+# ConnectionStrings__DefaultConnection's value (`Host=localhost;Port=5432;Database=...;
+# Username=...;Password=...`) sourced as bash treats each `;` as a command separator, so only
+# the text before the *first* `;` ("Host=localhost") actually ends up in that variable — the
+# database name, username, and password are silently dropped, not just misread. Found for
+# real: this broke `dotnet ef database update` during install with "No password has been
+# provided" and an empty database name. systemd's own EnvironmentFile= parsing (used when the
+# app actually runs as a service) has no such issue — only these scripts' own bash-side reads
+# of the same file did.
+st_load_env_file() {
+    local file="$1" line key value
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+            ''|'#'*) continue ;;
+        esac
+        key="${line%%=*}"
+        value="${line#*=}"
+        export "$key=$value"
+    done < "$file"
+}
+
 # Runs a command as the `postgres` OS user. Local PostgreSQL connections use peer
 # authentication (Debian's default cluster config), which requires actually switching to that
 # OS user, not just supplying app-level DB credentials. Uses `runuser`, not `sudo`: every

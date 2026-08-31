@@ -74,10 +74,7 @@ st_info "Removed $SILVERTASK_PUBLISH_DIR and $SILVERTASK_SOURCE_DIR."
 # referencing an unset variable under `set -u` in the non-destructive branch.
 STORAGE_ROOT="/var/lib/silver-task/attachments"
 if [ -f "$SILVERTASK_ENV_FILE" ]; then
-    set -a
-    # shellcheck disable=SC1090
-    source "$SILVERTASK_ENV_FILE"
-    set +a
+    st_load_env_file "$SILVERTASK_ENV_FILE"
     STORAGE_ROOT="${Attachments__StorageRoot:-$STORAGE_ROOT}"
 fi
 

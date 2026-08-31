@@ -38,10 +38,7 @@ mkdir -p "$BACKUP_SET_DIR"
 chmod 700 "$SILVERTASK_BACKUP_DIR" "$BACKUP_SET_DIR"
 
 # --- Read connection details from the env file without ever echoing/logging the password ---
-set -a
-# shellcheck disable=SC1090
-source "$SILVERTASK_ENV_FILE"
-set +a
+st_load_env_file "$SILVERTASK_ENV_FILE"
 DB_HOST=$(echo "$ConnectionStrings__DefaultConnection" | grep -oP '(?<=Host=)[^;]*')
 DB_NAME=$(echo "$ConnectionStrings__DefaultConnection" | grep -oP '(?<=Database=)[^;]*')
 DB_USER=$(echo "$ConnectionStrings__DefaultConnection" | grep -oP '(?<=Username=)[^;]*')
