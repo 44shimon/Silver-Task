@@ -4,11 +4,15 @@ A production-oriented, spreadsheet-style task management application. Projects c
 in an editable, sortable, filterable grid (rows = tasks, columns = fields, including project-defined
 custom fields), backed by a real REST API and a relational database.
 
-> **Status:** Phases 1–13 complete (architecture, database schema, authentication & users, projects &
-> members, tasks REST API, spreadsheet UI, inline editing, dropdown columns, filtering/sorting/search,
-> custom fields, task detail panel, comments & activity history, attachments). Performance work (real
-> scale/virtualization), automated testing, and production hardening are not done yet — see
-> [Development phases](#development-phases).
+> **Status:** v1.0.1 released (Phases 1–49 complete — task management, all five views, search/filters/
+> saved views, custom fields, templates, comments/files/activity history, automations, dashboards,
+> reports, in-app + email notifications with Daily/Weekly digests, admin/system settings, and a
+> post-release stabilization pass). See [Development phases](#development-phases) for the full
+> phase-by-phase history, and [Email notifications](#email-notifications-phase-45),
+> [Notification digests](#notification-digests-phase-46), and
+> [V1.0.0 release readiness](#v100-release-readiness-phase-47) below for the most recent architecture.
+> Performance work at real scale and an automated test suite remain the two biggest open gaps — see
+> `RELEASE_NOTES.md`'s "Known limitations".
 
 ## Technology stack
 
@@ -468,7 +472,10 @@ dotnet ef migrations add <MigrationName> --project Silver-Task.Server --startup-
 
 ## Running tests
 
-Not yet applicable — test projects are introduced in Phase 15.
+Not yet applicable — no automated test project exists in either the server or client as of v1.0.1.
+This remains the single biggest open gap noted throughout Phases 45–49 (see `RELEASE_NOTES.md`'s
+"Known limitations") and is expected to be its own dedicated phase rather than something folded into
+a feature or stabilization phase.
 
 ## Environment variables
 
@@ -789,5 +796,59 @@ This project is being built incrementally. Completed phases:
       storage," per spec) behind `IAttachmentService`, GUID-based filenames on disk with authorized-only
       download, a 25 MB size cap + blocked-extension validation, and upload/delete logged into the Phase 12
       activity feed (see [Attachments](#attachments)).
+
+Phases 14–44 continued building out the application (below); the prose-per-phase documentation style
+above wasn't kept up after Phase 13, so this range is listed by commit title only rather than
+re-narrated after the fact — see `git log` for the actual diffs if you need phase-level detail beyond
+what's in the rest of this README (which does document the current architecture regardless of which
+phase introduced it):
+
+- [x] **Phase 14** — Application/admin scaffolding expansion (large structural commit; see git history).
+- [x] **Phase 15** — Incremental feature work (see git history).
+- [x] **Phase 16** — Task management refinements (see git history).
+- [x] **Phase 17–20** — Project page feature build-out (see git history).
+- [x] **Phase 21** — Incremental refinements (see git history).
+- [x] **Phase 22** — My Tasks / Project page polish (see git history).
+- [x] **Phase 23** — Project settings & user preferences groundwork (see git history).
+- [x] **Phase 24** — Admin System Settings — the generic key/value system-settings store (`SystemSettings`
+      table, `SystemSettingDefinitions`) still used by every later admin-configurable feature.
+- [x] **Phase 25** — Admin Custom Fields — admin-side management of project custom field definitions.
+- [x] **Phase 26** — User Management and Delete User.
+- [x] **Phase 27** — Security, permissions, and final review — the project-membership-based
+      `ProjectAccessService` tiers (`EnsureCanParticipate/Edit/ManageAsync`) this codebase still uses
+      everywhere (see [Projects & authorization model](#projects--authorization-model)).
+- [x] **Phase 28** — Notifications — the original `Notification`/`UserNotificationSettings` tables and
+      in-app notification center, later substantially extended in Phases 36 and 44.
+- [x] **Phase 29** — Task Dependencies (finish-to-start and related types).
+- [x] **Phase 30** — Subtasks.
+- [x] **Phase 31** — Recurring Tasks.
+- [x] **Phase 32** — Advanced Permissions — per-project roles (Manager/Member/Viewer) on top of Phase 27's
+      system-wide roles.
+- [x] **Phase 33** — File and Attachment Management (generalized beyond Phase 13's task-only attachments).
+- [x] **Phase 34** — File Organization (folders/categories/tags for files).
+- [x] **Phase 35** — Advanced Task Automation — the trigger → condition → action automation pipeline.
+- [x] **Phase 36** — Advanced Notifications — email-capable notifications, daily digest groundwork, quiet
+      hours; the direct predecessor to Phases 45–46 below.
+- [x] **Phase 37** — Advanced Dashboard and Personal Workspace.
+- [x] **Phase 38** — Advanced Reporting and Analytics.
+- [x] **Phase 39** — Advanced Task Dependencies and Workflow Automation.
+- [x] **Phase 40** — Advanced Task and Project Templates.
+- [x] **Phase 41** — Advanced Custom Fields and Dynamic Forms.
+- [x] **Phase 42** — Advanced Search and Global Search.
+- [x] **Phase 43** — Saved Views and Advanced Filters.
+- [x] **Phase 44** — Notifications & Notification Center — the in-app Notification Center UI, notification
+      preferences, and real-time push (SignalR) this README's later phases build on directly.
+- [x] **Phase 45** — Email Notifications and Templates (see
+      [Email notifications](#email-notifications-phase-45) below).
+- [x] **Phase 46** — Scheduled Notifications and Digests (see
+      [Notification digests](#notification-digests-phase-46) below).
+- [x] **Phase 47** — Final V1 QA, Security Hardening & Release Preparation (see
+      [V1.0.0 release readiness](#v100-release-readiness-phase-47) below).
+- [x] **Phase 48** — Production Deployment Prep — built and ran the actual `dotnet publish -c Release`
+      artifact for the first time, which surfaced and fixed two real production-only bugs invisible in dev
+      mode (see `DEPLOYMENT.md`). Version 1.0.0 released.
+- [x] **Phase 49** — Post-Release Stabilization — a renewed code-level review (fixed two High-severity
+      information-disclosure/diagnosability issues, one Medium frontend gap) since v1.0.0 was never
+      actually deployed to a real production environment. Version 1.0.1 released (see `RELEASE_NOTES.md`).
 
 Upcoming: performance work (real-scale/virtualization), automated testing, and production hardening.
