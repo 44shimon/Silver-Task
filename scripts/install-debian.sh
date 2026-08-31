@@ -142,6 +142,21 @@ st_check_ports "${REQUIRED_PORTS[@]}"
 # --- System packages ---
 st_step "Installing system dependencies"
 export DEBIAN_FRONTEND=noninteractive
+
+# Defensive cleanup: if packages.microsoft.com's apt repo was ever registered on this host —
+# by an older version of this script (before .NET/Node.js moved to direct vendor downloads,
+# see below) or by a human following Microsoft's own install docs — it now breaks apt-get
+# update outright, not just Microsoft package installs: Debian 13 (trixie)'s tightened
+# apt/sequoia signature policy rejects that repo's SHA1-signed key unconditionally, so every
+# apt-get update on the host fails while the source file exists. Found for real: a prior
+# partial run on the test server left it registered, and it silently broke this step even
+# though this step doesn't need anything from that repo.
+if [ -f /etc/apt/sources.list.d/microsoft-prod.list ]; then
+    st_warn "Removing a leftover packages.microsoft.com apt source — incompatible with Debian 13's signature policy and no longer used by this installer (.NET/Node.js are installed via direct downloads instead)."
+    rm -f /etc/apt/sources.list.d/microsoft-prod.list
+    rm -f /usr/share/keyrings/microsoft-prod.gpg /etc/apt/trusted.gpg.d/microsoft.gpg /etc/apt/trusted.gpg.d/microsoft.asc
+fi
+
 apt-get update -qq || st_fail "apt-get update failed."
 apt-get install -y -qq \
     curl ca-certificates gnupg apt-transport-https lsb-release openssl \
