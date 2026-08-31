@@ -118,20 +118,21 @@ st_check_internet() {
     st_info "Internet connectivity check passed."
 }
 
-# Checks whether a TCP port is already bound on this host. Returns 0 (true) if occupied.
-# Uses `ss` (part of Debian's default iproute2, no extra package needed) rather than
-# assuming netcat/lsof are installed.
-st_port_in_use() {
-    local port="$1"
-    ss -ltn "( sport = :$port )" 2>/dev/null | grep -q ":$port "
-}
-
 st_check_ports() {
     local occupied=()
-    local port
+    local port holders
     for port in "$@"; do
-        if st_port_in_use "$port"; then
+        holders="$(ss -ltnp "( sport = :$port )" 2>/dev/null | tail -n +2)"
+        [ -z "$holders" ] && continue
+        # A port held only by nginx is not a real conflict: nginx is a service this
+        # installer owns outright and (re)configures every run (including re-runs after an
+        # earlier attempt failed partway through and left nginx running with the default
+        # site on this port, or a previous successful install that legitimately has nginx
+        # bound here already). Only flag it if something else is holding the port.
+        if echo "$holders" | grep -qv '"nginx"'; then
             occupied+=("$port")
+        else
+            st_info "Port $port is already in use by nginx only (from an earlier install run, or nginx's default config) — this installer reconfigures nginx itself, so this is not a conflict."
         fi
     done
     if [ "${#occupied[@]}" -gt 0 ]; then
