@@ -104,14 +104,13 @@ namespace Silver_Task.Server.Services
     }
 
     public class NotificationService(
-        AppDbContext db, IEmailService emailService, ISystemSettingsService systemSettings, IConfiguration configuration) : INotificationService
+        AppDbContext db, IEmailService emailService, ISystemSettingsService systemSettings) : INotificationService
     {
         private const int MaxPageSize = 100;
 
         private readonly AppDbContext _db = db;
         private readonly IEmailService _emailService = emailService;
         private readonly ISystemSettingsService _systemSettings = systemSettings;
-        private readonly IConfiguration _configuration = configuration;
 
         public async Task NotifyAsync(
             Guid recipientUserId,
@@ -170,9 +169,10 @@ namespace Silver_Task.Server.Services
             var resolvedPriority = priority ?? NotificationPriorities.For(type);
             var resolvedActionUrl = actionUrl ?? DefaultActionUrl(taskId, projectId);
 
+            Guid? notificationId = null;
             if (inAppEnabled)
             {
-                _db.Notifications.Add(new Notification
+                var notification = new Notification
                 {
                     Id = Guid.NewGuid(),
                     UserId = recipientUserId,
@@ -188,12 +188,15 @@ namespace Silver_Task.Server.Services
                     ActionUrl = resolvedActionUrl,
                     EventId = eventId,
                     Metadata = metadata
-                });
+                };
+                _db.Notifications.Add(notification);
+                notificationId = notification.Id;
             }
 
             if (emailEnabled)
             {
-                await MaybeSendEmailAsync(recipientUserId, recipient.Email, recipient.Name, resolvedPriority, title, message, resolvedActionUrl);
+                await MaybeSendEmailAsync(
+                    notificationId, recipientUserId, recipient.Email, actorUserId, resolvedPriority, type, title, message, resolvedActionUrl, taskId, projectId);
             }
         }
 
@@ -453,12 +456,22 @@ namespace Silver_Task.Server.Services
 
         /// <summary>The email side of NotifyAsync — gated independently by (in order) whether
         /// SMTP is even configured, the admin's global Notifications.EmailNotificationsEnabled
-        /// switch, this user's DigestFrequency (Daily batches non-Urgent email into the digest
+        /// switch, this user's own EmailNotificationsEnabled master switch (Phase 45 — distinct
+        /// from the per-type toggle already checked by GetChannelSettingAsync before this is even
+        /// called), this user's DigestFrequency (Daily batches non-Urgent email into the digest
         /// instead — see UserPreference.DigestFrequency's own doc comment; Never sends none), and
-        /// finally quiet hours (suppresses email only — the in-app row above is unaffected either
-        /// way, satisfying the spec's "do not lose notifications" rule).</summary>
+        /// finally quiet hours (suppresses email only — the in-app row, if any, is unaffected
+        /// either way, satisfying the spec's "do not lose notifications" rule).
+        ///
+        /// Phase 45 — no longer renders/sends inline: it enqueues a self-contained EmailDelivery
+        /// row (Status = Queued) and returns immediately. EmailDeliveryBackgroundService owns
+        /// everything from here on (re-validating access, rendering the actual template, calling
+        /// IEmailService, and recording the result/retrying) — see that class and
+        /// EmailDeliveryService for why sending must never happen inline on the caller's request
+        /// thread (spec's own "email should not block normal task operations" requirement).</summary>
         private async Task MaybeSendEmailAsync(
-            Guid userId, string email, string name, NotificationPriority priority, string title, string message, string? actionUrl)
+            Guid? notificationId, Guid userId, string email, Guid? actorUserId, NotificationPriority priority,
+            string type, string title, string message, string? actionUrl, Guid? taskId, Guid? projectId)
         {
             if (!_emailService.IsConfigured)
             {
@@ -470,6 +483,10 @@ namespace Silver_Task.Server.Services
             }
 
             var preference = await _db.UserPreferences.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == userId);
+            if (preference is not null && !preference.EmailNotificationsEnabled)
+            {
+                return;
+            }
             if (preference?.DigestFrequency == "Never")
             {
                 return;
@@ -487,10 +504,24 @@ namespace Silver_Task.Server.Services
                 return;
             }
 
-            var appName = await _systemSettings.GetStringAsync(SystemSettingKeys.ApplicationName);
-            var appBaseUrl = _configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()?.FirstOrDefault() ?? "";
-            var (subject, html) = NotificationTemplates.ForNotification(title, message, actionUrl, appBaseUrl, appName);
-            await _emailService.SendAsync(email, name, subject, html);
+            var now = DateTime.UtcNow;
+            _db.EmailDeliveries.Add(new EmailDelivery
+            {
+                Id = Guid.NewGuid(),
+                NotificationId = notificationId,
+                RecipientUserId = userId,
+                RecipientEmail = email,
+                NotificationType = type,
+                ActorUserId = actorUserId,
+                Title = title,
+                Message = message,
+                ActionUrl = actionUrl,
+                TaskId = taskId,
+                ProjectId = projectId,
+                Status = EmailDeliveryStatus.Queued,
+                QueuedAt = now,
+                NextAttemptAt = now
+            });
         }
 
         /// <summary>Interpreted in the user's own TimeZone, not UTC/server time — handles the

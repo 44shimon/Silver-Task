@@ -64,6 +64,12 @@ export function AdminLayout() {
         >
           System Settings
         </NavLink>
+        <NavLink
+          to="/admin/email"
+          className={({ isActive }) => `admin-layout__nav-item${isActive ? ' admin-layout__nav-item--active' : ''}`}
+        >
+          Email
+        </NavLink>
       </nav>
 
       <div className="admin-layout__content">

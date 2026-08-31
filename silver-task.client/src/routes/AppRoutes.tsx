@@ -18,6 +18,7 @@ import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
 import { AdminRolesPage } from '@/pages/admin/AdminRolesPage';
 import { AdminProjectsPage } from '@/pages/admin/AdminProjectsPage';
 import { AdminSystemSettingsPage } from '@/pages/admin/AdminSystemSettingsPage';
+import { AdminEmailSettingsPage } from '@/pages/admin/AdminEmailSettingsPage';
 import { AdminCustomFieldsPage } from '@/pages/admin/AdminCustomFieldsPage';
 import { AdminTagsPage } from '@/pages/admin/AdminTagsPage';
 import { AdminFileCategoriesPage } from '@/pages/admin/AdminFileCategoriesPage';
@@ -129,6 +130,7 @@ export function AppRoutes() {
                   <Route path="file-categories" element={<AdminFileCategoriesPage />} />
                   <Route path="automations" element={<AdminAutomationsPage />} />
                   <Route path="settings" element={<AdminSystemSettingsPage />} />
+                  <Route path="email" element={<AdminEmailSettingsPage />} />
                 </Route>
               </Routes>
             </AppShell>

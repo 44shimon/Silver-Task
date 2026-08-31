@@ -139,6 +139,7 @@ namespace Silver_Task.Server.Services
             preference.TimeZone = request.TimeZone.Trim();
             preference.ItemsPerPage = request.ItemsPerPage;
             preference.DigestFrequency = request.DigestFrequency;
+            preference.EmailNotificationsEnabled = request.EmailNotificationsEnabled;
             preference.QuietHoursEnabled = request.QuietHoursEnabled;
             preference.QuietHoursStart = request.QuietHoursEnabled ? request.QuietHoursStart : null;
             preference.QuietHoursEnd = request.QuietHoursEnabled ? request.QuietHoursEnd : null;

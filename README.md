@@ -477,12 +477,69 @@ Not yet applicable — test projects are introduced in Phase 15.
 | `ConnectionStrings:DefaultConnection` / `ConnectionStrings__DefaultConnection` | PostgreSQL connection string | User Secrets (dev) / environment variable (prod) |
 | `Jwt:Secret` | JWT signing key (32+ random bytes, e.g. `openssl rand -base64 48`) | User Secrets (dev) / environment variable (prod) |
 | `Jwt:Issuer`, `Jwt:Audience`, `Jwt:ExpiryMinutes` | JWT validation/expiry configuration (non-secret defaults already in `appsettings.json`) | `appsettings.json`, override via env if needed |
+| `Smtp:Host`, `Smtp:Port`, `Smtp:EnableSsl`, `Smtp:Username`, `Smtp:Password`, `Smtp:FromAddress`, `Smtp:FromName` | Outgoing email (notifications) — `Smtp:Host` unset means email is simply off everywhere; nothing else in the app depends on it | User Secrets (dev) / environment variable (prod), never `appsettings.json` |
 
 ASP.NET Core does not read `.env` files directly. `.env.example` at the repo root documents the variable
 names/shapes for reference; real values go through **User Secrets** locally (`dotnet user-secrets set`,
 stored outside the repo) or **environment variables** in CI/production (using `__` as the config-section
 separator). Never commit `appsettings.Development.json` with real credentials filled in — it currently has
 none.
+
+## Email notifications (Phase 45)
+
+Extends the email-capable notification system already built in Phase 36 (`IEmailService`/
+`EmailService`, `NotificationTemplates`, per-(user, notification-type) `InAppEnabled`/
+`EmailEnabled` toggles, digest emails, quiet hours — all still exactly as they were) rather than
+replacing it. What Phase 45 adds:
+
+- **Background delivery queue** — `NotificationService.MaybeSendEmailAsync` no longer calls
+  `IEmailService.SendAsync` inline on the caller's request thread; it enqueues a self-contained
+  `EmailDelivery` row (`Status = Queued`) and returns immediately, so a slow/unreachable SMTP
+  server can never block a task/comment/project write. `EmailDeliveryBackgroundService` (same
+  `PeriodicTimer` + per-tick DI-scope pattern as every other background service in this app, e.g.
+  `DueDateNotificationBackgroundService`) polls every 20 seconds via `IEmailDeliveryService`,
+  re-validates the recipient's access, the task/project's continued existence, and (for
+  `TaskDueSoon`/`TaskOverdue`) the task's current status immediately before sending — a
+  notification queued while access was valid is never delivered after that access, or the
+  underlying task/project, is gone. Retries twice with backoff (2 min, then 10 min) before marking
+  a row `Failed`; `EmailDelivery.LastError` only ever stores a short, generic classification
+  (e.g. `"SMTP error (GeneralFailure)."`), never raw exception text/credentials. Several
+  deliveries for the same (recipient, notification type) claimed in the same tick — e.g. a bulk
+  assignment — are coalesced into one "N updates" email instead of N near-identical ones.
+- **User-level master email switch** — `UserPreference.EmailNotificationsEnabled` (default `true`),
+  checked before any per-type `UserNotificationSetting.EmailEnabled` toggle. Settings → Notifications
+  exposes it as a single top-level toggle above the existing per-type grid.
+- **Admin email configuration** — Admin → System Settings now surfaces the `Notifications` section
+  that already existed server-side (`EmailNotificationsEnabled`/`DailyDigestEnabled`/`RetentionDays`/
+  `MaxBatchSize`) but had no UI, plus a new `General.ApplicationBaseUrl` setting email links are
+  built against (falls back to the first configured `Cors:AllowedOrigins` entry if unset, for
+  backward compatibility). Admin → Email adds SMTP status (configured yes/no, never the
+  host/credentials themselves), a "Send Test Email" action, and a read-only delivery log
+  (`Status`/`NotificationType`/`RecipientUserId`/timestamps/`LastError` only — no email body, no raw
+  address).
+- **Customizable templates** — `EmailTemplate` (one optional override row per notification type)
+  lets an Administrator override the Subject/Heading/Body/CTA/Footer text for the five notification
+  types with reusable copy (`TaskAssigned`, `MentionedInComment`, `TaskDueSoon`, `TaskOverdue`,
+  `UserAddedToProject` — see `Common/DefaultEmailTemplates.cs`); every other notification type keeps
+  using the original generic `NotificationTemplates.ForNotification` rendering unchanged. Template
+  text may only reference a fixed variable allow-list (`{{UserName}}`, `{{ActorName}}`,
+  `{{TaskName}}`, `{{ProjectName}}`, `{{DueDate}}`, `{{ActionUrl}}` — see
+  `Common/EmailTemplateVariables.cs`) via simple, non-executing `{{Token}}` substitution
+  (`EmailTemplateService.Substitute`); an unrecognized token is rejected at save time. The final
+  composed string is HTML-encoded as a whole before rendering, so neither an admin's template text
+  nor a substituted task/user/project name can inject markup. "Preview" renders with sample data and
+  never sends; "Reset to Default" deletes the override row.
+- **Security notes** — SMTP credentials only ever live in `Smtp:*` configuration (User
+  Secrets/environment variables), never in the database, an API response, or a template; the
+  delivery log and test-email/template endpoints are all `[Authorize(Roles = Administrator)]`; a
+  user's own notification preferences are only ever readable/writable for that user
+  (`User.GetUserId()`-scoped, same pattern as every other self-service settings endpoint).
+- **Known limitation** — no new automated test project was added for this phase. `CLAUDE.md`
+  explicitly lists automated tests as a separate, not-yet-started phase; standing up an xUnit/Vitest
+  harness felt like a larger, separate decision than this phase's own scope. Verified instead via
+  `dotnet build`/`npm run build`/`npm run typecheck`/`npm run lint`, a reviewed EF Core migration,
+  and a live manual run-through (test email, template preview, queue → retry → cancel-on-deleted-task,
+  master-toggle suppression, in-app/email independence) against the seeded dev database.
 
 ## GitHub setup
 

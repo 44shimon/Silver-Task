@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { useSystemSettings, useUpdateSystemSettings } from '@/hooks/useSystemSettings';
 import { useStorageHealth } from '@/hooks/useAdminStats';
@@ -58,6 +59,11 @@ const SECTIONS: { id: SystemSettingSection; title: string; fields: FieldConfig[]
         ],
       },
       { key: 'General.DefaultItemsPerPage', title: 'Default items per page', kind: 'number', min: 5, max: 200 },
+      {
+        key: 'General.ApplicationBaseUrl',
+        title: 'Application base URL',
+        kind: 'text',
+      },
     ],
   },
   {
@@ -114,6 +120,16 @@ const SECTIONS: { id: SystemSettingSection; title: string; fields: FieldConfig[]
       { key: 'Attachments.AllowedExtensions', title: 'Allowed file extensions (comma-separated)', kind: 'text' },
     ],
   },
+  {
+    id: 'Notifications',
+    title: 'Notifications',
+    fields: [
+      { key: 'Notifications.EmailNotificationsEnabled', title: 'Email notifications enabled', kind: 'boolean' },
+      { key: 'Notifications.DailyDigestEnabled', title: 'Allow daily digest emails', kind: 'boolean' },
+      { key: 'Notifications.RetentionDays', title: 'Notification retention (days)', kind: 'number', min: 7, max: 3650 },
+      { key: 'Notifications.MaxBatchSize', title: 'Max notifications per background sweep', kind: 'number', min: 10, max: 10000 },
+    ],
+  },
 ];
 
 export function AdminSystemSettingsPage() {
@@ -167,6 +183,12 @@ export function AdminSystemSettingsPage() {
               />
             ))}
           </div>
+          {section.id === 'Notifications' && (
+            <p className="admin-system-settings__storage-health">
+              SMTP provider configuration, email templates, test emails, and the delivery log are managed on the{' '}
+              <Link to="/admin/email">Email</Link> page.
+            </p>
+          )}
           {section.id === 'Attachments' && storageHealth && (
             <div className="admin-system-settings__storage-health">
               {storageHealth.isWritable ? (

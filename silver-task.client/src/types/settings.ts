@@ -16,6 +16,9 @@ export interface UserPreferences {
    * digest email (Urgent notifications, e.g. overdue, still send immediately regardless). Never:
    * no notification email at all. Purely an email-channel setting — in-app is unaffected. */
   digestFrequency: DigestFrequency;
+  /** Phase 45 — master switch, checked before any per-type email preference (see
+   * UserPreference.EmailNotificationsEnabled server-side). */
+  emailNotificationsEnabled: boolean;
   quietHoursEnabled: boolean;
   /** "HH:mm:ss" (TimeOnly on the wire) — only meaningful when quietHoursEnabled is true. */
   quietHoursStart: string | null;

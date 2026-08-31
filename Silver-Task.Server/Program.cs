@@ -132,6 +132,8 @@ builder.Services.AddSingleton<AutomationDispatcher>();
 builder.Services.AddSingleton<IAutomationDispatcher>(sp => sp.GetRequiredService<AutomationDispatcher>());
 builder.Services.AddSingleton<IAutomationEventQueue>(sp => sp.GetRequiredService<AutomationDispatcher>());
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IEmailTemplateService, EmailTemplateService>();
+builder.Services.AddScoped<IEmailDeliveryService, EmailDeliveryService>();
 builder.Services.AddScoped<IReportingService, ReportingService>();
 builder.Services.AddScoped<IReportExportService, ReportExportService>();
 builder.Services.AddScoped<ISavedReportService, SavedReportService>();
@@ -145,6 +147,7 @@ builder.Services.AddHostedService<AutomationQueueBackgroundService>();
 builder.Services.AddHostedService<AutomationOverdueCheckBackgroundService>();
 builder.Services.AddHostedService<NotificationRetentionBackgroundService>();
 builder.Services.AddHostedService<NotificationDigestBackgroundService>();
+builder.Services.AddHostedService<EmailDeliveryBackgroundService>();
 
 // First-party, ships in the shared framework already — no new server-side package. See
 // NotificationHub's own doc comment for why the existing cookie-based JWT auth authorizes a hub

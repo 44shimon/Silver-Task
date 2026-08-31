@@ -14,27 +14,53 @@ namespace Silver_Task.Server.Common
     /// itself user-controlled, so it doesn't need the same encoding treatment, just concatenation.</summary>
     public static class NotificationTemplates
     {
-        public static (string Subject, string HtmlBody) ForNotification(string title, string message, string? actionUrl, string appBaseUrl, string appName)
-        {
-            var safeTitle = WebUtility.HtmlEncode(title);
-            var safeMessage = WebUtility.HtmlEncode(message);
-            var safeAppName = WebUtility.HtmlEncode(appName);
+        private const int MaxSubjectLength = 150;
 
-            var button = actionUrl is null
+        public static (string Subject, string HtmlBody) ForNotification(string title, string message, string? actionUrl, string appBaseUrl, string appName) =>
+            RenderCard(appName, appBaseUrl, title, title, message, actionUrl is null ? null : $"Open in {appName}", actionUrl, footerText: null);
+
+        /// <summary>Phase 45 — the one shared HTML skeleton every notification email (default or
+        /// admin-customized via EmailTemplateService) renders through, so branding/layout can
+        /// never drift between the two paths. Every text argument is treated as plain,
+        /// already-fully-composed text and HTML-encoded here as a whole (see the class doc
+        /// comment on why encoding the composed string, rather than only its substituted pieces,
+        /// is both simpler and safer) — callers must never pre-encode. A "Manage notification
+        /// preferences" link is always appended after any caller-supplied footerText, regardless
+        /// of template customization, satisfying the spec's own "always provide a route to
+        /// notification settings" requirement without relying on an admin to remember to add it.</summary>
+        public static (string Subject, string HtmlBody) RenderCard(
+            string appName, string appBaseUrl, string subject, string heading, string body, string? ctaText, string? actionUrl, string? footerText)
+        {
+            var trimmedBaseUrl = appBaseUrl.TrimEnd('/');
+            var safeHeading = WebUtility.HtmlEncode(heading);
+            var safeBody = WebUtility.HtmlEncode(body).Replace("\n", "<br/>");
+            var safeAppName = WebUtility.HtmlEncode(appName);
+            var safeSubject = Truncate(subject, MaxSubjectLength);
+
+            var button = actionUrl is null || string.IsNullOrWhiteSpace(ctaText)
                 ? ""
-                : $"""<p style="margin-top:24px"><a href="{WebUtility.HtmlEncode(appBaseUrl.TrimEnd('/') + actionUrl)}" style="background:#4f46e5;color:#ffffff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600">Open in {safeAppName}</a></p>""";
+                : $"""<p style="margin-top:24px"><a href="{WebUtility.HtmlEncode(trimmedBaseUrl + actionUrl)}" style="background:#4f46e5;color:#ffffff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600">{WebUtility.HtmlEncode(ctaText)}</a></p>""";
+
+            var extraFooter = string.IsNullOrWhiteSpace(footerText) ? "" : $"""<p style="margin:16px 0 0">{WebUtility.HtmlEncode(footerText).Replace("\n", "<br/>")}</p>""";
 
             var html = $"""
                 <div style="font-family:Segoe UI,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;border:1px solid #e5e7eb;border-radius:8px">
                   <p style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:0.04em;margin:0 0 16px">{safeAppName}</p>
-                  <h2 style="margin:0 0 12px;font-size:18px;color:#111827">{safeTitle}</h2>
-                  <p style="margin:0;color:#374151;font-size:14px;line-height:1.5">{safeMessage}</p>
+                  <h2 style="margin:0 0 12px;font-size:18px;color:#111827">{safeHeading}</h2>
+                  <p style="margin:0;color:#374151;font-size:14px;line-height:1.5">{safeBody}</p>
                   {button}
+                  {extraFooter}
+                  <p style="margin:20px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af">
+                    <a href="{WebUtility.HtmlEncode(trimmedBaseUrl + "/settings/notifications")}" style="color:#9ca3af">Manage notification preferences</a>
+                  </p>
                 </div>
                 """;
 
-            return (title, html);
+            return (safeSubject, html);
         }
+
+        private static string Truncate(string text, int maxLength) =>
+            text.Length <= maxLength ? text : string.Concat(text.AsSpan(0, maxLength - 1), "…");
 
         public static (string Subject, string HtmlBody) ForDigest(
             string appName, string appBaseUrl, int assignedCount, int dueTodayCount, int overdueCount, int newMentionsCount, int newCommentsCount)

@@ -1,0 +1,229 @@
+.admin-email-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: 720px;
+}
+
+.admin-email-settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-email-settings__section h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-h);
+  margin: 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-email-settings__status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.admin-email-settings__status-ok {
+  color: var(--success, #2a9d5c);
+}
+
+.admin-email-settings__status-bad {
+  color: var(--danger);
+}
+
+.admin-email-settings__hint {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.75;
+  margin: 0;
+}
+
+.admin-email-settings__test-form {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-email-settings__test-form input {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font-size: 13px;
+  color: var(--text-h);
+  min-width: 240px;
+}
+
+.admin-email-settings__templates {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.admin-email-settings__template-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+  flex-shrink: 0;
+}
+
+.admin-email-settings__template-item {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font-size: 13px;
+  color: var(--text-h);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-email-settings__template-item--active {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.admin-email-settings__customized-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--accent);
+}
+
+.admin-email-settings__editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  max-width: 460px;
+}
+
+.admin-email-settings__editor textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font-size: 13px;
+  color: var(--text-h);
+  resize: vertical;
+  font-family: inherit;
+}
+
+.admin-email-settings__editor-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-email-settings__editor-actions button:not(.settings-form__save) {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.admin-email-settings__preview {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--bg-subtle);
+}
+
+.admin-email-settings__preview-subject {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.admin-email-settings__preview-frame {
+  width: 100%;
+  height: 320px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+}
+
+.admin-email-settings__delivery-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.admin-email-settings__delivery-table th,
+.admin-email-settings__delivery-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-h);
+}
+
+.admin-email-settings__status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.admin-email-settings__status-badge--sent {
+  background: var(--accent-bg);
+  color: var(--success, #2a9d5c);
+}
+
+.admin-email-settings__status-badge--failed {
+  background: var(--accent-bg);
+  color: var(--danger);
+}
+
+.admin-email-settings__status-badge--cancelled {
+  background: var(--bg-subtle);
+  color: var(--text);
+  opacity: 0.75;
+}
+
+.admin-email-settings__status-badge--queued,
+.admin-email-settings__status-badge--sending {
+  background: var(--bg-subtle);
+  color: var(--text-h);
+}
+
+.admin-email-settings__pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.admin-email-settings__pagination button {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.admin-email-settings__pagination button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

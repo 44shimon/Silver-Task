@@ -41,6 +41,8 @@ namespace Silver_Task.Server.Common
                 "12h", "string", "Time format assigned to a user's preferences the first time they're created."),
             new(SystemSettingKeys.DefaultItemsPerPage, SystemSettingSection.General,
                 "25", "int", "Items-per-page assigned to a user's preferences the first time they're created."),
+            new(SystemSettingKeys.ApplicationBaseUrl, SystemSettingSection.General,
+                "", "string", "Base URL used to build links in outgoing emails (e.g. https://tasks.example.com). Falls back to the first configured CORS allowed origin when empty."),
 
             new(SystemSettingKeys.DefaultTaskStatus, SystemSettingSection.TaskDefaults,
                 "NotStarted", "string", "Status assigned to a newly created task when none is specified."),

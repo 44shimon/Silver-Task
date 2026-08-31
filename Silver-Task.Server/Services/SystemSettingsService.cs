@@ -201,6 +201,14 @@ namespace Silver_Task.Server.Services
             // .NET's real time zone database for DefaultTimeZone — a system default that
             // wouldn't validate as a *user* preference shouldn't be settable as the default
             // either.
+            if (key is SystemSettingKeys.ApplicationBaseUrl && !string.IsNullOrWhiteSpace(value))
+            {
+                var isValidHttpUrl = Uri.TryCreate(value, UriKind.Absolute, out var baseUri) && baseUri.Scheme is "http" or "https";
+                if (!isValidHttpUrl)
+                {
+                    throw new ValidationException("Application base URL must be empty or a valid absolute http(s) URL.");
+                }
+            }
             if (key is SystemSettingKeys.DefaultDateFormat &&
                 value is not ("MM/dd/yyyy" or "dd/MM/yyyy" or "yyyy-MM-dd" or "dd MMM yyyy"))
             {

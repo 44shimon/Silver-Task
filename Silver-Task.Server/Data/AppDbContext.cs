@@ -101,6 +101,10 @@ namespace Silver_Task.Server.Data
 
         public DbSet<TaskNotificationMute> TaskNotificationMutes => Set<TaskNotificationMute>();
 
+        public DbSet<EmailDelivery> EmailDeliveries => Set<EmailDelivery>();
+
+        public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

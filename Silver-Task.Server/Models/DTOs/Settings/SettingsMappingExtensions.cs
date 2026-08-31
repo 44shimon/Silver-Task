@@ -26,6 +26,7 @@ namespace Silver_Task.Server.Models.DTOs.Settings
             TimeZone = preference.TimeZone,
             ItemsPerPage = preference.ItemsPerPage,
             DigestFrequency = preference.DigestFrequency,
+            EmailNotificationsEnabled = preference.EmailNotificationsEnabled,
             QuietHoursEnabled = preference.QuietHoursEnabled,
             QuietHoursStart = preference.QuietHoursStart,
             QuietHoursEnd = preference.QuietHoursEnd,

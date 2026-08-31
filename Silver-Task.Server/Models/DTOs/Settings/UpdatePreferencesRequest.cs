@@ -26,6 +26,8 @@ namespace Silver_Task.Server.Models.DTOs.Settings
         [Required]
         public required string DigestFrequency { get; set; }
 
+        public bool EmailNotificationsEnabled { get; set; } = true;
+
         public bool QuietHoursEnabled { get; set; }
 
         public TimeOnly? QuietHoursStart { get; set; }

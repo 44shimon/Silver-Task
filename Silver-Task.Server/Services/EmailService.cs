@@ -3,14 +3,22 @@ using System.Net.Mail;
 
 namespace Silver_Task.Server.Services
 {
+    /// <summary>Phase 45 — Success/ErrorMessage lets EmailDeliveryService drive retry/failure
+    /// tracking without SendAsync ever throwing. ErrorMessage is a short, safe classification
+    /// only (never the raw exception text) — see SendAsync's own doc comment on why the full
+    /// exception still only ever reaches the server log, never a persisted/admin-visible field.</summary>
+    public record EmailSendResult(bool Success, string? ErrorMessage);
+
     public interface IEmailService
     {
-        /// <summary>Best-effort — never throws. A failed/unconfigured send is logged and
-        /// swallowed, exactly like an automation action failure never fails the user's original
-        /// request (see AutomationService's own doc comment on that same principle) — an email
-        /// is a side effect of a notification, not the notification itself, so it must never be
-        /// able to break the operation that triggered it.</summary>
-        Task SendAsync(string toEmail, string toName, string subject, string htmlBody);
+        /// <summary>Best-effort — never throws. A failed/unconfigured send is logged
+        /// server-side and reported back via EmailSendResult.Success = false, exactly like an
+        /// automation action failure never fails the user's original request (see
+        /// AutomationService's own doc comment on that same principle) — a failed send must never
+        /// be able to break the operation that triggered the underlying notification. Callers
+        /// that don't need the result (e.g. the daily digest, which has no per-message retry
+        /// concept) can simply await and ignore it.</summary>
+        Task<EmailSendResult> SendAsync(string toEmail, string toName, string subject, string htmlBody);
 
         /// <summary>Whether SMTP is actually configured — NotificationService checks this (in
         /// addition to the Notifications.EmailNotificationsEnabled system setting) so it can skip
@@ -43,12 +51,12 @@ namespace Silver_Task.Server.Services
 
         public bool IsConfigured => !string.IsNullOrWhiteSpace(_configuration["Smtp:Host"]);
 
-        public async Task SendAsync(string toEmail, string toName, string subject, string htmlBody)
+        public async Task<EmailSendResult> SendAsync(string toEmail, string toName, string subject, string htmlBody)
         {
             if (!IsConfigured)
             {
                 _logger.LogDebug("Email not sent to {ToEmail} ('{Subject}') — Smtp:Host is not configured.", toEmail, subject);
-                return;
+                return new EmailSendResult(false, "Email is not configured.");
             }
 
             try
@@ -77,11 +85,19 @@ namespace Silver_Task.Server.Services
                 message.To.Add(new MailAddress(toEmail, toName));
 
                 await client.SendMailAsync(message);
+                return new EmailSendResult(true, null);
             }
             catch (Exception ex)
             {
-                // Never propagate — see IEmailService.SendAsync's own doc comment.
+                // Never propagate — see IEmailService.SendAsync's own doc comment. The full
+                // exception (which, for SmtpException, can include the target server's response
+                // text) only ever reaches the server log here; ErrorMessage is a short, generic
+                // classification safe to persist/display to an Administrator (see
+                // EmailDelivery.LastError's own doc comment on why raw exception text is never
+                // stored there).
                 _logger.LogWarning(ex, "Failed to send email to {ToEmail} ('{Subject}').", toEmail, subject);
+                var reason = ex is SmtpException smtpEx ? $"SMTP error ({smtpEx.StatusCode})." : "Email delivery failed.";
+                return new EmailSendResult(false, reason);
             }
         }
     }

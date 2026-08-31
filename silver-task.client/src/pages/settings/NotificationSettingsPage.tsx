@@ -82,6 +82,15 @@ export function NotificationSettingsPage() {
     updateSettings.mutate([{ ...current, [channel]: value }]);
   }
 
+  // The single master email switch (Phase 45) — same "mutate the full preferences object
+  // immediately" pattern as the per-type toggles above, rather than requiring the separate
+  // "Save" click the digest/quiet-hours section below uses, since this is the one toggle users
+  // most expect to take effect the instant they flip it.
+  function toggleEmailNotificationsEnabled(value: boolean) {
+    if (!preferences) return;
+    updatePreferences.mutate({ ...preferences, emailNotificationsEnabled: value });
+  }
+
   function saveDigestAndQuietHours() {
     if (!preferences) return;
     updatePreferences.mutate({
@@ -102,6 +111,27 @@ export function NotificationSettingsPage() {
 
   return (
     <div className="notification-settings-page">
+      <div className="notification-settings-page__group">
+        <div className="settings-toggle-row">
+          <div className="settings-toggle-row__label">
+            <span className="settings-toggle-row__title">Email notifications</span>
+            <span className="settings-toggle-row__description">
+              Master switch for all outgoing notification emails. Turning this off stops every email below
+              regardless of its individual setting; in-app notifications are unaffected.
+            </span>
+          </div>
+          <button
+            type="button"
+            className={`settings-toggle${preferences?.emailNotificationsEnabled ? ' settings-toggle--on' : ''}`}
+            role="switch"
+            aria-checked={preferences?.emailNotificationsEnabled ?? true}
+            aria-label="Email notifications"
+            disabled={!preferences || updatePreferences.isPending}
+            onClick={() => toggleEmailNotificationsEnabled(!preferences?.emailNotificationsEnabled)}
+          />
+        </div>
+      </div>
+
       {GROUPS.map((group) => (
         <div className="notification-settings-page__group" key={group.title}>
           <h3>{group.title}</h3>

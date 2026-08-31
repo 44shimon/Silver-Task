@@ -18,6 +18,9 @@ namespace Silver_Task.Server.Models.DTOs.Settings
 
         public string DigestFrequency { get; set; } = "Immediately";
 
+        /// <summary>Phase 45 — master switch, checked before any per-type email preference.</summary>
+        public bool EmailNotificationsEnabled { get; set; } = true;
+
         public bool QuietHoursEnabled { get; set; }
 
         public TimeOnly? QuietHoursStart { get; set; }

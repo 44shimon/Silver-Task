@@ -13,6 +13,11 @@ namespace Silver_Task.Server.Common
         public const string DefaultDateFormat = "General.DefaultDateFormat";
         public const string DefaultTimeFormat = "General.DefaultTimeFormat";
         public const string DefaultItemsPerPage = "General.DefaultItemsPerPage";
+        // Phase 45 — the base URL email action links (and the always-appended "manage
+        // preferences" footer link) are resolved against. Falls back to the first configured
+        // Cors:AllowedOrigins entry when empty (see NotificationService.ResolveAppBaseUrlAsync)
+        // for backward compatibility with pre-Phase-45 deployments that never set this.
+        public const string ApplicationBaseUrl = "General.ApplicationBaseUrl";
 
         // Task Defaults
         public const string DefaultTaskStatus = "TaskDefaults.DefaultStatus";

@@ -19,6 +19,11 @@ namespace Silver_Task.Server.Data.Configurations
             builder.Property(p => p.DigestFrequency).IsRequired().HasMaxLength(20);
             builder.Property(p => p.DefaultLandingPage).IsRequired().HasMaxLength(20);
             builder.Property(p => p.DashboardLayout).HasColumnType("text");
+            // Explicit DB-level default (not just the C# initializer, which migrations don't see)
+            // so existing rows backfilled by this column's own migration come back enabled, not
+            // silently opted out — matching every new row's default and the spec's own "sensible
+            // defaults ON" requirement.
+            builder.Property(p => p.EmailNotificationsEnabled).HasDefaultValue(true);
 
             builder.Property(p => p.CreatedAt).HasDefaultValueSql("timezone('utc', now())");
             builder.Property(p => p.UpdatedAt).HasDefaultValueSql("timezone('utc', now())");
