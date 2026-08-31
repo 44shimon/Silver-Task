@@ -717,20 +717,28 @@ namespace Silver_Task.Server.Services
             }
             catch (Exception ex)
             {
-                automation.LastError = ex.Message;
+                // Phase 49 — a short, safe classification (same pattern EmailService already
+                // uses for SMTP failures), not the raw ex.Message: LastError/ErrorMessage are
+                // visible to any project Manager, not just Administrators, and the underlying
+                // exception can carry internal details (EF column/table names, file paths) that
+                // shouldn't reach that audience. The full exception is still logged in full below.
+                var safeError = SafeAutomationErrorMessage(ex);
+                automation.LastError = safeError;
                 automation.LastRunAt = DateTime.UtcNow;
                 automation.RunCount++;
                 try
                 {
                     await _db.SaveChangesAsync();
                 }
-                catch
+                catch (Exception saveEx)
                 {
                     // Best-effort — the execution row below is the authoritative failure record
-                    // regardless of whether this bookkeeping save succeeds.
+                    // regardless of whether this bookkeeping save succeeds, but a failure here
+                    // (e.g. DB connectivity lost at exactly this moment) is itself worth knowing.
+                    _logger.LogWarning(saveEx, "Failed to persist LastError bookkeeping for automation {AutomationId}.", automation.Id);
                 }
 
-                await RecordExecutionAsync(automation, envelope, AutomationExecutionStatus.Failed, entityId, ex.Message, null, startedAt, ElapsedMs(startedAt));
+                await RecordExecutionAsync(automation, envelope, AutomationExecutionStatus.Failed, entityId, safeError, null, startedAt, ElapsedMs(startedAt));
                 _logger.LogError(ex, "Automation {AutomationId} failed while processing event {EventId}.", automation.Id, envelope.EventId);
             }
         }
@@ -1281,20 +1289,23 @@ namespace Silver_Task.Server.Services
             }
             catch (Exception ex)
             {
-                automation.LastError = ex.Message;
+                // Phase 49 — see the same fix's doc comment in ProcessEventAsync's catch block
+                // (this is the retry path's equivalent).
+                var safeError = SafeAutomationErrorMessage(ex);
+                automation.LastError = safeError;
                 automation.LastRunAt = DateTime.UtcNow;
                 automation.RunCount++;
                 try
                 {
                     await _db.SaveChangesAsync();
                 }
-                catch
+                catch (Exception saveEx)
                 {
-                    // Best-effort.
+                    _logger.LogWarning(saveEx, "Failed to persist LastError bookkeeping for automation {AutomationId}.", automation.Id);
                 }
 
                 _logger.LogError(ex, "Retry of automation execution {ExecutionId} failed.", executionId);
-                return await RecordAndReturnAsync(automation, execution, AutomationExecutionStatus.Failed, ex.Message, null, startedAt);
+                return await RecordAndReturnAsync(automation, execution, AutomationExecutionStatus.Failed, safeError, null, startedAt);
             }
         }
 
@@ -1410,9 +1421,17 @@ namespace Silver_Task.Server.Services
             }
             catch (Exception ex)
             {
-                return $"Could not preview this action: {ex.Message}";
+                _logger.LogWarning(ex, "Automation action preview failed for action {ActionId}.", action.Id);
+                return $"Could not preview this action: {SafeAutomationErrorMessage(ex)}";
             }
         }
+
+        /// <summary>Phase 49 — the automation analog of EmailService's SMTP-error classification:
+        /// LastError/ErrorMessage/preview text are visible to any project Manager (not just
+        /// Administrators — see ProjectAccessService's Manage tier), so the raw exception message
+        /// must never reach them directly; the full exception always still goes to the server log
+        /// at the call site.</summary>
+        private static string SafeAutomationErrorMessage(Exception ex) => $"Automation action failed ({ex.GetType().Name}). See server logs for details.";
 
         private string DescribeUser(Guid? userId) =>
             userId is Guid id ? (_db.Users.FirstOrDefault(u => u.Id == id)?.Name ?? id.ToString()) : "(nobody — unresolved)";

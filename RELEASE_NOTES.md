@@ -1,6 +1,40 @@
-# Silver Task v1.0.0 — Release Notes
+# Silver Task — Release Notes
 
-First stable release, covering everything built across Phases 1–48.
+## v1.0.1 — Post-release stabilization (Phase 49)
+
+A maintenance release: bug fixes, security/information-disclosure fixes, and reliability
+improvements found through a renewed code review after v1.0.0. No new features. (Note: v1.0.0 was
+never actually deployed to a live production environment — see `DEPLOYMENT.md` — so these are
+fixes found via a fresh audit and live re-testing against the same dev/build environment used for
+v1.0.0's own verification, not real production incident reports.)
+
+### Fixed
+- **Information disclosure (High)** — `Automation.LastError`, `AutomationExecution.ErrorMessage`,
+  and the automation action preview endpoint returned the raw underlying exception message,
+  visible to any project Manager (not just Administrators). A failing action could have exposed
+  internal details (database column/table names, file paths) depending on what threw. Now returns
+  a short, generic classification, consistent with the pattern already used for email delivery
+  errors; the full exception is still logged server-side for diagnosis.
+- **Diagnosability (High)** — unhandled-exception log entries didn't include the `TraceId` also
+  returned to the client, making it impossible to correlate a user-reported trace ID with the
+  actual log line. Both the error and informational log paths in `ExceptionHandlingMiddleware` now
+  include it.
+- **Silent UI failure (Medium)** — the admin Email Templates "Reset to Default" and "Preview"
+  actions showed no feedback at all if the request failed (the per-type email-toggle "Save"/"Send
+  Test Email" actions already had this; these two didn't). Both now show an error message on
+  failure, matching every other action on the page.
+- **Bookkeeping failure visibility (Low)** — a failure while persisting an automation's
+  `LastError`/`LastRunAt` bookkeeping (distinct from the automation action failure itself) was
+  silently swallowed with no log entry. Now logged at `Warning`.
+
+### Verified, no change needed
+A renewed live regression pass (task assignment → email queue → delivery, global search, admin
+automations list/filter, SignalR notification hub authentication, the two Phase 48 production-mode
+fixes) confirmed nothing regressed and no further issues were found in security/authorization,
+performance, or migration handling — those were already thoroughly covered in v1.0.0's own Phase
+47 audit and remain clean.
+
+## v1.0.0 — First stable release (Phases 1–48)
 
 ## Task management
 - Projects containing tasks and subtasks, with drag-reordering, dependencies (finish-to-start and

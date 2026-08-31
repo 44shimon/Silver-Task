@@ -229,6 +229,14 @@ function EmailTemplateEditor({ template }: { template: EmailTemplate }) {
         <p className="form-error">{upsert.error instanceof ApiError ? upsert.error.message : 'Could not save template.'}</p>
       )}
       {upsert.isSuccess && <p className="settings-form__success">Template saved.</p>}
+      {reset.isError && (
+        <p className="form-error">{reset.error instanceof ApiError ? reset.error.message : 'Could not reset template.'}</p>
+      )}
+      {previewMutation.isError && (
+        <p className="form-error">
+          {previewMutation.error instanceof ApiError ? previewMutation.error.message : 'Could not render preview.'}
+        </p>
+      )}
 
       {preview && (
         <div className="admin-email-settings__preview">

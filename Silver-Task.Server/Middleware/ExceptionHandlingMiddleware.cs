@@ -38,13 +38,17 @@ namespace Silver_Task.Server.Middleware
                     _ => (HttpStatusCode.InternalServerError, "An unexpected error occurred. Please try again later.", true)
                 };
 
+                // Phase 49 — TraceId included in the log line itself (not just returned to the
+                // client), so an operator can actually grep for the TraceId a user reports and
+                // find the matching log entry instead of falling back to approximate
+                // correlation by timestamp + method/path.
                 if (logAsError)
                 {
-                    _logger.LogError(ex, "Unhandled exception processing {Method} {Path}", context.Request.Method, context.Request.Path);
+                    _logger.LogError(ex, "Unhandled exception processing {Method} {Path} (TraceId: {TraceId})", context.Request.Method, context.Request.Path, context.TraceIdentifier);
                 }
                 else
                 {
-                    _logger.LogInformation("{ExceptionType} handling {Method} {Path}: {Message}", ex.GetType().Name, context.Request.Method, context.Request.Path, ex.Message);
+                    _logger.LogInformation("{ExceptionType} handling {Method} {Path}: {Message} (TraceId: {TraceId})", ex.GetType().Name, context.Request.Method, context.Request.Path, ex.Message, context.TraceIdentifier);
                 }
 
                 context.Response.ContentType = "application/json";
