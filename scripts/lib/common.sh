@@ -49,6 +49,14 @@
 # rewriting the whole file. ---
 : "${SILVERTASK_RELEASE_HISTORY_FILE:=$SILVERTASK_INSTALL_DIR/release-history.jsonl}"
 
+# --- Phase 57 — automated upgrade testing & release certification
+# (scripts/lib/certify.sh, scripts/certify-release.sh). Deliberately independent of
+# SILVERTASK_INSTALL_DIR (a certification run's very first stage installs Silver Task from
+# nothing, so nothing under the install dir can be relied on to exist yet) — lives alongside the
+# existing upgrade log directory instead. ---
+: "${SILVERTASK_CERTIFICATION_DIR:=$SILVERTASK_UPGRADE_LOG_DIR/certifications}"
+: "${SILVERTASK_CERTIFICATION_LOG_FILE:=$SILVERTASK_UPGRADE_LOG_DIR/certification.log}"
+
 # --- Output / logging ---
 # Every log line goes to both the terminal and SILVERTASK_LOG_FILE (when writable — scripts
 # run read-only-safe commands, like --help, before root/log-file setup happens). Never pass

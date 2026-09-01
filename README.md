@@ -723,6 +723,37 @@ Each check prints `PASS`/`WARN`/`FAIL`; only a `FAIL` blocks (exit `36`) — a h
 maintenance mode is reported as `WARN`, since it may simply mean an upgrade is legitimately in
 progress right now.
 
+### Automated upgrade testing & release certification
+
+> Inferred scope (Phase 57) — see [docs/release-certification.md](docs/release-certification.md)
+> for the full design rationale.
+
+`scripts/certify-release.sh` is a **separate top-level script**, not another `update-debian.sh`
+mode — it orchestrates a full **install → upgrade → validate → rollback → validate** lifecycle
+test using the existing `install-debian.sh`/`update-debian.sh`/`uninstall-debian.sh` exactly as an
+operator would run them by hand, producing a durable certification report to check before tagging
+a release for the stable channel. **Certification is report-only** — it never gates anything in
+the runtime upgrade engine automatically.
+
+```bash
+sudo ./scripts/certify-release.sh --candidate=1.2.0 --disposable-host-confirmed
+```
+
+**⚠️ Disposable hosts only.** This script installs, upgrades, rolls back, and (with `--cleanup`)
+uninstalls Silver Task on whatever host it runs on — it requires an explicit
+`--disposable-host-confirmed` flag (no default) plus, unless `--yes` is passed, a typed
+confirmation. Never run it against a host that serves real users or holds real data.
+
+Each of the 7 required stages (baseline install, baseline health, candidate prepare, candidate
+activate, candidate validate, rollback, rollback validate) — plus an optional `cleanup` stage —
+records `PASS`/`FAIL`/`SKIPPED` to a JSON Lines report
+(`$SILVERTASK_CERTIFICATION_DIR/certification-<candidate>-<certId>.jsonl`, same append-only
+one-line-per-event shape as Phase 56's `release-history.jsonl`). The verdict (`CERTIFIED`/
+`NOT_CERTIFIED`) is a separate small exit-code scheme (`0`–`9`) from `update-debian.sh`'s own,
+since it's a distinct process orchestrating that script rather than another mode of it — see
+[docs/release-certification.md](docs/release-certification.md) for the full stage-by-stage
+breakdown and exit code table.
+
 ## Backup
 
 ```bash
@@ -925,6 +956,7 @@ Silver-Task/
 │   ├── update-debian.sh
 │   ├── backup-debian.sh
 │   ├── uninstall-debian.sh
+│   ├── certify-release.sh     Automated install/upgrade/rollback lifecycle testing (disposable hosts only)
 │   └── lib/common.sh          Shared helpers (logging, checks, secret generation)
 │
 ├── deploy/                    Reference config templates the installer generates from
@@ -1107,6 +1139,16 @@ for 45–47, their own dedicated sections there.
   install/upgrade logs (`deploy/silvertask-logrotate`). See [Upgrade Engine](#upgrade-engine) →
   "Release channels, maintenance window & preflight." No change to any Phase 51–55 default
   behavior; a web UI is still not implemented.
+- [x] **Phase 57** — Automated Upgrade Testing & Release Certification *(inferred scope — the
+  original spec never arrived intact; see [docs/release-certification.md](docs/release-certification.md)
+  for the full explanation)*. `scripts/certify-release.sh` — a separate top-level script, gated
+  behind an explicit `--disposable-host-confirmed` flag plus typed confirmation — orchestrates a
+  full install → upgrade → validate → rollback → validate lifecycle test against a disposable host
+  using the existing install/update/uninstall scripts unmodified, producing a durable
+  `CERTIFIED`/`NOT_CERTIFIED` JSON Lines report. Report-only: certification never automatically
+  gates anything in the runtime upgrade engine. See [Upgrade Engine](#upgrade-engine) →
+  "Automated upgrade testing & release certification." No change to any Phase 51–56 default
+  behavior; `update-debian.sh` itself is untouched by this phase.
 
 ### GitHub / secrets hygiene
 

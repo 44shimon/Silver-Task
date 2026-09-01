@@ -276,3 +276,11 @@ optional environment variables (`Upgrade__Channel`, `Upgrade__MaintenanceWindow`
 README → [Environment variables](README.md#configuration). Log rotation for
 `/var/log/silver-task-install.log` and `/var/log/silver-task/upgrade.log` (`deploy/silvertask-logrotate`,
 installed automatically by `install-debian.sh`) was also added — those logs no longer grow forever.
+
+Phase 57 (inferred scope — see [docs/release-certification.md](docs/release-certification.md))
+added `scripts/certify-release.sh`, a separate script (not another `update-debian.sh` mode) that
+runs a full install → upgrade → validate → rollback → validate lifecycle test on a **disposable
+host only** (gated behind `--disposable-host-confirmed` plus a typed confirmation), producing a
+`CERTIFIED`/`NOT_CERTIFIED` JSON Lines report before you tag/publish a release candidate. It never
+touches `update-debian.sh` itself and never automatically gates anything — it's a pre-release
+testing tool, run on a throwaway VM/container, not part of the production deployment path.
