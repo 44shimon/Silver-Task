@@ -434,6 +434,12 @@ ln -sf /etc/nginx/sites-available/silvertask /etc/nginx/sites-enabled/silvertask
 rm -f /etc/nginx/sites-enabled/default
 nginx -t >> "$SILVERTASK_LOG_FILE" 2>&1 || st_fail "nginx configuration test failed." "Check $SILVERTASK_LOG_FILE."
 
+# --- Log rotation ---
+st_step "Installing log rotation"
+cp "$REPO_ROOT/deploy/silvertask-logrotate" /etc/logrotate.d/silvertask
+chmod 644 /etc/logrotate.d/silvertask
+st_info "Log rotation installed (/etc/logrotate.d/silvertask — weekly, 12 kept, compressed)."
+
 # --- Firewall ---
 if [ "$SKIP_FIREWALL" = false ]; then
     st_step "Configuring firewall (ufw)"

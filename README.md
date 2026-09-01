@@ -271,6 +271,8 @@ based on) and wires it into the systemd service via `EnvironmentFile=`.
 | `Smtp__Host`, `Smtp__Port`, `Smtp__EnableSsl`, `Smtp__Username`, `Smtp__Password`, `Smtp__FromAddress`, `Smtp__FromName` | Outgoing email — see [Email Configuration](#email-configuration) | No — app is fully functional without email |
 | `ForwardedHeaders__KnownProxies__0` (and `__1`, `__2`, ...) | Only needed if your reverse proxy is NOT on the same host as the app (defaults to trusting loopback only) | No |
 | `Maintenance__FlagFile` | Path checked by `MaintenanceModeMiddleware` — see [Upgrade Engine](#upgrade-engine) → "Activation." Empty/unset disables maintenance mode entirely | No — `install-debian.sh` sets it automatically |
+| `Upgrade__Channel` | Release channel (`stable` or `beta`) for `scripts/update-debian.sh --check/--status/--latest/--target-version` — see [Upgrade Engine](#upgrade-engine) → "Release channels." An explicit `--channel` flag overrides this | No — defaults to `stable` |
+| `Upgrade__MaintenanceWindow` | `HH:MM-HH:MM` (server-local time) restricting when `--activate`/`--rollback` may run — see [Upgrade Engine](#upgrade-engine) → "Maintenance window policy" | No — unset means no restriction |
 
 ## Database
 
@@ -379,27 +381,41 @@ step itself (which only ever adds/alters schema, never resets data).
 Phase 52 added a second, additive command surface to the same `scripts/update-debian.sh` — a CLI
 upgrade engine that **discovers, validates, and stages** a target release; Phase 53 added the
 safety layer that must exist before anything can be activated: a verified pre-upgrade backup, a
-persistent-data placement check, and migration discovery/validation/planning; **Phase 54 added
-activation itself** — `--activate` is the one command that actually replaces the running
-application, runs the migration, and commits the new installed version. This is deliberately
-**not** a replacement for the plain `sudo ./scripts/update-debian.sh` above, which still works
-exactly as it always has for a single-step update. The upgrade engine splits the same work into two
-explicit, separately-confirmed steps — **prepare** (`--latest`/`--target-version`, stops at `READY
-FOR ACTIVATION`) then **activate** (`--activate`) — so a validated, backed-up release can be
-reviewed before anything live is touched. See [docs/upgrade-safety.md](docs/upgrade-safety.md) for
-the prepare-stage workflow and persistent-data inventory,
-[docs/upgrade-activation.md](docs/upgrade-activation.md) for the full activation workflow,
-[docs/upgrade-operator-checklist.md](docs/upgrade-operator-checklist.md) for a concise runbook, and
-[docs/restore.md](docs/restore.md) for verifying/restoring a backup.
+persistent-data placement check, and migration discovery/validation/planning; Phase 54 added
+**activation itself** — `--activate` is the command that actually replaces the running application,
+runs the migration, and commits the new installed version; **Phase 55 added the undo path** —
+`--rollback` reactivates the preserved previous release (restoring the pre-upgrade database backup
+too, if and only if that upgrade actually required a migration) with the same
+maintenance-mode/health/version-validation discipline as activation. **Phase 56 adds release
+management on top** — an opt-in pre-release channel, an opt-in maintenance-window policy, a durable
+release history, and a read-only preflight check — none of it changing any existing default
+behavior; see [Release channels, maintenance window & preflight](#release-channels-maintenance-window--preflight)
+below. This is deliberately **not** a
+replacement for the plain `sudo ./scripts/update-debian.sh` above, which still works exactly as it
+always has for a single-step update. The upgrade engine splits the same work into explicit,
+separately-confirmed steps — **prepare** (`--latest`/`--target-version`, stops at `READY FOR
+ACTIVATION`), **activate** (`--activate`), and, if needed, **roll back** (`--rollback`) — so a
+validated, backed-up release can be reviewed before anything live is touched, and undone safely if
+it turns out to be bad. See [docs/upgrade-safety.md](docs/upgrade-safety.md) for the prepare-stage
+workflow and persistent-data inventory, [docs/upgrade-activation.md](docs/upgrade-activation.md)
+for the full activation workflow, [docs/rollback.md](docs/rollback.md) for the full rollback
+workflow and its data-loss warnings, the two
+[operator](docs/upgrade-operator-checklist.md) [checklists](docs/rollback-operator-checklist.md)
+for concise runbooks, and [docs/restore.md](docs/restore.md) for verifying/restoring a backup.
 
 ```bash
 sudo ./scripts/update-debian.sh --check                        # is a newer stable release available?
-sudo ./scripts/update-debian.sh --status                       # upgrade/version status report
+sudo ./scripts/update-debian.sh --status                       # upgrade/rollback/version status report
 sudo ./scripts/update-debian.sh --latest                       # validate, back up, and stage the latest stable release
 sudo ./scripts/update-debian.sh --target-version 1.1.0         # validate, back up, and stage a specific stable release
 sudo ./scripts/update-debian.sh --dry-run --latest              # show what --latest would do; changes nothing
 sudo ./scripts/update-debian.sh --activate                     # activate a prepared (READY_FOR_ACTIVATION) release
 sudo ./scripts/update-debian.sh --activate --yes                # activate without the confirmation prompt
+sudo ./scripts/update-debian.sh --rollback                     # roll back to the previously active release
+sudo ./scripts/update-debian.sh --rollback --dry-run             # show the rollback plan; changes nothing
+sudo ./scripts/update-debian.sh --channel=beta --latest          # opt in to pre-release releases for this check
+sudo ./scripts/update-debian.sh --history                       # show past activation/rollback history
+sudo ./scripts/update-debian.sh --doctor                        # preflight-check the toolchain (read-only)
 sudo ./scripts/update-debian.sh --help
 ```
 
@@ -505,7 +521,11 @@ by the next real attempt, never auto-deleted. Status values: `IDLE`, `CHECKING`,
 `PREPARING`, `CHECKING_PERSISTENT_DATA`, `BACKING_UP`, `VERIFYING_BACKUP`, `PLANNING_MIGRATIONS`,
 `READY_FOR_ACTIVATION`, `ACTIVATING`, `MAINTENANCE_ENABLED`, `MIGRATING`, `STARTING_SERVICES`,
 `FAILED`, `COMPLETED` — `COMPLETED` is only ever written once activation has fully succeeded,
-including the post-restart health/version/smoke validation.
+including the post-restart health/version/smoke validation. Rollback attempts get their own,
+separate `$SILVERTASK_INSTALL_DIR/rollback-state.json` (status values `ROLLBACK_REQUESTED` through
+`ROLLBACK_COMPLETED`/`ROLLBACK_FAILED`) — deliberately not merged into the same file, since
+`--status` reports "Last Upgrade" and "Last Rollback" as two independent facts, matching the actual
+independent history (an upgrade and a later rollback of it are two different events).
 
 **Upgrade log**: `/var/log/silver-task/upgrade.log` — a structured, timestamped history of every
 upgrade-engine invocation, separate from the installer's own `/var/log/silver-task-install.log`.
@@ -557,6 +577,55 @@ still active with no process holding the upgrade lock is unambiguous evidence �
 DETECTED` Phase 53 already reports for an interrupted *prepare* (where maintenance mode was never
 touched). Neither is auto-resumed or auto-cleaned-up.
 
+### Rollback
+
+`sudo ./scripts/update-debian.sh --rollback` undoes a failed, interrupted, or unwanted activation —
+the very last one, using the exact record `--activate` itself wrote (`upgrade-state.json`'s
+`activationStatus`/`migrationRequired`/`backupDir` fields — never a second "release history"
+mechanism). Eligibility requires that the last recorded activation actually switched the release
+(`activationStatus == OK`) and that its preserved `<publish-dir>.previous` and pre-upgrade backup
+are both still on disk — otherwise `ROLLBACK BLOCKED` (exit `26`) or, specifically, `ROLLBACK
+TARGET UNAVAILABLE` (exit `27`). It then shows a plan (current/target version, related upgrade ID,
+numbered steps, database-restore decision) and requires `[y/N]` confirmation — with a **second**,
+stronger confirmation (type the exact target version) if a database restore is required, since
+that's destructive.
+
+**Application-only vs. database-restore rollback** is decided from the same `migrationRequired`
+flag the failed upgrade already recorded — reused directly, never a new compatibility matrix:
+`false` → `APPLICATION_ONLY_ROLLBACK` (just the release switches back); `true` →
+`DATABASE_RESTORE_REQUIRED` (the release switches back *and* the pre-upgrade backup is restored);
+anything missing/corrupted → `MANUAL_RECOVERY_REQUIRED`, which **blocks** the rollback rather than
+guessing (exit `26`).
+
+**Emergency backup**: before any database restore, the *current* (post-failure) database is backed
+up first — tagged `emergency-pre-rollback`, via the same `scripts/backup-debian.sh` mechanism and
+verification every other backup in this project uses. A failed/unverified emergency backup blocks
+the rollback (exit `28`); the escape hatch `--force-no-emergency-backup` requires its own typed
+confirmation and isn't recommended.
+
+**Database restore** uses `pg_restore --clean --if-exists --no-owner` against the pre-upgrade
+backup — the same connection credentials `backup-debian.sh` used to create it, run in reverse — then
+validates the restored schema against the rollback target's own code (reusing the exact migration-
+state check `--latest`/`--activate` already use) before proceeding; a restore that "succeeds" but
+produces an incompatible database is still `DATABASE_RESTORE_FAILED` (exit `29`).
+
+**Configuration rollback** is opt-in (`--restore-config`) and skipped by default: `--activate` never
+modifies `silvertask.env`, so there's nothing an automated upgrade could have changed for rollback
+to automatically detect. When used, the current configuration is emergency-copied first, then the
+pre-upgrade backup's copy is restored over it.
+
+**Health/version/smoke validation and version commit** follow the identical sequence and discipline
+`--activate` already uses — the installed version is committed only after all of them pass.
+
+**Interrupted rollback detection**: `--status` distinguishes an interrupted rollback (maintenance
+flag active, no lock held, and the flag's own recorded ID is prefixed `rollback-`) from an
+interrupted activation — `INTERRUPTED ROLLBACK DETECTED`, exit `34`, vs. the existing exit `25`.
+Neither is auto-resumed.
+
+See [docs/rollback.md](docs/rollback.md) for the full workflow, its explicit data-loss warning, and
+manual-recovery instructions, and [docs/rollback-operator-checklist.md](docs/rollback-operator-checklist.md)
+for a concise runbook.
+
 **Exit codes**:
 
 | Code | Meaning |
@@ -567,7 +636,7 @@ touched). Neither is auto-resumed or auto-cleaned-up.
 | 3 | Version inconsistency (installed ≠ running, or unknown) |
 | 4 | Target version unavailable |
 | 5 | Unsupported upgrade path (downgrade, or a release's `minimumSupportedVersion` not met) |
-| 6 | Upgrade already in progress |
+| 6 | Upgrade/rollback already in progress |
 | 7 | Repository access failure |
 | 8 | Insufficient disk space (release staging, or — same code, checked again later — backup) |
 | 9 | Database backup failed |
@@ -580,22 +649,79 @@ touched). Neither is auto-resumed or auto-cleaned-up.
 | 16 | Migration planning failed |
 | 17 | Activation prerequisites missing |
 | 18 | Maintenance mode failure |
-| 19 | Application activation failure (checkout/build/directory swap) |
+| 19 | Application activation/release-switch failure (checkout/build/directory swap) |
 | 20 | Service startup failure |
 | 21 | Migration execution failure |
 | 22 | Health check timeout |
 | 23 | Version validation failure |
 | 24 | Smoke test failure |
 | 25 | Interrupted upgrade detected (`--status` only) |
+| 26 | Rollback eligibility failed (includes `MANUAL_RECOVERY_REQUIRED`) |
+| 27 | Rollback target unavailable (no preserved previous release) |
+| 28 | Emergency backup failed |
+| 29 | Database restore (or its post-restore validation) failed |
+| 30 | Configuration restore failed |
+| 31 | Rollback service startup failed |
+| 32 | Rollback health check failed |
+| 33 | Rollback version validation failed |
+| 34 | Interrupted rollback detected (`--status` only) |
+| 35 | Blocked by maintenance-window policy (`--override-maintenance-window` to proceed anyway, with confirmation) |
+| 36 | Preflight (`--doctor`) check failed |
+| 37 | Invalid or disallowed release channel for the requested operation |
 
-**Current limitations**: automatic rollback is **not implemented** — recovering from a failed
-activation is a manual procedure (stop the service, restore `<publish-dir>.previous` and/or the
-pre-upgrade backup per [docs/restore.md](docs/restore.md), restart), not a scripted one. There is
-no web-based upgrade UI, and none is planned as part of this CLI-only design — upgrade
-administration always requires root/sudo on the host itself. Disk-space checking remains an
-approximation (precise sizing is future work). The legacy `sudo ./scripts/update-debian.sh` (no
-flags, or `--ref=`/`--skip-backup`) continues to work exactly as before and remains a valid
-single-step alternative to prepare-then-activate.
+(Codes 6/18/19/24 are reused for rollback's lock/maintenance/release-switch/smoke-test failures —
+the same categories already defined for activation, not redefined.)
+
+**Current limitations**: rollback only covers the single most recent activation (one
+`<publish-dir>.previous`/backup slot, not a multi-generation history) and does not auto-retry or
+auto-recover from its own failure — a failed rollback requires administrator review, per
+[docs/rollback.md](docs/rollback.md) "Manual recovery." There is no web-based upgrade UI, and none
+is planned as part of this CLI-only design — upgrade administration always requires root/sudo on
+the host itself. Disk-space checking remains an approximation (precise sizing is future work). The
+legacy `sudo ./scripts/update-debian.sh` (no flags, or `--ref=`/`--skip-backup`) continues to work
+exactly as before and remains a valid single-step alternative to prepare-then-activate.
+
+### Release channels, maintenance window & preflight
+
+> Inferred scope (Phase 56) — see [docs/release-management.md](docs/release-management.md) for the
+> full design rationale.
+
+**Release channels** (`--channel=stable|beta`, or `Upgrade__Channel` in `silvertask.env`) select
+which git tags `--check`/`--status`/`--latest`/`--target-version` consider. **`stable` is always the
+default** — it is byte-identical to the pre-Phase-56 behavior described above (only `vMAJOR.MINOR.PATCH`
+tags). `beta` additionally surfaces pre-release tags (`v1.1.0-beta`, `v1.1.0-rc1`); a pre-release
+version string is only ever accepted as a `--target-version` when the effective channel is `beta` —
+on the default `stable` channel it's rejected outright, even as an exact string, so a typo or
+copy-pasted pre-release tag can never slip through unnoticed. `cmd_prepare` additionally cross-checks
+the *resolved release's own declared* `releases/<version>.json` `"channel"` field against the
+effective operating channel — a release whose metadata declares `"channel": "beta"` can never be
+selected while operating on `stable`, even via an exact `--target-version` (exit `37` on mismatch).
+
+**Maintenance window** (`Upgrade__MaintenanceWindow` in `silvertask.env`, e.g. `02:00-04:00`,
+server-local time, wrapping midnight supported) is **opt-in and unset by default** — with it unset,
+`--activate`/`--rollback` behave exactly as before, at any time of day. When set, both commands check
+the current time against the window *after* the existing `[y/N]` confirmation and *before* acquiring
+the upgrade lock; outside the window the operation is blocked (`UPGRADE`/`ROLLBACK BLOCKED BY
+MAINTENANCE WINDOW POLICY`, exit `35`) unless `--override-maintenance-window` is also passed, which
+requires its own typed confirmation (the same `st_confirm_destructive` mechanism the database-restore
+step already uses) — never a silent bypass.
+
+**Release history** (`--history [--limit=N]`, default 20, most recent first) is a durable,
+append-only log of every `--activate`/`--rollback` this installation has completed —
+`$SILVERTASK_INSTALL_DIR/release-history.jsonl`, one compact JSON object per line (JSON Lines), so
+appending never requires rewriting the file the way `upgrade-state.json`/`rollback-state.json`
+(which each hold only the single most recent attempt) would. Only real terminal outcomes are
+recorded (`COMPLETED`/`FAILED`, from `--activate`/`--rollback` themselves) — `--check`/`--status`/
+`--latest`/`--target-version` never write to it, since they never change anything.
+
+**Preflight check** (`--doctor`, read-only, modifies nothing) verifies the host is actually ready to
+run an upgrade before you try one: required tools on `PATH` (`git`, `dotnet`, `pg_dump`,
+`pg_restore`, `curl`, `openssl`), `dotnet-ef` restorable, the environment file present with its
+required keys, installed/running version consistency, whether the upgrade lock or maintenance mode
+is currently (possibly stuck) active, the maintenance-window policy's current state, and disk space.
+Each check prints `PASS`/`WARN`/`FAIL`; only a `FAIL` blocks (exit `36`) — a held lock or active
+maintenance mode is reported as `WARN`, since it may simply mean an upgrade is legitimately in
+progress right now.
 
 ## Backup
 
@@ -804,6 +930,7 @@ Silver-Task/
 ├── deploy/                    Reference config templates the installer generates from
 │   ├── silvertask.service     systemd unit
 │   ├── nginx.conf             reverse proxy config
+│   ├── silvertask-logrotate   logrotate config (install/upgrade logs)
 │   └── silvertask.env.example
 │
 ├── Silver-Task.Server/        ASP.NET Core Web API
@@ -961,6 +1088,25 @@ for 45–47, their own dedicated sections there.
   "Activation," [docs/upgrade-activation.md](docs/upgrade-activation.md), and
   [docs/upgrade-operator-checklist.md](docs/upgrade-operator-checklist.md). Automatic rollback and a
   web UI are still not implemented — recovery from a failed activation remains a manual procedure.
+- [x] **Phase 55** — Upgrade Recovery & Rollback System. `sudo ./scripts/update-debian.sh
+  --rollback` — reactivates the release Phase 54's `--activate` preserved at
+  `<publish-dir>.previous`, restoring the pre-upgrade database backup too (only if that upgrade
+  actually required a migration — decided from the same recorded flag, never guessed), after first
+  taking its own emergency backup of the current, failed database state. Same maintenance-mode/
+  health/version-validation discipline as activation; installed version committed only after
+  validation passes. See [Upgrade Engine](#upgrade-engine) → "Rollback,"
+  [docs/rollback.md](docs/rollback.md), and
+  [docs/rollback-operator-checklist.md](docs/rollback-operator-checklist.md). Covers only the
+  single most recent activation (no multi-generation history); a web UI is still not implemented.
+- [x] **Phase 56** — Upgrade Management, Release Channels & Production Hardening *(inferred scope —
+  the original spec never arrived intact; see [docs/release-management.md](docs/release-management.md)
+  for the full explanation)*. An opt-in `beta` release channel (`--channel`/`Upgrade__Channel`,
+  `stable` remains the unconditional default), an opt-in maintenance-window policy
+  (`Upgrade__MaintenanceWindow`, `--override-maintenance-window`), a durable append-only release
+  history (`--history`), a read-only preflight command (`--doctor`), and log rotation for the
+  install/upgrade logs (`deploy/silvertask-logrotate`). See [Upgrade Engine](#upgrade-engine) →
+  "Release channels, maintenance window & preflight." No change to any Phase 51–55 default
+  behavior; a web UI is still not implemented.
 
 ### GitHub / secrets hygiene
 

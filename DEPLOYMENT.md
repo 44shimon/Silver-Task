@@ -248,8 +248,31 @@ above), stops the service, swaps the release in (the previous one is kept, never
 real `dotnet ef database update`, restarts the service, validates health/version/smoke tests, and
 only then commits the installed version and disables maintenance mode. See README → "Upgrade
 Engine" → "Activation" and [docs/upgrade-activation.md](docs/upgrade-activation.md) for the full
-workflow. **Automatic rollback is still not implemented** — a failed activation leaves maintenance
-mode active and requires the same manual recovery procedure as before (the pre-upgrade backup and
-the preserved previous publish directory, per [docs/restore.md](docs/restore.md)). The plain
+workflow. A failed activation leaves maintenance mode active for manual investigation.
+
+Phase 55 added the undo path: `sudo ./scripts/update-debian.sh --rollback`. It requires the last
+activation to have actually switched the release (its preserved `<publish-dir>.previous` and
+pre-upgrade backup must still exist), then reactivates that previous release and — only if that
+upgrade's own recorded `migrationRequired` flag says a migration actually ran — restores the
+pre-upgrade database backup, after first taking its own emergency backup of the current (failed)
+database state via the same `scripts/backup-debian.sh` mechanism. Database restore
+(`pg_restore --clean --if-exists`) requires a second, stronger typed confirmation beyond the normal
+`[y/N]` prompt. Same maintenance-mode/health/version-validation discipline as `--activate`; the
+installed version is committed only after validation passes. See README → "Upgrade Engine" →
+"Rollback" and [docs/rollback.md](docs/rollback.md) — including its explicit warning that database
+restore discards data created after the pre-upgrade backup — for the full workflow. The plain
 `sudo ./scripts/update-debian.sh` (unchanged since Phase 51, still doing its own independent backup)
 remains a valid single-step alternative to prepare-then-activate.
+
+Phase 56 (inferred scope — see [docs/release-management.md](docs/release-management.md)) added
+release management on top, all opt-in with no change to the defaults above: an optional pre-release
+`beta` channel (`--channel`/`Upgrade__Channel`, `stable` remains the default), an optional
+maintenance-window policy (`Upgrade__MaintenanceWindow`) that can restrict when `--activate`/
+`--rollback` are allowed to run, a durable `--history` log of every past activation/rollback, and a
+read-only `--doctor` preflight command — run it before attempting an upgrade on a new or
+long-unmaintained host to catch missing tools, a missing/incomplete environment file, or a stuck
+lock/maintenance-mode flag before they turn into a failed activation partway through. The two new
+optional environment variables (`Upgrade__Channel`, `Upgrade__MaintenanceWindow`) are documented in
+README → [Environment variables](README.md#configuration). Log rotation for
+`/var/log/silver-task-install.log` and `/var/log/silver-task/upgrade.log` (`deploy/silvertask-logrotate`,
+installed automatically by `install-debian.sh`) was also added — those logs no longer grow forever.

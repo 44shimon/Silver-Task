@@ -16,10 +16,20 @@
 # lib/common.sh's st_json_escape doc comment) — every JSON file this engine reads or writes has a
 # small, fixed, single-line-per-field shape, parsed/produced with grep/sed.
 
-# --- Semantic versioning — Phase 52 supports stable MAJOR.MINOR.PATCH releases only ---
+# --- Semantic versioning — Phase 52 supports stable MAJOR.MINOR.PATCH releases by default; Phase
+# 56 adds an explicit, opt-in "beta" channel that also recognizes MAJOR.MINOR.PATCH-identifier
+# pre-release versions (v1.1.0-beta, v1.1.0-rc1) — see st_up_filter_tags_for_channel below. ---
 
 st_up_semver_valid() {
     [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+}
+
+# A pre-release version string (MAJOR.MINOR.PATCH-identifier) — only ever accepted as a
+# --target-version when the effective channel is "beta" (see update-debian.sh's cmd_prepare); a
+# string matching only this, never st_up_semver_valid, is always rejected outright on the default
+# stable channel, so a typo/copy-pasted pre-release tag can never slip through unnoticed.
+st_up_semver_valid_prerelease() {
+    [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z.-]+$ ]]
 }
 
 # Prints -1, 0, or 1 to stdout (A<B, A==B, A>B). Both arguments must already be valid semver
@@ -51,32 +61,58 @@ st_up_semver_sort() {
 
 # --- Release discovery ---
 
-# Lists every stable release tag on the configured remote (SILVERTASK_REPO_URL — never a URL
-# supplied any other way; the brief's own "do not accept arbitrary URLs from command-line input"),
-# sorted ascending. Pre-release tags (v1.1.0-beta, v1.1.0-rc1), peeled annotated-tag lines
-# (refs/tags/v1.0.0^{}), and branch-like refs (main, latest, development) are never printed — they
-# simply cannot match the strict "refs/tags/v<digits>.<digits>.<digits>" pattern below, so nothing
-# extra is needed to exclude them.
-#
-# Returns 1 (nothing printed) if the remote itself is unreachable — distinct from "reachable but
-# zero stable tags exist" (prints nothing, returns 0). Callers must check the exit status, not
-# just emptiness, to tell "can't check" apart from "nothing to offer."
 # Reads raw `git ls-remote --tags` output on stdin (tab-separated "<sha>\trefs/tags/<name>" lines)
-# and prints only the stable version numbers, sorted ascending. Split out from
-# st_up_discover_stable_releases so this parsing/filtering logic is independently testable without
-# a real remote (see scripts/test-upgrade-engine.sh).
-st_up_filter_stable_tags() {
-    awk '{print $2}' \
-        | sed -n 's#^refs/tags/v\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)$#\1#p' \
-        | sort -u \
-        | st_up_semver_sort
+# and prints version numbers for the given channel, sorted ascending — split out so this
+# parsing/filtering logic is independently testable without a real remote (see
+# scripts/test-upgrade-engine.sh). Peeled annotated-tag lines (refs/tags/v1.0.0^{}) and
+# branch-like refs (main, latest, development) never match either pattern below, so nothing extra
+# is needed to exclude them from any channel.
+#   stable (default) — MAJOR.MINOR.PATCH only (v1.0.0) — byte-identical to Phase 52's original,
+#     unchanged behavior; every existing caller that doesn't pass a channel still gets exactly this.
+#   beta — stable ∪ MAJOR.MINOR.PATCH-identifier (v1.1.0-beta, v1.1.0-rc1). Sort order among
+#     same-MAJOR.MINOR.PATCH pre-release/release tags is not full semver precedence (that would
+#     require a second, more complex comparator) — st_up_semver_sort only orders by the three
+#     numeric components, so e.g. "1.1.0" and "1.1.0-beta" tie on those and fall back to input
+#     order. Documented as a known approximation (see docs/release-management.md); the numeric
+#     MAJOR.MINOR.PATCH ordering itself (1.9.0 < 1.10.0 < 2.0.0) is unaffected and still exact.
+st_up_filter_tags_for_channel() {
+    local channel="$1"
+    case "$channel" in
+        beta)
+            awk '{print $2}' \
+                | sed -n 's#^refs/tags/v\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[0-9A-Za-z.-]*\)\{0,1\}\)$#\1#p' \
+                | sort -u \
+                | st_up_semver_sort
+            ;;
+        *)
+            awk '{print $2}' \
+                | sed -n 's#^refs/tags/v\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)$#\1#p' \
+                | sort -u \
+                | st_up_semver_sort
+            ;;
+    esac
 }
 
-st_up_discover_stable_releases() {
+st_up_filter_stable_tags() {
+    st_up_filter_tags_for_channel stable
+}
+
+# Lists every release tag on the configured remote (SILVERTASK_REPO_URL — never a URL supplied any
+# other way; "do not accept arbitrary URLs from command-line input") for the given channel
+# (default "stable"), sorted ascending. Returns 1 (nothing printed) if the remote itself is
+# unreachable — distinct from "reachable but zero tags exist for this channel" (prints nothing,
+# returns 0). Callers must check the exit status, not just emptiness, to tell "can't check" apart
+# from "nothing to offer."
+st_up_discover_releases() {
+    local channel="${1:-stable}"
     local raw
     raw="$(git ls-remote --tags "$SILVERTASK_REPO_URL" 2>/dev/null)" || return 1
     [ -n "$raw" ] || return 0
-    printf '%s\n' "$raw" | st_up_filter_stable_tags
+    printf '%s\n' "$raw" | st_up_filter_tags_for_channel "$channel"
+}
+
+st_up_discover_stable_releases() {
+    st_up_discover_releases stable
 }
 
 st_up_latest_stable() {
@@ -139,7 +175,7 @@ st_up_version_consistency() {
 # bash 4.1+; this repo's scripts already require a modern bash/coreutils Debian target).
 
 st_up_lock_acquire() {
-    local target_version="$1"
+    local target_version="$1" operation_type="${2:-upgrade}"
     exec {ST_UP_LOCK_FD}>"$SILVERTASK_UPGRADE_LOCK_FILE"
     if ! flock -n "$ST_UP_LOCK_FD"; then
         exec {ST_UP_LOCK_FD}>&-
@@ -151,6 +187,7 @@ st_up_lock_acquire() {
         printf 'pid=%s\n' "$$"
         printf 'targetVersion=%s\n' "$target_version"
         printf 'startedAtUtc=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        printf 'operationType=%s\n' "$operation_type"
     } >&"$ST_UP_LOCK_FD"
     return 0
 }
@@ -162,19 +199,22 @@ st_up_lock_release() {
     unset ST_UP_LOCK_FD
 }
 
-# Reports whether an upgrade is actually in progress right now, authoritatively — a fresh
-# non-blocking flock attempt on the same file, not a trust-the-metadata's-PID check (a PID can be
-# reused by an unrelated process after a crash). Sets ST_UP_LOCK_ACTIVE=true/false and, whenever a
-# lock file with metadata exists on disk (even one nobody currently holds — the leftover evidence
-# of an interrupted attempt), ST_UP_LOCK_PID/ST_UP_LOCK_TARGET/ST_UP_LOCK_STARTED. Returns 0 if
-# idle, 1 if in progress.
+# Reports whether an upgrade OR rollback is actually in progress right now, authoritatively — a
+# fresh non-blocking flock attempt on the same file, not a trust-the-metadata's-PID check (a PID
+# can be reused by an unrelated process after a crash). Sets ST_UP_LOCK_ACTIVE=true/false and,
+# whenever a lock file with metadata exists on disk (even one nobody currently holds — the
+# leftover evidence of an interrupted attempt), ST_UP_LOCK_PID/ST_UP_LOCK_TARGET/
+# ST_UP_LOCK_STARTED/ST_UP_LOCK_OPERATION_TYPE (defaults to "upgrade" for a lock file written
+# before Phase 55 added this field). Returns 0 if idle, 1 if in progress.
 st_up_lock_probe() {
     ST_UP_LOCK_ACTIVE=false
-    ST_UP_LOCK_PID=""; ST_UP_LOCK_TARGET=""; ST_UP_LOCK_STARTED=""
+    ST_UP_LOCK_PID=""; ST_UP_LOCK_TARGET=""; ST_UP_LOCK_STARTED=""; ST_UP_LOCK_OPERATION_TYPE=""
     [ -f "$SILVERTASK_UPGRADE_LOCK_FILE" ] || return 0
     ST_UP_LOCK_PID="$(sed -n 's/^pid=//p' "$SILVERTASK_UPGRADE_LOCK_FILE" | head -1)"
     ST_UP_LOCK_TARGET="$(sed -n 's/^targetVersion=//p' "$SILVERTASK_UPGRADE_LOCK_FILE" | head -1)"
     ST_UP_LOCK_STARTED="$(sed -n 's/^startedAtUtc=//p' "$SILVERTASK_UPGRADE_LOCK_FILE" | head -1)"
+    ST_UP_LOCK_OPERATION_TYPE="$(sed -n 's/^operationType=//p' "$SILVERTASK_UPGRADE_LOCK_FILE" | head -1)"
+    ST_UP_LOCK_OPERATION_TYPE="${ST_UP_LOCK_OPERATION_TYPE:-upgrade}"
     local probe_fd
     exec {probe_fd}>"$SILVERTASK_UPGRADE_LOCK_FILE"
     if flock -n "$probe_fd"; then
@@ -297,12 +337,19 @@ st_up_read_release_metadata() {
 # ST_UP_META_* (requiresDatabaseMigration/requiresDataMigration/requiresRestart default to the
 # documented safe values — migration assumed possibly-needed, restart assumed needed — whenever
 # metadata_content is empty; "don't require every historical release to have metadata, but never
-# silently assume unsafe compatibility" per the brief). Return codes:
+# silently assume unsafe compatibility" per the brief). ST_UP_META_CHANNEL defaults to "stable"
+# when metadata is absent (a release with no metadata is never treated as anything but the safe
+# default channel). Return codes:
 #   0 = valid — either well-formed metadata, or none at all (safe defaults applied)
 #   1 = malformed metadata (wrong "version" field / unsupported channel / invalid
 #       minimumSupportedVersion) — must block the upgrade outright
 #   2 = well-formed but blocks this upgrade on policy grounds (installed version doesn't satisfy
 #       the release's declared minimumSupportedVersion)
+#
+# Note: this only checks the *declared* channel value is well-formed ("stable" or "beta" — Phase
+# 56 adds "beta" as a second recognized value). Whether the *operator* is actually allowed to
+# select a "beta"-channel release is a separate, caller-side check against the effective operating
+# channel (see update-debian.sh's cmd_prepare) — metadata validation alone never grants that.
 st_up_metadata_validate() {
     local version="$1" metadata_content="$2" installed_version="$3"
 
@@ -311,6 +358,7 @@ st_up_metadata_validate() {
     ST_UP_META_REQUIRES_DB_MIGRATION="true"
     ST_UP_META_REQUIRES_DATA_MIGRATION="false"
     ST_UP_META_REQUIRES_RESTART="true"
+    ST_UP_META_CHANNEL="stable"
 
     [ -n "$metadata_content" ] || return 0
     ST_UP_META_SOURCE="releases/$version.json (tag v$version)"
@@ -325,13 +373,14 @@ st_up_metadata_validate() {
     [ -n "$db_field" ] && ST_UP_META_REQUIRES_DB_MIGRATION="$db_field"
     [ -n "$data_field" ] && ST_UP_META_REQUIRES_DATA_MIGRATION="$data_field"
     [ -n "$restart_field" ] && ST_UP_META_REQUIRES_RESTART="$restart_field"
+    [ -n "$meta_channel" ] && ST_UP_META_CHANNEL="$meta_channel"
 
     if [ "$meta_version" != "$version" ]; then
         st_error "Release metadata for v$version declares version \"$meta_version\", expected \"$version\"."
         return 1
     fi
-    if [ "$meta_channel" != "stable" ]; then
-        st_error "Release metadata for v$version has channel \"$meta_channel\" — Phase 52 supports \"stable\" only."
+    if [ "$meta_channel" != "stable" ] && [ "$meta_channel" != "beta" ]; then
+        st_error "Release metadata for v$version has channel \"$meta_channel\" — only \"stable\" and \"beta\" are supported."
         return 1
     fi
     if [ -n "$ST_UP_META_MIN_VERSION" ] && ! st_up_semver_valid "$ST_UP_META_MIN_VERSION"; then
@@ -730,4 +779,84 @@ st_up_activation_prerequisites_check() {
     fi
 
     return 0
+}
+
+# =====================================================================================
+# Phase 56 — release history & maintenance-window policy
+# =====================================================================================
+
+# --- Release history ---
+#
+# Appends one compact JSON line to SILVERTASK_RELEASE_HISTORY_FILE — called only from
+# update-debian.sh's cmd_activate/cmd_rollback at their respective terminal COMPLETED/FAILED
+# states, never from cmd_prepare (which never changes anything), so this stays a log of actual
+# state transitions rather than every dry-run/prepare attempt. Assumes
+# SILVERTASK_INSTALL_DIR already exists (always true by the time this is called — deep into an
+# already-running installation) — never touches that directory's own ownership/permissions, only
+# appends to (and chmods) the history file itself. Never includes secrets — only version strings,
+# IDs, timestamps, and the rollback reason (already user-supplied, non-secret text).
+st_up_history_append() {
+    local type="$1" id="$2" from_version="$3" to_version="$4" status="$5" reason="${6:-}"
+    printf '{"timestamp":"%s","type":"%s","id":"%s","fromVersion":"%s","toVersion":"%s","status":"%s","reason":"%s"}\n' \
+        "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+        "$(st_json_escape "$type")" \
+        "$(st_json_escape "$id")" \
+        "$(st_json_escape "$from_version")" \
+        "$(st_json_escape "$to_version")" \
+        "$(st_json_escape "$status")" \
+        "$(st_json_escape "$reason")" \
+        >> "$SILVERTASK_RELEASE_HISTORY_FILE"
+    chmod 640 "$SILVERTASK_RELEASE_HISTORY_FILE" 2>/dev/null || true
+}
+
+# Prints up to the most recent `limit` (default 20) history entries, most-recent-first, one raw
+# JSON line each — update-debian.sh's cmd_history formats these further for display. Returns 1
+# (prints nothing) if no history has ever been recorded, so callers can report "no history yet"
+# instead of an empty table.
+st_up_history_read() {
+    local limit="${1:-20}"
+    [ -f "$SILVERTASK_RELEASE_HISTORY_FILE" ] || return 1
+    tail -n "$limit" "$SILVERTASK_RELEASE_HISTORY_FILE" | tac
+}
+
+# --- Maintenance-window policy ---
+#
+# Opt-in via Upgrade__MaintenanceWindow in the env file (format "HH:MM-HH:MM", server-local time,
+# supports wrapping midnight e.g. "22:00-04:00"). Unset (the default): zero behavior change —
+# always reports "may proceed." A malformed value is treated the same as unset (warned about, not
+# a hard failure — a policy an administrator can't actually read back correctly isn't one worth
+# enforcing blindly). Sets ST_UP_MAINTENANCE_WINDOW_CONFIGURED and ST_UP_MAINTENANCE_WINDOW (the
+# raw configured string, for reporting) either way. Returns 0 if the operation may proceed (no
+# window configured, or currently inside one that is), 1 if outside a configured window — caller
+# maps that to exit 35.
+st_up_maintenance_window_check() {
+    local env_file="$1"
+    ST_UP_MAINTENANCE_WINDOW_CONFIGURED=false
+    ST_UP_MAINTENANCE_WINDOW=""
+
+    local window=""
+    if [ -f "$env_file" ]; then
+        window="$(sed -n 's/^Upgrade__MaintenanceWindow=//p' "$env_file" | head -1)"
+    fi
+    [ -n "$window" ] || return 0
+
+    if ! [[ "$window" =~ ^([0-9]{2}):([0-9]{2})-([0-9]{2}):([0-9]{2})$ ]]; then
+        st_warn "Upgrade__MaintenanceWindow (\"$window\") is not in HH:MM-HH:MM format — ignoring (treating as unset)."
+        return 0
+    fi
+    ST_UP_MAINTENANCE_WINDOW_CONFIGURED=true
+    ST_UP_MAINTENANCE_WINDOW="$window"
+
+    local start_h="${BASH_REMATCH[1]}" start_m="${BASH_REMATCH[2]}" end_h="${BASH_REMATCH[3]}" end_m="${BASH_REMATCH[4]}"
+    # 10# forces base-10 interpretation — without it, a zero-padded value like "08"/"09" is
+    # misread as an invalid octal literal by bash arithmetic.
+    local start_minutes=$((10#$start_h * 60 + 10#$start_m))
+    local end_minutes=$((10#$end_h * 60 + 10#$end_m))
+    local now_minutes=$(( 10#$(date '+%H') * 60 + 10#$(date '+%M') ))
+
+    if [ "$start_minutes" -le "$end_minutes" ]; then
+        [ "$now_minutes" -ge "$start_minutes" ] && [ "$now_minutes" -lt "$end_minutes" ]
+    else
+        [ "$now_minutes" -ge "$start_minutes" ] || [ "$now_minutes" -lt "$end_minutes" ]
+    fi
 }

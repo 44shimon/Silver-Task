@@ -32,12 +32,16 @@ export SILVERTASK_UPGRADE_LOG_DIR="$TEST_ROOT/upgrade-log"
 export SILVERTASK_UPGRADE_LOG_FILE="$TEST_ROOT/upgrade-log/upgrade.log"
 export SILVERTASK_BACKUP_DIR="$TEST_ROOT/backups"
 export SILVERTASK_MAINTENANCE_FLAG_FILE="$TEST_ROOT/install/maintenance.json"
+export SILVERTASK_ROLLBACK_STATE_FILE="$TEST_ROOT/install/rollback-state.json"
+export SILVERTASK_RELEASE_HISTORY_FILE="$TEST_ROOT/install/release-history.jsonl"
 mkdir -p "$SILVERTASK_INSTALL_DIR" "$SILVERTASK_UPGRADE_LOG_DIR" "$SILVERTASK_BACKUP_DIR"
 
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 # shellcheck source=lib/upgrade.sh
 source "$SCRIPT_DIR/lib/upgrade.sh"
+# shellcheck source=lib/rollback.sh
+source "$SCRIPT_DIR/lib/rollback.sh"
 
 PASS=0
 FAIL=0
@@ -115,6 +119,27 @@ assert_eq "pre-release/peeled/branch-like/malformed tags excluded; numeric sort"
     "$(printf '1.0.0\n1.0.1\n1.9.0\n1.10.0\n2.0.0')" "$FILTERED"
 assert_eq "latest of filtered set is 2.0.0" "2.0.0" "$(printf '%s\n' "$FILTERED" | tail -1)"
 
+echo "== st_up_filter_tags_for_channel beta (Phase 56 — same fixture, channel=beta) =="
+BETA_FILTERED="$(printf '%s\n' "$RAW_TAGS" | st_up_filter_tags_for_channel beta)"
+assert_eq "beta channel additionally includes pre-release tags, still numeric-sorted" \
+    "$(printf '1.0.0\n1.0.1\n1.1.0-beta\n1.1.0-rc1\n1.9.0\n1.10.0\n2.0.0')" "$BETA_FILTERED"
+assert_eq "peeled/branch-like/malformed tags still excluded on beta channel" \
+    "0" "$(printf '%s\n' "$BETA_FILTERED" | grep -c -E 'latest|main|development|X\.Y\.Z')"
+assert_eq "st_up_filter_tags_for_channel stable is byte-identical to st_up_filter_stable_tags" \
+    "$FILTERED" "$(printf '%s\n' "$RAW_TAGS" | st_up_filter_tags_for_channel stable)"
+
+echo "== st_up_semver_valid_prerelease (Phase 56) =="
+assert_true  "1.1.0-beta is a valid prerelease"     st_up_semver_valid_prerelease "1.1.0-beta"
+assert_true  "1.1.0-rc1 is a valid prerelease"       st_up_semver_valid_prerelease "1.1.0-rc1"
+assert_false "1.1.0 (no suffix) is not a prerelease" st_up_semver_valid_prerelease "1.1.0"
+assert_false "v1.1.0-beta is invalid (has v)"        st_up_semver_valid_prerelease "v1.1.0-beta"
+assert_false "empty is invalid"                      st_up_semver_valid_prerelease ""
+assert_false "shell-injection attempt"               st_up_semver_valid_prerelease "1.1.0-beta; rm -rf /"
+# A stable, well-formed version must never ALSO be accepted as a "prerelease" string — the two
+# checks are deliberately disjoint so cmd_prepare's channel gate can't be confused by overlap.
+assert_true  "st_up_semver_valid still accepts plain 1.1.0"       st_up_semver_valid "1.1.0"
+assert_false "st_up_semver_valid still rejects 1.1.0-beta"        st_up_semver_valid "1.1.0-beta"
+
 echo "== st_up_installed_version / st_up_installed_commit (on-disk fixture) =="
 cat > "$SILVERTASK_INSTALL_DIR/installed-version.json" <<'EOF'
 {
@@ -157,9 +182,17 @@ WRONG_VERSION_META='{"version": "1.2.0", "channel": "stable"}'
 st_up_metadata_validate "1.1.0" "$WRONG_VERSION_META" "1.0.1"; RC=$?
 assert_eq "version-field mismatch is malformed (1)" "1" "$RC"
 
-BAD_CHANNEL_META='{"version": "1.1.0", "channel": "beta"}'
+BETA_CHANNEL_META='{"version": "1.1.0", "channel": "beta"}'
+st_up_metadata_validate "1.1.0" "$BETA_CHANNEL_META" "1.0.1"; RC=$?
+assert_eq "beta channel is valid metadata (Phase 56)" "0" "$RC"
+assert_eq "channel field parsed as beta" "beta" "$ST_UP_META_CHANNEL"
+
+st_up_metadata_validate "1.1.0" "$VALID_META" "1.0.1"; RC=$?
+assert_eq "declared stable channel parsed as stable" "stable" "$ST_UP_META_CHANNEL"
+
+BAD_CHANNEL_META='{"version": "1.1.0", "channel": "nightly"}'
 st_up_metadata_validate "1.1.0" "$BAD_CHANNEL_META" "1.0.1"; RC=$?
-assert_eq "unsupported channel is malformed (1)" "1" "$RC"
+assert_eq "channel other than stable/beta is malformed (1)" "1" "$RC"
 
 BAD_MIN_VERSION_META='{"version": "1.1.0", "channel": "stable", "minimumSupportedVersion": "not-a-version"}'
 st_up_metadata_validate "1.1.0" "$BAD_MIN_VERSION_META" "1.0.1"; RC=$?
@@ -342,6 +375,136 @@ assert_false "missing staged worktree blocks activation" st_up_activation_prereq
 write_ready_state
 rm -f "$TEST_ROOT/backups/fixture-ready/manifest.json"
 assert_false "missing backup manifest blocks activation" st_up_activation_prerequisites_check
+
+echo "== st_rb_generate_rollback_id (Phase 55) =="
+ROLLBACK_ID="$(st_rb_generate_rollback_id)"
+if [[ "$ROLLBACK_ID" =~ ^rollback-[0-9]{8}-[0-9]{6}-[0-9a-f]{6}$ ]]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL: rollback ID \"$ROLLBACK_ID\" does not match expected format"
+fi
+
+echo "== st_rb_database_decision (Phase 55, never guess) =="
+ST_RB_MIGRATION_REQUIRED="false"; st_rb_database_decision
+assert_eq "no migration => APPLICATION_ONLY_ROLLBACK" "APPLICATION_ONLY_ROLLBACK" "$ST_RB_DB_DECISION"
+ST_RB_MIGRATION_REQUIRED="true"; st_rb_database_decision
+assert_eq "migration required => DATABASE_RESTORE_REQUIRED" "DATABASE_RESTORE_REQUIRED" "$ST_RB_DB_DECISION"
+ST_RB_MIGRATION_REQUIRED="unknown"; st_rb_database_decision
+assert_eq "unknown migration flag => MANUAL_RECOVERY_REQUIRED (never guess)" "MANUAL_RECOVERY_REQUIRED" "$ST_RB_DB_DECISION"
+ST_RB_MIGRATION_REQUIRED="garbage"; st_rb_database_decision
+assert_eq "malformed migration flag => MANUAL_RECOVERY_REQUIRED (never guess)" "MANUAL_RECOVERY_REQUIRED" "$ST_RB_DB_DECISION"
+
+echo "== st_rb_eligibility_check (Phase 55) =="
+rm -f "$SILVERTASK_UPGRADE_STATE_FILE"
+assert_false "no upgrade attempt recorded blocks rollback" st_rb_eligibility_check
+
+# Writes a fully-OK COMPLETED activation record via the real st_up_state_write, with an
+# actually-existing preserved-previous-release dir and backup dir+manifest on disk — mirrors
+# test-upgrade-engine.sh's existing write_ready_state() helper pattern for Phase 54.
+write_ok_activation_state() {
+    local backup_dir="$TEST_ROOT/backups/fixture-activation"
+    mkdir -p "$backup_dir" "${SILVERTASK_PUBLISH_DIR}.previous"
+    echo '{"type":"pre-upgrade"}' > "$backup_dir/manifest.json"
+    ST_UP_STATE_BACKUP_STATUS="OK"; ST_UP_STATE_BACKUP_VERIFICATION_STATUS="OK"
+    ST_UP_STATE_PERSISTENT_DATA_STATUS="OK"; ST_UP_STATE_MIGRATION_VALIDATION_STATUS="OK"
+    ST_UP_STATE_MIGRATION_PLAN_STATUS="OK"; ST_UP_STATE_MIGRATION_REQUIRED="true"
+    ST_UP_STATE_BACKUP_DIR="$backup_dir"
+    ST_UP_STATE_ACTIVATION_STATUS="OK"; ST_UP_STATE_MAINTENANCE_STATUS="OK"
+    ST_UP_STATE_MIGRATION_EXECUTION_STATUS="OK"; ST_UP_STATE_SERVICE_STATUS="OK"
+    ST_UP_STATE_HEALTH_CHECK_STATUS="OK"; ST_UP_STATE_VERSION_VALIDATION_STATUS="OK"
+    ST_UP_STATE_SMOKE_TEST_STATUS="OK"
+    st_up_state_write "COMPLETED" "1.0.1" "1.1.0" "upgrade complete" "2026-01-01T00:00:00Z" "upgrade-fixture-rb"
+}
+
+write_ok_activation_state
+assert_true "fully-OK completed activation passes rollback eligibility" st_rb_eligibility_check
+st_rb_eligibility_check
+assert_eq "populates rollback target (= previously installed version)" "1.0.1" "$ST_RB_TARGET_VERSION"
+assert_eq "populates failed (rolled-back-from) version" "1.1.0" "$ST_RB_FAILED_VERSION"
+assert_eq "populates related upgrade id" "upgrade-fixture-rb" "$ST_RB_RELATED_UPGRADE_ID"
+assert_eq "populates backup dir" "$TEST_ROOT/backups/fixture-activation" "$ST_RB_BACKUP_DIR"
+assert_eq "populates migration required" "true" "$ST_RB_MIGRATION_REQUIRED"
+
+write_ok_activation_state
+ST_UP_STATE_ACTIVATION_STATUS="FAILED"
+st_up_state_write "FAILED" "1.0.1" "1.1.0" "building target release" "2026-01-01T00:00:00Z" "upgrade-fixture-rb"
+assert_false "activationStatus != OK blocks rollback (nothing to roll back)" st_rb_eligibility_check
+
+write_ok_activation_state
+rm -rf "${SILVERTASK_PUBLISH_DIR}.previous"
+assert_false "missing .previous release dir blocks rollback" st_rb_eligibility_check
+st_rb_eligibility_check 2>/dev/null || true
+assert_eq "missing .previous sets ST_RB_TARGET_UNAVAILABLE (maps to exit 27)" "true" "$ST_RB_TARGET_UNAVAILABLE"
+
+write_ok_activation_state
+rm -f "$TEST_ROOT/backups/fixture-activation/manifest.json"
+assert_false "missing backup manifest blocks rollback" st_rb_eligibility_check
+
+echo "== st_rb_state_write / st_rb_state_read round-trip (Phase 55) =="
+ST_RB_STATE_DB_DECISION="DATABASE_RESTORE_REQUIRED"
+ST_RB_STATE_DB_RESTORE_PERFORMED="true"
+st_rb_state_write "ROLLBACK_COMPLETED" "upgrade-fixture-rb" "1.1.0" "1.0.1" "Health check failure" "rollback complete" "2026-01-01T00:00:00Z" "rollback-fixture"
+RB_STATE_OUTPUT="$(st_rb_state_read)"
+assert_true "rollback state file readable after write" test -f "$SILVERTASK_ROLLBACK_STATE_FILE"
+echo "$RB_STATE_OUTPUT" | grep -q '^status=ROLLBACK_COMPLETED$' && PASS=$((PASS + 1)) || { FAIL=$((FAIL + 1)); echo "FAIL: rollback status round-trips as ROLLBACK_COMPLETED"; }
+echo "$RB_STATE_OUTPUT" | grep -q '^restoredVersion=1.0.1$' && PASS=$((PASS + 1)) || { FAIL=$((FAIL + 1)); echo "FAIL: restoredVersion round-trips as 1.0.1"; }
+echo "$RB_STATE_OUTPUT" | grep -q '^previousFailedVersion=1.1.0$' && PASS=$((PASS + 1)) || { FAIL=$((FAIL + 1)); echo "FAIL: previousFailedVersion round-trips as 1.1.0"; }
+echo "$RB_STATE_OUTPUT" | grep -q '^databaseRestoreDecision=DATABASE_RESTORE_REQUIRED$' && PASS=$((PASS + 1)) || { FAIL=$((FAIL + 1)); echo "FAIL: databaseRestoreDecision round-trips"; }
+
+echo "== st_up_lock_acquire operation_type extension (Phase 55) =="
+if command -v flock >/dev/null 2>&1; then
+    (
+        st_up_lock_acquire "1.0.1" "rollback" || exit 1
+        st_up_lock_probe || true
+        [ "$ST_UP_LOCK_OPERATION_TYPE" = "rollback" ]
+    ) >/dev/null 2>&1
+    if [ $? -eq 0 ]; then PASS=$((PASS + 1)); else FAIL=$((FAIL + 1)); echo "FAIL: lock operationType did not round-trip as rollback"; fi
+else
+    echo "SKIPPED: flock not available in this sandbox (Debian-only — see Phase 52's own notes)."
+fi
+
+echo "== st_up_history_append / st_up_history_read round-trip (Phase 56) =="
+assert_false "no history file yet => read fails" st_up_history_read
+st_up_history_append "upgrade" "upgrade-h1" "1.0.0" "1.0.1" "COMPLETED" ""
+st_up_history_append "rollback" "rollback-h1" "1.0.1" "1.0.0" "FAILED" "health check timeout (exit code 32)"
+st_up_history_append "upgrade" "upgrade-h2" "1.0.0" "1.0.2" "COMPLETED" ""
+assert_true "history file exists after append" test -f "$SILVERTASK_RELEASE_HISTORY_FILE"
+HISTORY_LINE_COUNT="$(wc -l < "$SILVERTASK_RELEASE_HISTORY_FILE" | tr -d ' ')"
+assert_eq "one JSON line per append (JSONL, not rewritten)" "3" "$HISTORY_LINE_COUNT"
+HISTORY_OUTPUT="$(st_up_history_read 20)"
+assert_eq "most-recent-first ordering" "upgrade-h2" "$(printf '%s\n' "$HISTORY_OUTPUT" | head -1 | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+assert_eq "oldest entry last" "upgrade-h1" "$(printf '%s\n' "$HISTORY_OUTPUT" | tail -1 | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+assert_eq "limit is honored" "1" "$(st_up_history_read 1 | grep -c '.')"
+assert_eq "reason field round-trips for the FAILED rollback entry" "health check timeout (exit code 32)" \
+    "$(printf '%s\n' "$HISTORY_OUTPUT" | grep 'rollback-h1' | sed -n 's/.*"reason"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+
+echo "== st_up_maintenance_window_check (Phase 56) =="
+UNSET_ENV="$TEST_ROOT/no-window.env"
+: > "$UNSET_ENV"
+assert_true "unset window => allowed (default, zero behavior change)" st_up_maintenance_window_check "$UNSET_ENV"
+st_up_maintenance_window_check "$UNSET_ENV"
+assert_eq "unset window => not configured" "false" "$ST_UP_MAINTENANCE_WINDOW_CONFIGURED"
+
+ALWAYS_INSIDE_ENV="$TEST_ROOT/always-inside.env"
+echo "Upgrade__MaintenanceWindow=00:00-23:59" > "$ALWAYS_INSIDE_ENV"
+assert_true "00:00-23:59 window is (almost always) inside" st_up_maintenance_window_check "$ALWAYS_INSIDE_ENV"
+st_up_maintenance_window_check "$ALWAYS_INSIDE_ENV"
+assert_eq "configured window is reported back" "00:00-23:59" "$ST_UP_MAINTENANCE_WINDOW"
+
+ALWAYS_OUTSIDE_ENV="$TEST_ROOT/always-outside.env"
+echo "Upgrade__MaintenanceWindow=00:00-00:00" > "$ALWAYS_OUTSIDE_ENV"
+assert_false "00:00-00:00 (zero-width) window is always outside" st_up_maintenance_window_check "$ALWAYS_OUTSIDE_ENV"
+
+MALFORMED_ENV="$TEST_ROOT/malformed-window.env"
+echo "Upgrade__MaintenanceWindow=not-a-window" > "$MALFORMED_ENV"
+assert_true "malformed window is ignored (treated as unset), not a hard failure" st_up_maintenance_window_check "$MALFORMED_ENV"
+st_up_maintenance_window_check "$MALFORMED_ENV"
+assert_eq "malformed window => not configured" "false" "$ST_UP_MAINTENANCE_WINDOW_CONFIGURED"
+
+WRAPPING_ENV="$TEST_ROOT/wrapping.env"
+echo "Upgrade__MaintenanceWindow=23:58-00:02" > "$WRAPPING_ENV"
+st_up_maintenance_window_check "$WRAPPING_ENV" || true
+assert_eq "midnight-wrapping window is still recognized as configured" "true" "$ST_UP_MAINTENANCE_WINDOW_CONFIGURED"
 
 echo ""
 echo "=================================================="

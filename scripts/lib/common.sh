@@ -37,6 +37,18 @@
 # root, not SILVERTASK_PUBLISH_DIR (which activation replaces), so the flag survives the swap. ---
 : "${SILVERTASK_MAINTENANCE_FLAG_FILE:=$SILVERTASK_INSTALL_DIR/maintenance.json}"
 
+# --- Phase 55 — upgrade recovery & rollback (scripts/lib/rollback.sh). Deliberately a separate
+# file from SILVERTASK_UPGRADE_STATE_FILE — --status must report "Last Upgrade" and "Last
+# Rollback" as two independent facts, not one overwriting the other. ---
+: "${SILVERTASK_ROLLBACK_STATE_FILE:=$SILVERTASK_INSTALL_DIR/rollback-state.json}"
+
+# --- Phase 56 — durable release history. Deliberately separate from upgrade-state.json/
+# rollback-state.json (which each hold only the single most recent attempt, overwritten every
+# time) — this is an append-only log of every activation/rollback an installation has ever gone
+# through, in JSON Lines format (one compact object per line) so appending never requires
+# rewriting the whole file. ---
+: "${SILVERTASK_RELEASE_HISTORY_FILE:=$SILVERTASK_INSTALL_DIR/release-history.jsonl}"
+
 # --- Output / logging ---
 # Every log line goes to both the terminal and SILVERTASK_LOG_FILE (when writable — scripts
 # run read-only-safe commands, like --help, before root/log-file setup happens). Never pass

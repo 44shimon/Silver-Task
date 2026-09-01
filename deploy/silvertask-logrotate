@@ -1,0 +1,29 @@
+# Silver Task — logrotate configuration for the install and upgrade-engine logs.
+#
+# Installed by scripts/install-debian.sh to /etc/logrotate.d/silvertask (standard logrotate
+# location — rotation itself runs via the distro's existing logrotate cron/systemd timer, nothing
+# in this codebase invokes it directly). Covers the two logs that otherwise grow forever:
+#   - /var/log/silver-task-install.log   (scripts/install-debian.sh, scripts/update-debian.sh
+#                                          legacy path, scripts/backup-debian.sh)
+#   - /var/log/silver-task/upgrade.log   (scripts/update-debian.sh upgrade-engine modes —
+#                                          --latest/--target-version/--activate/--rollback/etc.)
+
+/var/log/silver-task-install.log {
+    weekly
+    rotate 12
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 root root
+}
+
+/var/log/silver-task/upgrade.log {
+    weekly
+    rotate 12
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 root root
+}
