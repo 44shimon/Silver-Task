@@ -323,6 +323,23 @@ st_step "Building Silver Task (dotnet publish -c Release) — this can take a fe
 chown -R "$SILVERTASK_SERVICE_USER:$SILVERTASK_SERVICE_USER" "$SILVERTASK_INSTALL_DIR"
 st_info "Build succeeded."
 
+# Written to SILVERTASK_INSTALL_DIR (stable across future updates), not SILVERTASK_PUBLISH_DIR
+# (replaced every update) — a durable, git-independent record of what's installed, readable even
+# if the service is down. Distinct from GET /api/health's "version" field, which reports what's
+# actually running right now. Best-effort git commit — install-debian.sh installs whatever
+# checkout it's run from, which isn't guaranteed to be a tagged release the way
+# update-debian.sh's --ref=<tag> flow is, so no hard tag-compatibility check here.
+INSTALLED_VERSION="$(tr -d '[:space:]' < "$SILVERTASK_SOURCE_DIR/VERSION" 2>/dev/null || echo unknown)"
+INSTALLED_COMMIT="$(git -C "$SILVERTASK_SOURCE_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+cat > "$SILVERTASK_INSTALL_DIR/installed-version.json" <<EOF
+{
+  "version": "$INSTALLED_VERSION",
+  "gitCommit": "$INSTALLED_COMMIT",
+  "installedAtUtc": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+}
+EOF
+chown "$SILVERTASK_SERVICE_USER:$SILVERTASK_SERVICE_USER" "$SILVERTASK_INSTALL_DIR/installed-version.json"
+
 # --- Migrations ---
 st_step "Running database migrations"
 (

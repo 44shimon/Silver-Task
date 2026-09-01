@@ -7,6 +7,18 @@ import path from 'path';
 import child_process from 'child_process';
 import { env } from 'process';
 
+// Phase 51 — the repo-root VERSION file is the single authoritative version (Silver-Task.Server.csproj
+// reads the same file via MSBuild). package.json's own version field can't be computed from it directly
+// (npm requires a static value), so this fails fast on drift instead.
+const clientRoot = fileURLToPath(new URL('.', import.meta.url));
+const authoritativeVersion = fs.readFileSync(path.join(clientRoot, '..', 'VERSION'), 'utf-8').trim();
+const packageJson = JSON.parse(fs.readFileSync(path.join(clientRoot, 'package.json'), 'utf-8'));
+if (packageJson.version !== authoritativeVersion) {
+    throw new Error(
+        `Version mismatch: VERSION file says "${authoritativeVersion}" but silver-task.client/package.json says "${packageJson.version}". Update package.json's "version" field to match.`
+    );
+}
+
 const baseFolder =
     env.APPDATA !== undefined && env.APPDATA !== ''
         ? `${env.APPDATA}/ASP.NET/https`

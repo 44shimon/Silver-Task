@@ -639,10 +639,11 @@ v1.0.1 to date).
 
 ### Development phases
 
-This project was built incrementally across 49 phases plus this documentation/installer phase.
-Phases 1–13 have detailed prose write-ups (see the [Appendix](#appendix-feature--phase-implementation-notes));
-phases 14–44 are listed by title only (the prose-per-phase style wasn't kept up); phases 45–49 have
-full write-ups in the Appendix and, for 45–47, their own dedicated sections there.
+This project was built incrementally across 49 phases plus the documentation/installer and
+versioning-foundation phases that followed. Phases 1–13 have detailed prose write-ups (see the
+[Appendix](#appendix-feature--phase-implementation-notes)); phases 14–44 are listed by title only
+(the prose-per-phase style wasn't kept up); phases 45–49 have full write-ups in the Appendix and,
+for 45–47, their own dedicated sections there.
 
 - [x] **Phase 1** — Project architecture (TypeScript conversion, API client/routing skeleton, health endpoint).
 - [x] **Phase 2** — PostgreSQL database model and EF Core migrations (all core tables/relationships/indexes).
@@ -691,6 +692,11 @@ full write-ups in the Appendix and, for 45–47, their own dedicated sections th
 - [x] **Phase 48** — Production Deployment Prep (found/fixed two real production-only bugs — see Appendix). Version 1.0.0 released.
 - [x] **Phase 49** — Post-Release Stabilization. Version 1.0.1 released.
 - [x] **Phase 50** — README & Debian Installation System (this document, `scripts/`, `deploy/`).
+- [x] **Phase 51** — Versioning Foundation. A single authoritative version (root `VERSION` file),
+  consistency checks between it and each project's own version declaration, runtime version
+  reporting via `GET /api/health`, an on-disk `installed-version.json` record, and
+  `scripts/check-version.sh` for git-tag compatibility — see `DEPLOYMENT.md` → "Version
+  information." Foundation only: no automatic upgrade system, one-click upgrade, or rollback yet.
 
 ### GitHub / secrets hygiene
 

@@ -70,6 +70,12 @@ st_trust_git_dir "$SILVERTASK_SOURCE_DIR"
 NEW_COMMIT="$(cd "$SILVERTASK_SOURCE_DIR" && git rev-parse --short HEAD)"
 st_info "Source updated to $NEW_COMMIT."
 
+st_step "Checking version/git-tag compatibility"
+NEW_VERSION="$("$SCRIPT_DIR/check-version.sh" "$SILVERTASK_SOURCE_DIR" | tee -a "$SILVERTASK_LOG_FILE" | awk -F': ' '/^Version:/ {print $2}')" \
+    || st_fail "Version check failed — the checked-out ref's VERSION file and git tag disagree." \
+        "See $SILVERTASK_LOG_FILE. This usually means a release tag was cut without updating VERSION — fix the tag or VERSION before updating."
+st_info "Updating to version $NEW_VERSION."
+
 st_step "Rebuilding (dotnet publish -c Release)"
 PREVIOUS_PUBLISH_DIR="${SILVERTASK_PUBLISH_DIR}.previous"
 rm -rf "$PREVIOUS_PUBLISH_DIR"
@@ -86,6 +92,19 @@ rm -rf "$PREVIOUS_PUBLISH_DIR"
 }
 chown -R "$SILVERTASK_SERVICE_USER:$SILVERTASK_SERVICE_USER" "$SILVERTASK_PUBLISH_DIR"
 st_info "Build succeeded."
+
+# Written to SILVERTASK_INSTALL_DIR (stable across updates), not SILVERTASK_PUBLISH_DIR (replaced
+# every update) — a durable, git-independent record of what's installed, readable even if the
+# service is down. Distinct from GET /api/health's "version" field, which reports what's actually
+# running right now.
+cat > "$SILVERTASK_INSTALL_DIR/installed-version.json" <<EOF
+{
+  "version": "$NEW_VERSION",
+  "gitCommit": "$NEW_COMMIT",
+  "installedAtUtc": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+}
+EOF
+chown "$SILVERTASK_SERVICE_USER:$SILVERTASK_SERVICE_USER" "$SILVERTASK_INSTALL_DIR/installed-version.json"
 
 st_step "Running database migrations"
 (

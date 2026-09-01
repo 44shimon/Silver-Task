@@ -194,6 +194,27 @@ appropriately-scoped v1.0.0 answer to "can the outside world tell if this is bro
 
 ## Version information
 
-`silver-task.client/package.json` and `Silver-Task.Server/Silver-Task.Server.csproj` both declare
-`1.0.0`. There's no separate runtime "About" page exposing version info to end users in this
-release — out of scope to add for v1.0.0 (a small, real feature addition, not a deployment task).
+Phase 51 established a single authoritative version, checked in several places so drift is caught
+automatically instead of relying on someone remembering to update every declaration by hand:
+
+- The repo-root `VERSION` file (plain text, e.g. `1.0.1`) is the one source of truth.
+- `Silver-Task.Server.csproj` reads `<Version>` from it via MSBuild at build time — the compiled
+  assembly's informational version always matches `VERSION`, with nothing hand-duplicated.
+- `silver-task.client/package.json`'s own `version` field is still a static value (npm requires
+  one), but `vite.config.ts` checks it against `VERSION` on every `npm run dev`/`npm run build`
+  and throws if they've drifted apart.
+- `GET /api/health` (anonymous, same disclosure tier as its existing `status`/`timeUtc` fields)
+  reports the running instance's `version` — poll it after a deploy to confirm what's actually
+  live, without SSH access.
+- `scripts/check-version.sh` validates `VERSION` is well-formed semver and, when HEAD is checked
+  out exactly on a git tag, that the tag matches (`v1.0.1` tag ↔ `1.0.1` in `VERSION`).
+  `scripts/update-debian.sh` runs it automatically right after checkout and refuses to build a
+  mismatched tag/`VERSION` combination.
+- Both `scripts/install-debian.sh` and `scripts/update-debian.sh` write
+  `$SILVERTASK_INSTALL_DIR/installed-version.json` (`version`, `gitCommit`, `installedAtUtc`)
+  after a successful build — a durable, git-independent record of what's installed on disk, kept
+  at the stable install directory (not the publish directory, which gets swapped every update) so
+  it survives updates and is readable even if the service itself is down.
+
+There's still no runtime "About" page exposing version info in the UI to end users — this phase
+is the versioning foundation an automatic-upgrade system can build on, not that system itself.

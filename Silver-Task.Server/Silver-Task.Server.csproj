@@ -9,7 +9,13 @@
     <SpaProxyLaunchCommand>npm run dev</SpaProxyLaunchCommand>
     <SpaProxyServerUrl>https://localhost:42665</SpaProxyServerUrl>
     <UserSecretsId>432eb5b3-d62d-43ff-84b5-c3f5bb3e76ea</UserSecretsId>
-    <Version>1.0.1</Version>
+    <!-- Phase 51 — repo-root VERSION file is the single authoritative version; the client's
+         package.json is checked against it at vite-config-load time (see vite.config.ts). -->
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\VERSION').Trim())</Version>
+    <!-- Otherwise the SDK appends "+<git-sha>" to AssemblyInformationalVersion by default,
+         which would make GET /api/health's "version" and installed-version.json's "version"
+         (both meant to read as exactly the VERSION file's contents) disagree. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
