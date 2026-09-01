@@ -4,6 +4,7 @@ import { useNotificationHub } from '@/hooks/useNotifications';
 import { useLastVisitedPage } from '@/hooks/useLastVisitedPage';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
+import { VersionFooter } from './VersionFooter';
 
 interface AppShellProps {
   children: ReactNode;
@@ -54,6 +55,7 @@ export function AppShell({ children }: AppShellProps) {
         <Sidebar />
         <main className="app-shell__content">{children}</main>
       </div>
+      <VersionFooter />
     </div>
   );
 }

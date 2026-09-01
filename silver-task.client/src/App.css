@@ -198,3 +198,19 @@
   overflow: auto;
   padding: 24px;
 }
+
+/* Small, unobtrusive version note pinned to the bottom of every page (app pages via AppShell,
+   plus the login page) — fixed positioning so it doesn't depend on each page's own layout
+   (flex/scroll) to end up at the actual bottom of the viewport. */
+.version-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 3px 12px;
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.55;
+  text-align: center;
+  pointer-events: none;
+}

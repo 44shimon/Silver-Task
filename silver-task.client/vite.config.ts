@@ -52,6 +52,12 @@ const target = env.ASPNETCORE_HTTPS_PORT ? `https://localhost:${env.ASPNETCORE_H
 // https://vitejs.dev/config/
 export default defineConfig({
     plugins: [plugin()],
+    // Exposes the same repo-root VERSION file used above as a compile-time constant (see
+    // src/vite-env.d.ts for the ambient declaration) — used by the small version footer shown on
+    // every page, so it's always in sync with the backend/csproj without a separate API call.
+    define: {
+        __APP_VERSION__: JSON.stringify(authoritativeVersion),
+    },
     resolve: {
         alias: {
             '@': fileURLToPath(new URL('./src', import.meta.url))

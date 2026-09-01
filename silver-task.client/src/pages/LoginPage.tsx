@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useLogin } from '@/hooks/useAuth';
 import { usePublicSettings } from '@/hooks/useSystemSettings';
 import { ApiError } from '@/api/httpClient';
+import { VersionFooter } from '@/components/layout/VersionFooter';
 import './LoginPage.css';
 
 interface LocationState {
@@ -69,6 +70,7 @@ export function LoginPage() {
           {login.isPending ? 'Signing in...' : 'Sign in'}
         </button>
       </form>
+      <VersionFooter />
     </div>
   );
 }
