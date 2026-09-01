@@ -196,16 +196,27 @@ st_up_lock_probe() {
 # is exactly what "STALE UPGRADE LOCK DETECTED" is built from (see update-debian.sh's cmd_status).
 # Never auto-deleted by this file's own functions; only overwritten by the next real prepare
 # attempt.
-
+#
+# Phase 53 — the sixth (optional, backward-compatible) `upgrade_id` argument, and the five
+# ST_UP_STATE_* globals below (set by the caller before each write, defaulting to "PENDING" the
+# first time a given stage hasn't been reached yet), extend this into the same kind of crash-safe
+# incremental record backup-debian.sh's own manifest.json is — update-debian.sh's cmd_prepare
+# writes this again after every stage completes, not just at the very end.
 st_up_state_write() {
-    local status="$1" current_version="$2" target_version="$3" current_step="$4" start_time="$5"
+    local status="$1" current_version="$2" target_version="$3" current_step="$4" start_time="$5" upgrade_id="${6:-}"
     cat > "$SILVERTASK_UPGRADE_STATE_FILE" <<EOF
 {
+  "upgradeId": "$(st_json_escape "$upgrade_id")",
   "currentVersion": "$(st_json_escape "$current_version")",
   "targetVersion": "$(st_json_escape "$target_version")",
   "startTimeUtc": "$(st_json_escape "$start_time")",
   "currentStep": "$(st_json_escape "$current_step")",
   "status": "$(st_json_escape "$status")",
+  "backupStatus": "$(st_json_escape "${ST_UP_STATE_BACKUP_STATUS:-PENDING}")",
+  "backupVerificationStatus": "$(st_json_escape "${ST_UP_STATE_BACKUP_VERIFICATION_STATUS:-PENDING}")",
+  "persistentDataCheckStatus": "$(st_json_escape "${ST_UP_STATE_PERSISTENT_DATA_STATUS:-PENDING}")",
+  "migrationValidationStatus": "$(st_json_escape "${ST_UP_STATE_MIGRATION_VALIDATION_STATUS:-PENDING}")",
+  "migrationPlanStatus": "$(st_json_escape "${ST_UP_STATE_MIGRATION_PLAN_STATUS:-PENDING}")",
   "lastUpdatedUtc": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 }
 EOF
@@ -217,7 +228,9 @@ EOF
 st_up_state_read() {
     [ -f "$SILVERTASK_UPGRADE_STATE_FILE" ] || return 1
     local field
-    for field in currentVersion targetVersion startTimeUtc currentStep status lastUpdatedUtc; do
+    for field in upgradeId currentVersion targetVersion startTimeUtc currentStep status \
+        backupStatus backupVerificationStatus persistentDataCheckStatus \
+        migrationValidationStatus migrationPlanStatus lastUpdatedUtc; do
         printf '%s=%s\n' "$field" \
             "$(sed -n "s/.*\"$field\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\\1/p" "$SILVERTASK_UPGRADE_STATE_FILE" | head -1)"
     done
@@ -368,4 +381,225 @@ st_up_log() {
         echo "$line" >> "$SILVERTASK_UPGRADE_LOG_FILE" 2>/dev/null || true
         chmod 640 "$SILVERTASK_UPGRADE_LOG_FILE" 2>/dev/null || true
     fi
+}
+
+# =====================================================================================
+# Phase 53 — upgrade safety, backups & migration orchestration
+# =====================================================================================
+
+# --- Upgrade ID ---
+# Links a prepare attempt's upgrade-state.json, backup manifest, and log entries together (see
+# README "Upgrade Engine"). Not a secret, not guessed/predictable-sensitive — just a unique label.
+st_up_generate_upgrade_id() {
+    printf 'upgrade-%s-%s\n' "$(date -u '+%Y%m%d-%H%M%S')" "$(openssl rand -hex 3)"
+}
+
+# --- Path safety ---
+# realpath-normalized "is $1 the same as, or nested inside, $2" check. `-m` so it works even for
+# paths that don't exist yet (e.g. a not-yet-created staging directory). Used by
+# st_up_persistent_data_check — never trust a raw string prefix match against unnormalized paths
+# (symlinks, trailing slashes, `..`, etc. would all defeat one).
+st_up_path_is_under() {
+    local path ancestor
+    path="$(realpath -m -- "$1")"
+    ancestor="$(realpath -m -- "$2")"
+    [ "$path" = "$ancestor" ] && return 0
+    case "$path/" in
+        "$ancestor"/*) return 0 ;;
+    esac
+    return 1
+}
+
+# --- Persistent data protection ---
+#
+# Confirms Attachments__StorageRoot isn't nested inside anything an upgrade replaces or discards
+# (the source checkout, the publish output, or the upgrade-staging area) — the exact "uploads
+# stored inside the application build directory" danger the brief calls out by name. Pure
+# path-string comparison against the *configured* location — never touches the filesystem beyond
+# reading the env file, so it's safe to run for real even under --dry-run. Sets
+# ST_UP_PERSISTENT_DATA_OK (true/false), ST_UP_PERSISTENT_DATA_STORAGE_ROOT, and on failure
+# ST_UP_PERSISTENT_DATA_ISSUE (human-readable). Returns 0/1 to match.
+st_up_persistent_data_check() {
+    local env_file="$1"
+    local storage_root=""
+    if [ -f "$env_file" ]; then
+        storage_root="$(sed -n 's/^Attachments__StorageRoot=//p' "$env_file" | head -1)"
+    fi
+    storage_root="${storage_root:-/var/lib/silver-task/attachments}"
+
+    ST_UP_PERSISTENT_DATA_OK=true
+    ST_UP_PERSISTENT_DATA_ISSUE=""
+    ST_UP_PERSISTENT_DATA_STORAGE_ROOT="$storage_root"
+
+    local dangerous_location
+    for dangerous_location in "$SILVERTASK_SOURCE_DIR" "$SILVERTASK_PUBLISH_DIR" "$SILVERTASK_UPGRADE_STAGING_DIR"; do
+        if st_up_path_is_under "$storage_root" "$dangerous_location"; then
+            ST_UP_PERSISTENT_DATA_OK=false
+            ST_UP_PERSISTENT_DATA_ISSUE="Attachments__StorageRoot ($storage_root) is located inside $dangerous_location, which an upgrade replaces/discards. Move attachment storage outside the application install tree (e.g. /var/lib/silver-task/attachments) before upgrading."
+            return 1
+        fi
+    done
+    return 0
+}
+
+# --- Disk space for backups ---
+# Distinct from Phase 52's publish-dir-based st_up_disk_space_check — checked right before a
+# pre-upgrade backup is attempted. A fixed, documented approximation (2048MB), not a precise
+# database-size estimate (matching the brief's own "do not yet attempt to estimate complex ...
+# requirements").
+st_up_backup_disk_space_check() {
+    local floor_mb=2048
+    local check_dir="$SILVERTASK_BACKUP_DIR"
+    [ -d "$check_dir" ] || check_dir="$(dirname "$check_dir")"
+    local avail_mb
+    avail_mb="$(df -Pm "$check_dir" 2>/dev/null | awk 'NR==2 {print $4}')"
+    ST_UP_BACKUP_DISK_REQUIRED_MB="$floor_mb"
+    ST_UP_BACKUP_DISK_AVAILABLE_MB="${avail_mb:-unknown}"
+    [ -n "${avail_mb:-}" ] || return 0
+    [ "$avail_mb" -ge "$floor_mb" ]
+}
+
+# --- Backup orchestration ---
+
+# Classifies a single backup attempt purely from its manifest.json — split out from
+# st_up_run_backup so this classification logic is independently testable against a fixture file
+# (see scripts/test-upgrade-engine.sh) without invoking pg_dump. Sets ST_UP_BACKUP_RESULT to one
+# of: OK, DATABASE_FAILED, DATABASE_UNVERIFIED, CONFIG_FAILED, CONFIG_UNVERIFIED, UNKNOWN (no
+# manifest at all — e.g. backup-debian.sh never even got as far as creating the backup directory).
+st_up_backup_manifest_status() {
+    local manifest="$1"
+    ST_UP_BACKUP_RESULT="UNKNOWN"
+    [ -f "$manifest" ] || return 1
+
+    local db_path db_verified cfg_path cfg_verified
+    db_path="$(sed -n 's/.*"databaseBackup"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -1)"
+    db_verified="$(sed -n 's/.*"databaseBackupVerified"[[:space:]]*:[[:space:]]*\(true\|false\).*/\1/p' "$manifest" | head -1)"
+    cfg_path="$(sed -n 's/.*"configurationBackup"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -1)"
+    cfg_verified="$(sed -n 's/.*"configurationBackupVerified"[[:space:]]*:[[:space:]]*\(true\|false\).*/\1/p' "$manifest" | head -1)"
+
+    if [ -z "$db_path" ]; then
+        ST_UP_BACKUP_RESULT="DATABASE_FAILED"
+    elif [ "$db_verified" != "true" ]; then
+        ST_UP_BACKUP_RESULT="DATABASE_UNVERIFIED"
+    elif [ -z "$cfg_path" ]; then
+        ST_UP_BACKUP_RESULT="CONFIG_FAILED"
+    elif [ "$cfg_verified" != "true" ]; then
+        ST_UP_BACKUP_RESULT="CONFIG_UNVERIFIED"
+    else
+        ST_UP_BACKUP_RESULT="OK"
+    fi
+    [ "$ST_UP_BACKUP_RESULT" = "OK" ]
+}
+
+# Drives the existing scripts/backup-debian.sh rather than reimplementing pg_dump/tar here (see
+# that script's own doc comment for the manifest/verification design it now has). Captures the
+# backup-set directory it reports and classifies that backup's manifest.json afterward (via
+# st_up_backup_manifest_status above) — on success OR failure, since the manifest is written
+# incrementally — to tell apart exactly which stage failed. Sets ST_UP_BACKUP_DIR and
+# ST_UP_BACKUP_RESULT. Returns 0 only when the result is OK.
+st_up_run_backup() {
+    local script_dir="$1" tag="$2" upgrade_id="$3" installed="$4" target="$5"
+    local output rc=0
+    output="$("$script_dir/backup-debian.sh" \
+        --tag="$tag" --upgrade-id="$upgrade_id" \
+        --installed-version="$installed" --target-version="$target" \
+        2>&1)" || rc=$?
+    printf '%s\n' "$output" >> "$SILVERTASK_UPGRADE_LOG_FILE"
+
+    ST_UP_BACKUP_DIR="$(printf '%s\n' "$output" | sed -n 's/^BACKUP_SET_DIR=//p' | head -1)"
+    ST_UP_BACKUP_RESULT="UNKNOWN"
+
+    if [ -n "$ST_UP_BACKUP_DIR" ]; then
+        st_up_backup_manifest_status "$ST_UP_BACKUP_DIR/manifest.json" || true
+    fi
+
+    [ "$rc" -eq 0 ] && [ "$ST_UP_BACKUP_RESULT" = "OK" ]
+}
+
+# --- Migration discovery & planning ---
+#
+# Thin wrappers around the project's own EF Core CLI (dotnet-ef, pinned in
+# .config/dotnet-tools.json) — never a second migration mechanism. Every command here is either
+# read-only against the database (`dotnet ef migrations list` only ever SELECTs
+# __EFMigrationsHistory — the same read `dotnet ef database update` itself relies on to decide
+# what to apply) or fully offline (`--no-connect`, `migrations script`). Nothing here ever applies
+# a migration.
+
+# Runs against the CURRENTLY INSTALLED source, with a real DB connection (via the env file) — the
+# one place this phase actually talks to the production database, and only to read
+# __EFMigrationsHistory. Populates ST_UP_MIGRATIONS_APPLIED (newline-separated migration names EF
+# reports as already applied). Returns 1 ("current migration state invalid") if the command itself
+# fails (DB unreachable, corrupted history table) — never silently treated as "nothing applied
+# yet" — or if the *currently installed* code already shows any migration as "(Pending)": that
+# means the running app's schema is already behind its own migration history, an inconsistency
+# this phase must not build a new upgrade plan on top of.
+st_up_migration_current_state() {
+    local source_dir="$1" env_file="$2"
+    local output rc=0
+    ST_UP_MIGRATIONS_APPLIED=""
+    output="$(
+        cd "$source_dir" || exit 1
+        st_load_env_file "$env_file"
+        dotnet ef migrations list --project Silver-Task.Server --startup-project Silver-Task.Server 2>&1
+    )" || rc=$?
+    printf '%s\n' "$output" >> "$SILVERTASK_UPGRADE_LOG_FILE"
+    [ "$rc" -eq 0 ] || return 1
+    if printf '%s\n' "$output" | grep -q '(Pending)'; then
+        return 1
+    fi
+    ST_UP_MIGRATIONS_APPLIED="$(printf '%s\n' "$output" | grep -E '^[0-9]{14}_' || true)"
+    return 0
+}
+
+# Runs against the STAGED (target) worktree with --no-connect — never touches the database at
+# all. Populates ST_UP_MIGRATIONS_TARGET (every migration name the target release defines).
+# Returns 1 ("target migration validation failed") on a build failure, an empty/unreadable
+# migration set, or duplicate migration names.
+st_up_migration_target_list() {
+    local staged_dir="$1"
+    local output rc=0
+    ST_UP_MIGRATIONS_TARGET=""
+    output="$(
+        cd "$staged_dir" || exit 1
+        dotnet ef migrations list --project Silver-Task.Server --startup-project Silver-Task.Server --no-connect 2>&1
+    )" || rc=$?
+    printf '%s\n' "$output" >> "$SILVERTASK_UPGRADE_LOG_FILE"
+    [ "$rc" -eq 0 ] || return 1
+    ST_UP_MIGRATIONS_TARGET="$(printf '%s\n' "$output" | grep -E '^[0-9]{14}_')"
+    [ -n "$ST_UP_MIGRATIONS_TARGET" ] || return 1
+    local duplicate_count
+    duplicate_count="$(printf '%s\n' "$ST_UP_MIGRATIONS_TARGET" | sort | uniq -d | wc -l)"
+    [ "$duplicate_count" -eq 0 ] || return 1
+    return 0
+}
+
+# Pure bash diff between what's already applied (st_up_migration_current_state) and what the
+# target release defines (st_up_migration_target_list) — no extra database round-trip needed to
+# know what's pending. Populates ST_UP_MIGRATION_PENDING (newline-separated names) and
+# ST_UP_MIGRATION_PENDING_COUNT, and classifies the upgrade into ST_UP_MIGRATION_CLASSIFICATION —
+# SAFE / REQUIRES_BACKUP / REQUIRES_MAINTENANCE_MODE — reusing Phase 52's release-metadata output
+# (requiresDataMigration) rather than inventing a new compatibility matrix.
+st_up_migration_plan() {
+    local applied="$1" target="$2" requires_data_migration="$3"
+    ST_UP_MIGRATION_PENDING="$(comm -13 <(printf '%s\n' "$applied" | sort) <(printf '%s\n' "$target" | sort))"
+    ST_UP_MIGRATION_PENDING_COUNT="$(printf '%s\n' "$ST_UP_MIGRATION_PENDING" | grep -c . || true)"
+
+    if [ "$requires_data_migration" = "true" ]; then
+        ST_UP_MIGRATION_CLASSIFICATION="REQUIRES_MAINTENANCE_MODE"
+    elif [ "$ST_UP_MIGRATION_PENDING_COUNT" -gt 0 ]; then
+        ST_UP_MIGRATION_CLASSIFICATION="REQUIRES_BACKUP"
+    else
+        ST_UP_MIGRATION_CLASSIFICATION="SAFE"
+    fi
+}
+
+# Generates the actual, concrete migration plan artifact — a complete idempotent SQL script — with
+# no database connection at all. Returns non-zero ("migration planning failed") if generation
+# itself fails.
+st_up_migration_generate_script() {
+    local staged_dir="$1" output_file="$2"
+    (
+        cd "$staged_dir" || exit 1
+        dotnet ef migrations script --idempotent --project Silver-Task.Server --startup-project Silver-Task.Server -o "$output_file"
+    ) >> "$SILVERTASK_UPGRADE_LOG_FILE" 2>&1
 }

@@ -7,11 +7,15 @@
 #      --skip-backup/--ref=) — UNCHANGED since Phase 51: backs up, fetches/checks out the latest
 #      source in place, rebuilds, migrates, restarts, and health-checks. This is what actually
 #      deploys a change; Phase 52 does not alter a single line of its behavior.
-#   2. The Phase 52 upgrade ENGINE (--check/--status/--latest/--target-version, optionally with
-#      --dry-run/--yes) — new: discovers, validates, and stages a target release WITHOUT
-#      activating it (no backup, no migration, no restart, no change to installed-version.json).
-#      Its job is to PREPARE a release for a future ACTIVATE step (Phase 53+); it deliberately
-#      never performs one itself. See README "Upgrade Engine" for the full explanation.
+#   2. The upgrade ENGINE (--check/--status/--latest/--target-version, optionally with
+#      --dry-run/--yes) — Phase 52 built discovery/validation/staging; Phase 53 adds the safety
+#      layer that must exist before anything can activate: a verified pre-upgrade backup
+#      (database + attachments + configuration, via scripts/backup-debian.sh), a persistent-data
+#      placement check, and migration discovery/validation/planning via the project's own EF Core
+#      CLI — never executing a migration. A successful --latest/--target-version run now ends in
+#      READY_FOR_ACTIVATION, still WITHOUT activating anything (no restart, no change to
+#      installed-version.json). Activation itself is Phase 54, not yet implemented. See README
+#      "Upgrade Engine" for the full explanation.
 #
 # Usage:
 #   sudo ./scripts/update-debian.sh                                # legacy: update to latest + activate
@@ -19,18 +23,20 @@
 #   sudo ./scripts/update-debian.sh --ref=v1.0.1                   # legacy, update to a specific tag/branch
 #   sudo ./scripts/update-debian.sh --check                        # is a newer stable release available?
 #   sudo ./scripts/update-debian.sh --status                       # upgrade/version status report
-#   sudo ./scripts/update-debian.sh --latest                       # prepare (not activate) the latest stable release
-#   sudo ./scripts/update-debian.sh --target-version 1.1.0         # prepare (not activate) a specific release
+#   sudo ./scripts/update-debian.sh --latest                       # validate, back up, and stage the latest stable release
+#   sudo ./scripts/update-debian.sh --target-version 1.1.0         # validate, back up, and stage a specific release
 #   sudo ./scripts/update-debian.sh --dry-run --latest             # show what --latest would do, change nothing
 #   sudo ./scripts/update-debian.sh --target-version 1.1.0 --yes   # skip the confirmation prompt
 #   sudo ./scripts/update-debian.sh --help
 #
 # Exit codes (upgrade-engine modes: --check/--status/--latest/--target-version; the legacy path
 # always used a plain 0 = success / 1 = failure and still does):
-#   0 success / no blocking problem        4 target version unavailable   7 repository access failure
-#   1 general error                        5 unsupported upgrade path     8 insufficient disk space
-#   2 invalid arguments                    6 upgrade already in progress
-#   3 version inconsistency
+#   0 success / no blocking problem        6 upgrade already in progress    12 config backup verification failed
+#   1 general error                        7 repository access failure     13 persistent data safety check failed
+#   2 invalid arguments                    8 insufficient disk space       14 current migration state invalid
+#   3 version inconsistency                9 database backup failed        15 target migration validation failed
+#   4 target version unavailable          10 database backup verify failed 16 migration planning failed
+#   5 unsupported upgrade path            11 configuration backup failed
 
 set -euo pipefail
 
@@ -49,20 +55,21 @@ Legacy full update (unchanged since Phase 51 — actually deploys a change):
   --ref=<git-ref>           Update to a specific tag/branch instead, and activate it.
   --skip-backup             Skip the pre-update backup (not recommended).
 
-Upgrade engine (Phase 52 — PREPARES a release; never activates one):
+Upgrade engine (PREPARES a release; never activates one):
   --check                   Report whether a newer stable release is available. Read-only.
   --status                  Report installed/running version and upgrade-lock status. Read-only.
-  --latest                  Validate and stage the latest stable release.
-  --target-version X.Y.Z    Validate and stage a specific stable release.
+  --latest                  Validate, back up, and stage the latest stable release.
+  --target-version X.Y.Z    Validate, back up, and stage a specific stable release.
   --dry-run                 With --latest/--target-version: report only, change nothing.
   --yes                     With --latest/--target-version: skip the confirmation prompt.
 
   --help, -h                Show this message.
 
---check and --status never modify anything. --latest/--target-version (without --dry-run) fetch
-and stage the release into an isolated git worktree and record upgrade lock/state/log files, but
-never replace the running application, run migrations, or restart services — see README "Upgrade
-Engine" for the full prepare-vs-activate explanation.
+--check and --status never modify anything. --latest/--target-version (without --dry-run) stage
+the release into an isolated git worktree, create and verify a pre-upgrade backup (database +
+attachments + configuration), check persistent-data placement, and validate/plan any required
+migrations — but never replace the running application, run a migration, or restart services. See
+README "Upgrade Engine" for the full prepare-vs-activate explanation.
 EOF
 }
 
@@ -240,17 +247,35 @@ cmd_status() {
             done <<< "$state_output"
         fi
         case "${state[status]:-}" in
-            CHECKING|VALIDATING|PREPARING|UPGRADE_IN_PROGRESS)
+            CHECKING|VALIDATING|PREPARING|UPGRADE_IN_PROGRESS|BACKING_UP|VERIFYING_BACKUP|CHECKING_PERSISTENT_DATA|PLANNING_MIGRATIONS)
                 echo "Upgrade Status: STALE UPGRADE LOCK DETECTED"
                 echo ""
                 echo "A previous upgrade preparation did not finish cleanly:"
+                echo "  Upgrade ID: ${state[upgradeId]:-unknown}"
                 echo "  Target Version: ${state[targetVersion]:-unknown}"
                 echo "  Started: ${state[startTimeUtc]:-unknown}"
                 echo "  Last step: ${state[currentStep]:-unknown}"
                 echo ""
                 echo "No process currently holds the upgrade lock — it is safe to retry with --latest"
                 echo "or --target-version. The interrupted attempt made no changes to the running"
-                echo "application, database, or installed version (Phase 52 only ever prepares)."
+                echo "application, database, or installed version (this engine only ever prepares —"
+                echo "see README 'Upgrade Engine'). Any pre-upgrade backup it managed to create before"
+                echo "being interrupted is still on disk and was not deleted."
+                ;;
+            READY_FOR_ACTIVATION)
+                echo "Upgrade Status: READY FOR ACTIVATION"
+                echo ""
+                echo "  Upgrade ID: ${state[upgradeId]:-unknown}"
+                echo "  Target Version: ${state[targetVersion]:-unknown}"
+                echo "  Prepared: ${state[lastUpdatedUtc]:-unknown}"
+                echo "  Backup: ${state[backupStatus]:-unknown} (verification: ${state[backupVerificationStatus]:-unknown})"
+                echo "  Persistent data check: ${state[persistentDataCheckStatus]:-unknown}"
+                echo "  Migration validation: ${state[migrationValidationStatus]:-unknown}"
+                echo "  Migration plan: ${state[migrationPlanStatus]:-unknown}"
+                echo ""
+                echo "A validated release and pre-upgrade backup are staged, but nothing has been"
+                echo "activated — the running application is still on the installed version above."
+                echo "Activation is not yet implemented (Phase 54)."
                 ;;
             *)
                 echo "Upgrade Status: IDLE"
@@ -371,10 +396,32 @@ cmd_prepare() {
         echo "Upgrade path: supported (forward upgrade)"
         echo "Release availability: confirmed on $SILVERTASK_REPO_URL"
         echo "Release metadata: $ST_UP_META_SOURCE"
-        echo "Disk space: ${ST_UP_DISK_AVAILABLE_MB}MB available, ~${ST_UP_DISK_REQUIRED_MB}MB estimated needed"
+        echo "Disk space (release staging): ${ST_UP_DISK_AVAILABLE_MB}MB available, ~${ST_UP_DISK_REQUIRED_MB}MB estimated needed"
+        echo ""
+        echo "Persistent Data Check:"
+        if st_up_persistent_data_check "$SILVERTASK_ENV_FILE"; then
+            echo "  OK — attachment storage ($ST_UP_PERSISTENT_DATA_STORAGE_ROOT) is outside the application install tree."
+        else
+            echo "  UPGRADE WOULD BE BLOCKED — PERSISTENT DATA LOCATION UNSAFE"
+            echo "  $ST_UP_PERSISTENT_DATA_ISSUE"
+        fi
+        echo ""
+        echo "Backup Plan (not executed in dry-run):"
+        st_up_backup_disk_space_check || true
+        echo "  Would create: database dump (pg_dump -F c) + attachments archive + configuration copy"
+        echo "  Would write to: $SILVERTASK_BACKUP_DIR/<timestamp>/ (tagged pre-upgrade, linked to a new upgrade ID)"
+        echo "  Disk space for backup: ${ST_UP_BACKUP_DISK_AVAILABLE_MB}MB available, ~${ST_UP_BACKUP_DISK_REQUIRED_MB}MB estimated needed"
+        echo ""
+        echo "Migration Plan: not available in dry-run (requires staging the release — run without"
+        echo "  --dry-run, or a real --latest/--target-version prepare, to generate the concrete SQL plan)."
+        echo ""
+        echo "Activation Plan: not yet implemented (Phase 54). Today, only the legacy full update"
+        echo "  (sudo ./scripts/update-debian.sh --ref=v$target) actually activates a change."
+        echo ""
         echo "Preparation plan: fetch tag v$target, stage into an isolated git worktree under"
-        echo "  $SILVERTASK_UPGRADE_STAGING_DIR/$target, record upgrade lock/state/log — the running"
-        echo "  application, database, and installed version would NOT be touched."
+        echo "  $SILVERTASK_UPGRADE_STAGING_DIR/$target, create + verify a pre-upgrade backup, validate"
+        echo "  migrations, record upgrade lock/state/log — the running application, database, and"
+        echo "  installed version would NOT be touched."
         st_up_log "prepare: dry-run complete ($installed -> $target)"
         exit 0
     fi
@@ -412,14 +459,21 @@ cmd_prepare() {
     # teardown.
     trap 'st_up_lock_release' EXIT
 
-    local start_time
+    local upgrade_id start_time
+    upgrade_id="$(st_up_generate_upgrade_id)"
     start_time="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-    st_up_state_write "PREPARING" "$installed" "$target" "staging release" "$start_time"
-    st_up_log "prepare: lock acquired, staging $target"
+    st_info "Upgrade ID: $upgrade_id"
+    ST_UP_STATE_BACKUP_STATUS="PENDING"
+    ST_UP_STATE_BACKUP_VERIFICATION_STATUS="PENDING"
+    ST_UP_STATE_PERSISTENT_DATA_STATUS="PENDING"
+    ST_UP_STATE_MIGRATION_VALIDATION_STATUS="PENDING"
+    ST_UP_STATE_MIGRATION_PLAN_STATUS="PENDING"
+    st_up_state_write "PREPARING" "$installed" "$target" "staging release" "$start_time" "$upgrade_id"
+    st_up_log "prepare: lock acquired, upgrade $upgrade_id, staging $target"
 
     st_step "Fetching and staging release $target"
     if ! st_up_prepare_worktree "$SILVERTASK_SOURCE_DIR" "$target" "$SILVERTASK_UPGRADE_STAGING_DIR"; then
-        st_up_state_write "FAILED" "$installed" "$target" "staging release" "$start_time"
+        st_up_state_write "FAILED" "$installed" "$target" "staging release" "$start_time" "$upgrade_id"
         st_up_log "prepare: FAILED, could not stage worktree for $target"
         st_fail "Could not fetch/stage release $target." "Check $SILVERTASK_UPGRADE_LOG_FILE and that $SILVERTASK_REPO_URL is reachable."
     fi
@@ -428,18 +482,166 @@ cmd_prepare() {
     st_step "Verifying staged release"
     if ! "$SCRIPT_DIR/check-version.sh" "$ST_UP_STAGED_DIR" > /dev/null; then
         st_up_cleanup_worktree "$SILVERTASK_SOURCE_DIR" "$ST_UP_STAGED_DIR"
-        st_up_state_write "FAILED" "$installed" "$target" "verifying staged release" "$start_time"
+        st_up_state_write "FAILED" "$installed" "$target" "verifying staged release" "$start_time" "$upgrade_id"
         st_up_log "prepare: FAILED, staged release $target failed check-version.sh"
         st_fail "Staged release $target failed its own version/tag consistency check." "See $SILVERTASK_UPGRADE_LOG_FILE."
     fi
+    st_info "[OK] Version consistency validated"
+    st_info "[OK] Target release validated"
+    st_info "[OK] Upgrade lock acquired"
 
-    st_up_state_write "COMPLETED" "$installed" "$target" "prepared" "$start_time"
-    st_up_log "prepare: COMPLETED (preparation only), $installed -> $target staged at $ST_UP_STAGED_DIR"
+    # --- Phase 53: safety layer — backups, persistent-data protection, migration orchestration.
+    # Nothing below this point ever touches the running application, the database, or
+    # installed-version.json; every failure cleans up the staged worktree and records FAILED. ---
+
+    st_step "Checking persistent data locations"
+    st_up_state_write "CHECKING_PERSISTENT_DATA" "$installed" "$target" "checking persistent data" "$start_time" "$upgrade_id"
+    if ! st_up_persistent_data_check "$SILVERTASK_ENV_FILE"; then
+        ST_UP_STATE_PERSISTENT_DATA_STATUS="FAILED"
+        st_up_cleanup_worktree "$SILVERTASK_SOURCE_DIR" "$ST_UP_STAGED_DIR"
+        st_up_state_write "FAILED" "$installed" "$target" "checking persistent data" "$start_time" "$upgrade_id"
+        st_error "UPGRADE BLOCKED — PERSISTENT DATA LOCATION UNSAFE"
+        st_error "$ST_UP_PERSISTENT_DATA_ISSUE"
+        st_up_log "prepare: FAILED, unsafe persistent data location: $ST_UP_PERSISTENT_DATA_ISSUE"
+        exit 13
+    fi
+    ST_UP_STATE_PERSISTENT_DATA_STATUS="OK"
+    st_info "[OK] Persistent data locations validated (attachments: $ST_UP_PERSISTENT_DATA_STORAGE_ROOT)"
+
+    st_step "Checking disk space for backup"
+    if ! st_up_backup_disk_space_check; then
+        st_up_cleanup_worktree "$SILVERTASK_SOURCE_DIR" "$ST_UP_STAGED_DIR"
+        st_up_state_write "FAILED" "$installed" "$target" "checking disk space for backup" "$start_time" "$upgrade_id"
+        st_error "UPGRADE BLOCKED — INSUFFICIENT DISK SPACE (${ST_UP_BACKUP_DISK_AVAILABLE_MB}MB available, ~${ST_UP_BACKUP_DISK_REQUIRED_MB}MB estimated needed for backup)."
+        st_up_log "prepare: FAILED, insufficient disk space for backup"
+        exit 8
+    fi
+    st_info "[OK] Disk space for backup validated (${ST_UP_BACKUP_DISK_AVAILABLE_MB}MB available)"
+
+    st_step "Creating pre-upgrade backup (database + attachments + configuration)"
+    ST_UP_STATE_BACKUP_STATUS="IN_PROGRESS"
+    st_up_state_write "BACKING_UP" "$installed" "$target" "creating pre-upgrade backup" "$start_time" "$upgrade_id"
+    if ! st_up_run_backup "$SCRIPT_DIR" "pre-upgrade" "$upgrade_id" "$installed" "$target"; then
+        st_up_cleanup_worktree "$SILVERTASK_SOURCE_DIR" "$ST_UP_STAGED_DIR"
+        case "$ST_UP_BACKUP_RESULT" in
+            DATABASE_FAILED)
+                ST_UP_STATE_BACKUP_STATUS="FAILED"
+                st_up_state_write "FAILED" "$installed" "$target" "database backup" "$start_time" "$upgrade_id"
+                st_error "UPGRADE BLOCKED"; st_error "DATABASE BACKUP FAILED"
+                st_up_log "prepare: FAILED, database backup failed (backup dir: ${ST_UP_BACKUP_DIR:-unknown})"
+                exit 9 ;;
+            DATABASE_UNVERIFIED)
+                ST_UP_STATE_BACKUP_STATUS="OK"; ST_UP_STATE_BACKUP_VERIFICATION_STATUS="FAILED"
+                st_up_state_write "FAILED" "$installed" "$target" "database backup verification" "$start_time" "$upgrade_id"
+                st_error "UPGRADE BLOCKED"; st_error "DATABASE BACKUP VERIFICATION FAILED"
+                st_up_log "prepare: FAILED, database backup verification failed (backup dir: ${ST_UP_BACKUP_DIR:-unknown})"
+                exit 10 ;;
+            CONFIG_FAILED)
+                ST_UP_STATE_BACKUP_STATUS="OK"; ST_UP_STATE_BACKUP_VERIFICATION_STATUS="OK"
+                st_up_state_write "FAILED" "$installed" "$target" "configuration backup" "$start_time" "$upgrade_id"
+                st_error "UPGRADE BLOCKED"; st_error "CONFIGURATION BACKUP FAILED"
+                st_up_log "prepare: FAILED, configuration backup failed (backup dir: ${ST_UP_BACKUP_DIR:-unknown})"
+                exit 11 ;;
+            CONFIG_UNVERIFIED)
+                ST_UP_STATE_BACKUP_STATUS="OK"; ST_UP_STATE_BACKUP_VERIFICATION_STATUS="FAILED"
+                st_up_state_write "FAILED" "$installed" "$target" "configuration backup verification" "$start_time" "$upgrade_id"
+                st_error "UPGRADE BLOCKED"; st_error "CONFIGURATION BACKUP VERIFICATION FAILED"
+                st_up_log "prepare: FAILED, configuration backup verification failed (backup dir: ${ST_UP_BACKUP_DIR:-unknown})"
+                exit 12 ;;
+            *)
+                ST_UP_STATE_BACKUP_STATUS="FAILED"
+                st_up_state_write "FAILED" "$installed" "$target" "backup" "$start_time" "$upgrade_id"
+                st_error "UPGRADE BLOCKED"; st_error "DATABASE BACKUP FAILED"
+                st_up_log "prepare: FAILED, backup-debian.sh failed before writing a manifest"
+                exit 9 ;;
+        esac
+    fi
+    ST_UP_STATE_BACKUP_STATUS="OK"; ST_UP_STATE_BACKUP_VERIFICATION_STATUS="OK"
+    st_info "[OK] Database backup created"
+    st_info "[OK] Database backup verified"
+    st_info "[OK] Configuration backup created"
+    st_info "[OK] Configuration backup verified"
+    st_info "Backup location: $ST_UP_BACKUP_DIR"
+
+    st_step "Validating current database migration state"
+    st_up_state_write "PLANNING_MIGRATIONS" "$installed" "$target" "validating current migration state" "$start_time" "$upgrade_id"
+    if ! st_up_migration_current_state "$SILVERTASK_SOURCE_DIR" "$SILVERTASK_ENV_FILE"; then
+        ST_UP_STATE_MIGRATION_VALIDATION_STATUS="FAILED"
+        st_up_cleanup_worktree "$SILVERTASK_SOURCE_DIR" "$ST_UP_STAGED_DIR"
+        st_up_state_write "FAILED" "$installed" "$target" "validating current migration state" "$start_time" "$upgrade_id"
+        st_error "UPGRADE BLOCKED — DATABASE MIGRATION STATE INVALID"
+        st_error "Could not confirm the currently installed code's migrations are fully, cleanly applied — see $SILVERTASK_UPGRADE_LOG_FILE."
+        st_up_log "prepare: FAILED, current migration state invalid"
+        exit 14
+    fi
+
+    st_step "Validating target release migrations"
+    if ! st_up_migration_target_list "$ST_UP_STAGED_DIR"; then
+        ST_UP_STATE_MIGRATION_VALIDATION_STATUS="FAILED"
+        st_up_cleanup_worktree "$SILVERTASK_SOURCE_DIR" "$ST_UP_STAGED_DIR"
+        st_up_state_write "FAILED" "$installed" "$target" "validating target migrations" "$start_time" "$upgrade_id"
+        st_error "UPGRADE BLOCKED — target migration validation failed (malformed, unbuildable, or duplicate migrations)."
+        st_error "See $SILVERTASK_UPGRADE_LOG_FILE."
+        st_up_log "prepare: FAILED, target migration validation failed"
+        exit 15
+    fi
+    ST_UP_STATE_MIGRATION_VALIDATION_STATUS="OK"
+    local target_migration_count
+    target_migration_count="$(printf '%s\n' "$ST_UP_MIGRATIONS_TARGET" | grep -c .)"
+    st_info "[OK] Migration state validated ($target_migration_count migrations in target release)"
+
+    st_step "Generating migration plan"
+    st_up_migration_plan "$ST_UP_MIGRATIONS_APPLIED" "$ST_UP_MIGRATIONS_TARGET" "$ST_UP_META_REQUIRES_DATA_MIGRATION"
+    local migration_script="$ST_UP_STAGED_DIR/migration-plan.sql"
+    if ! st_up_migration_generate_script "$ST_UP_STAGED_DIR" "$migration_script"; then
+        ST_UP_STATE_MIGRATION_PLAN_STATUS="FAILED"
+        st_up_cleanup_worktree "$SILVERTASK_SOURCE_DIR" "$ST_UP_STAGED_DIR"
+        st_up_state_write "FAILED" "$installed" "$target" "generating migration plan" "$start_time" "$upgrade_id"
+        st_error "UPGRADE BLOCKED — migration planning failed (could not generate the migration script)."
+        st_error "See $SILVERTASK_UPGRADE_LOG_FILE."
+        st_up_log "prepare: FAILED, migration planning failed"
+        exit 16
+    fi
+    ST_UP_STATE_MIGRATION_PLAN_STATUS="OK"
+    st_info "[OK] Migration plan generated"
+    st_info ""
+    st_info "Migration Plan"
+    st_info "  Current Application Version: $installed"
+    st_info "  Target Application Version: $target"
+    if [ "$ST_UP_MIGRATION_PENDING_COUNT" -gt 0 ]; then
+        st_info "  Database Migration Required: YES"
+    else
+        st_info "  Database Migration Required: NO"
+    fi
+    if [ "$ST_UP_META_REQUIRES_DATA_MIGRATION" = "true" ]; then
+        st_info "  Data Migration Required: YES"
+    else
+        st_info "  Data Migration Required: NO"
+    fi
+    st_info "  Classification: $ST_UP_MIGRATION_CLASSIFICATION"
+    if [ "$ST_UP_MIGRATION_PENDING_COUNT" -gt 0 ]; then
+        st_info "  Migration Steps:"
+        local step_number=1 migration_name
+        while IFS= read -r migration_name; do
+            [ -n "$migration_name" ] || continue
+            st_info "    $step_number. Apply migration $migration_name"
+            step_number=$((step_number + 1))
+        done <<< "$ST_UP_MIGRATION_PENDING"
+    fi
+    st_info "  Migration script (generated, not executed): $migration_script"
+
+    st_up_state_write "READY_FOR_ACTIVATION" "$installed" "$target" "ready for activation" "$start_time" "$upgrade_id"
+    st_up_log "prepare: READY_FOR_ACTIVATION, upgrade $upgrade_id ($installed -> $target), backup at $ST_UP_BACKUP_DIR, staged at $ST_UP_STAGED_DIR"
     st_info "=================================================================="
-    st_info " Preparation complete — release $target staged, NOT activated."
-    st_info " Staged at: $ST_UP_STAGED_DIR"
-    st_info " The running application is still on $installed. Activation (backup, build, migrate,"
-    st_info " restart) is a separate, future step — see README 'Upgrade Engine'."
+    st_info " READY FOR ACTIVATION"
+    st_info " Upgrade ID: $upgrade_id"
+    st_info " $installed -> $target staged at $ST_UP_STAGED_DIR"
+    st_info " Pre-upgrade backup: $ST_UP_BACKUP_DIR"
+    st_info " The running application is still on $installed — nothing has been activated."
+    st_info " Full production activation (maintenance mode, controlled service handling, restart,"
+    st_info " post-upgrade validation) is Phase 54, not yet implemented. Today, activating still"
+    st_info " means running the legacy full update:"
+    st_info "   sudo ./scripts/update-debian.sh --ref=v$target"
     st_info "=================================================================="
     exit 0
 }

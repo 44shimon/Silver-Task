@@ -278,3 +278,28 @@ st_health_check() {
     done
     return 1
 }
+
+# --- Backup retention safety (Phase 53) ---
+# Used by backup-debian.sh before any `rm -rf` in its retention loop. Guards against a corrupted/
+# empty SILVERTASK_BACKUP_DIR ever turning a retention cleanup into something catastrophic — never
+# trust the variable alone, always assert it looks like a real, non-root backup directory first.
+st_assert_safe_backup_dir() {
+    local dir="$1"
+    case "$dir" in
+        /*) : ;;
+        *) st_fail "Refusing to run retention cleanup: SILVERTASK_BACKUP_DIR (\"$dir\") is not an absolute path." ;;
+    esac
+    case "$dir" in
+        /|/etc|/etc/*|/home|/root|/bin|/sbin|/usr|/usr/*|/var|/opt|/boot|/dev|/proc|/sys)
+            st_fail "Refusing to run retention cleanup: SILVERTASK_BACKUP_DIR (\"$dir\") looks like a system directory, not a backup directory." ;;
+    esac
+    [ -d "$dir" ] || st_fail "Refusing to run retention cleanup: SILVERTASK_BACKUP_DIR (\"$dir\") does not exist."
+}
+
+# Returns 0 (true) only if `name` matches the exact timestamp directory-naming pattern
+# backup-debian.sh itself generates (YYYYMMDD-HHMMSS) — retention cleanup only ever considers
+# deleting entries that pass this, so anything else found in the backup directory (an operator's
+# own file, a differently-named archive, a stray mount point) is left alone.
+st_is_backup_set_name() {
+    [[ "$1" =~ ^[0-9]{8}-[0-9]{6}$ ]]
+}

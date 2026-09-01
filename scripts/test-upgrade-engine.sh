@@ -30,7 +30,8 @@ export SILVERTASK_UPGRADE_STATE_FILE="$TEST_ROOT/install/upgrade-state.json"
 export SILVERTASK_UPGRADE_STAGING_DIR="$TEST_ROOT/install/upgrade-staging"
 export SILVERTASK_UPGRADE_LOG_DIR="$TEST_ROOT/upgrade-log"
 export SILVERTASK_UPGRADE_LOG_FILE="$TEST_ROOT/upgrade-log/upgrade.log"
-mkdir -p "$SILVERTASK_INSTALL_DIR" "$SILVERTASK_UPGRADE_LOG_DIR"
+export SILVERTASK_BACKUP_DIR="$TEST_ROOT/backups"
+mkdir -p "$SILVERTASK_INSTALL_DIR" "$SILVERTASK_UPGRADE_LOG_DIR" "$SILVERTASK_BACKUP_DIR"
 
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
@@ -181,6 +182,99 @@ echo "$STATE_OUTPUT" | grep -q '^targetVersion=1.1.0$' && PASS=$((PASS + 1)) || 
 echo "== st_up_disk_space_check (smoke test — just must not crash and must set outputs) =="
 st_up_disk_space_check || true
 assert_true "ST_UP_DISK_REQUIRED_MB was set" test -n "${ST_UP_DISK_REQUIRED_MB:-}"
+
+echo "== st_up_generate_upgrade_id (Phase 53) =="
+UPGRADE_ID="$(st_up_generate_upgrade_id)"
+if [[ "$UPGRADE_ID" =~ ^upgrade-[0-9]{8}-[0-9]{6}-[0-9a-f]{6}$ ]]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL: upgrade ID \"$UPGRADE_ID\" does not match expected format"
+fi
+
+echo "== st_up_path_is_under (Phase 53) =="
+assert_true  "identical paths are \"under\""          st_up_path_is_under "$SILVERTASK_SOURCE_DIR" "$SILVERTASK_SOURCE_DIR"
+assert_true  "nested path is under its parent"        st_up_path_is_under "$SILVERTASK_SOURCE_DIR/App_Data/attachments" "$SILVERTASK_SOURCE_DIR"
+assert_false "sibling with shared prefix is not under" st_up_path_is_under "${SILVERTASK_SOURCE_DIR}-other" "$SILVERTASK_SOURCE_DIR"
+assert_false "unrelated external path is not under"    st_up_path_is_under "/var/lib/silver-task/attachments" "$SILVERTASK_SOURCE_DIR"
+
+echo "== st_up_persistent_data_check (Phase 53) — the brief's own 'uploads inside the build directory' case =="
+UNSAFE_ENV="$TEST_ROOT/unsafe.env"
+echo "Attachments__StorageRoot=$SILVERTASK_SOURCE_DIR/App_Data/attachments" > "$UNSAFE_ENV"
+if st_up_persistent_data_check "$UNSAFE_ENV"; then
+    FAIL=$((FAIL + 1)); echo "FAIL: storage root inside SOURCE_DIR should have been flagged unsafe"
+else
+    PASS=$((PASS + 1))
+    [ -n "$ST_UP_PERSISTENT_DATA_ISSUE" ] && PASS=$((PASS + 1)) || { FAIL=$((FAIL + 1)); echo "FAIL: expected a populated issue message"; }
+fi
+
+SAFE_ENV="$TEST_ROOT/safe.env"
+echo "Attachments__StorageRoot=/var/lib/silver-task/attachments" > "$SAFE_ENV"
+assert_true "storage root outside install tree is safe" st_up_persistent_data_check "$SAFE_ENV"
+
+echo "== st_up_backup_manifest_status (Phase 53, fixture manifests — no pg_dump/DB needed) =="
+FIXTURE_DIR="$TEST_ROOT/backup-fixture"
+mkdir -p "$FIXTURE_DIR"
+
+cat > "$FIXTURE_DIR/manifest.json" <<'EOF'
+{"type":"pre-upgrade","databaseBackup":"","databaseBackupVerified":false,"configurationBackup":"","configurationBackupVerified":false}
+EOF
+st_up_backup_manifest_status "$FIXTURE_DIR/manifest.json"; RC=$?
+assert_eq "no database path yet => DATABASE_FAILED" "DATABASE_FAILED" "$ST_UP_BACKUP_RESULT"
+assert_eq "returns non-zero when not OK" "1" "$RC"
+
+cat > "$FIXTURE_DIR/manifest.json" <<'EOF'
+{"type":"pre-upgrade","databaseBackup":"database.dump","databaseBackupVerified":false,"configurationBackup":"","configurationBackupVerified":false}
+EOF
+st_up_backup_manifest_status "$FIXTURE_DIR/manifest.json" || true
+assert_eq "database created but not verified => DATABASE_UNVERIFIED" "DATABASE_UNVERIFIED" "$ST_UP_BACKUP_RESULT"
+
+cat > "$FIXTURE_DIR/manifest.json" <<'EOF'
+{"type":"pre-upgrade","databaseBackup":"database.dump","databaseBackupVerified":true,"configurationBackup":"","configurationBackupVerified":false}
+EOF
+st_up_backup_manifest_status "$FIXTURE_DIR/manifest.json" || true
+assert_eq "database verified, no config path yet => CONFIG_FAILED" "CONFIG_FAILED" "$ST_UP_BACKUP_RESULT"
+
+cat > "$FIXTURE_DIR/manifest.json" <<'EOF'
+{"type":"pre-upgrade","databaseBackup":"database.dump","databaseBackupVerified":true,"configurationBackup":"silvertask.env","configurationBackupVerified":false}
+EOF
+st_up_backup_manifest_status "$FIXTURE_DIR/manifest.json" || true
+assert_eq "config created but not verified => CONFIG_UNVERIFIED" "CONFIG_UNVERIFIED" "$ST_UP_BACKUP_RESULT"
+
+cat > "$FIXTURE_DIR/manifest.json" <<'EOF'
+{"type":"pre-upgrade","databaseBackup":"database.dump","databaseBackupVerified":true,"configurationBackup":"silvertask.env","configurationBackupVerified":true}
+EOF
+st_up_backup_manifest_status "$FIXTURE_DIR/manifest.json"; RC=$?
+assert_eq "everything verified => OK" "OK" "$ST_UP_BACKUP_RESULT"
+assert_eq "returns zero when OK" "0" "$RC"
+
+assert_false "missing manifest file => UNKNOWN, non-zero" st_up_backup_manifest_status "$TEST_ROOT/does-not-exist.json"
+
+echo "== st_up_migration_plan (Phase 53, fixture applied/target lists) =="
+APPLIED_LIST="$(printf '20260101000000_A\n20260102000000_B\n')"
+TARGET_LIST="$(printf '20260101000000_A\n20260102000000_B\n20260103000000_C\n')"
+st_up_migration_plan "$APPLIED_LIST" "$TARGET_LIST" "false"
+assert_eq "one pending migration detected" "1" "$ST_UP_MIGRATION_PENDING_COUNT"
+assert_eq "pending migration is the new one" "20260103000000_C" "$ST_UP_MIGRATION_PENDING"
+assert_eq "pending + no data migration => REQUIRES_BACKUP" "REQUIRES_BACKUP" "$ST_UP_MIGRATION_CLASSIFICATION"
+
+st_up_migration_plan "$APPLIED_LIST" "$APPLIED_LIST" "false"
+assert_eq "nothing pending" "0" "$ST_UP_MIGRATION_PENDING_COUNT"
+assert_eq "no pending + no data migration => SAFE" "SAFE" "$ST_UP_MIGRATION_CLASSIFICATION"
+
+st_up_migration_plan "$APPLIED_LIST" "$APPLIED_LIST" "true"
+assert_eq "requiresDataMigration forces REQUIRES_MAINTENANCE_MODE even with nothing pending" \
+    "REQUIRES_MAINTENANCE_MODE" "$ST_UP_MIGRATION_CLASSIFICATION"
+
+echo "== st_is_backup_set_name / st_assert_safe_backup_dir (Phase 53, lib/common.sh) =="
+assert_true  "well-formed timestamp name accepted" st_is_backup_set_name "20260901-120000"
+assert_false "arbitrary name rejected"             st_is_backup_set_name "not-a-backup"
+assert_false "wrong-format date rejected"          st_is_backup_set_name "2026-09-01"
+
+test_unsafe_backup_dir() { ( st_assert_safe_backup_dir "$1" ) >/dev/null 2>&1; }
+assert_false "refuses a relative path"     test_unsafe_backup_dir "relative/path"
+assert_false "refuses a system directory"  test_unsafe_backup_dir "/etc"
+assert_false "refuses a nonexistent path"  test_unsafe_backup_dir "$TEST_ROOT/does-not-exist"
+assert_true  "accepts the real backup dir" st_assert_safe_backup_dir "$SILVERTASK_BACKUP_DIR"
 
 echo ""
 echo "=================================================="

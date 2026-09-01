@@ -227,7 +227,17 @@ git tags, validate them against the installed version (rejecting downgrades, sam
 and metadata-declared incompatibilities), and stage a validated release into an isolated `git
 worktree` — see README → "Upgrade Engine" for the full command reference, exit codes, and file
 locations (`upgrade-state.json`, the `flock`-based lock, `/var/log/silver-task/upgrade.log`).
-**These commands only prepare a release — they never activate one.** No backup is taken, no
-migration runs, no service restarts, and `installed-version.json` is untouched by any of them; the
-plain `sudo ./scripts/update-debian.sh` documented above (unchanged since Phase 51) remains the
-only command that actually deploys a change to a running installation.
+
+Phase 53 added the safety layer that must exist before anything can be activated: `--latest`/
+`--target-version` (not `--dry-run`) now also create and verify a full pre-upgrade backup (via the
+same `scripts/backup-debian.sh` used for scheduled backups, tagged `pre-upgrade`), check that
+`Attachments__StorageRoot` isn't unsafely nested inside anything an upgrade replaces, and
+validate/plan any required database migrations using `dotnet ef` directly (never executing one) —
+see README → "Upgrade Engine" and [docs/upgrade-safety.md](docs/upgrade-safety.md) for the full
+workflow, and [docs/restore.md](docs/restore.md) for verifying a backup.
+
+**These commands still only prepare a release — they never activate one.** No service restarts, no
+migration is executed, and `installed-version.json` is untouched by any of them; the plain
+`sudo ./scripts/update-debian.sh` documented above (unchanged since Phase 51, and still doing its
+own independent backup as it always has) remains the only command that actually deploys a change to
+a running installation.

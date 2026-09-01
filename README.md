@@ -375,20 +375,24 @@ step itself (which only ever adds/alters schema, never resets data).
 
 ## Upgrade Engine
 
-Phase 52 adds a second, additive command surface to the same `scripts/update-debian.sh` — a CLI
-upgrade engine that **discovers, validates, and stages** a target release without activating it.
-This is deliberately **not** a replacement for the plain `sudo ./scripts/update-debian.sh` above:
-only that command (and `--ref=`/`--skip-backup`) actually backs up, rebuilds, migrates, restarts,
-and deploys a change today. The upgrade engine's job is **PREPARE**, not **ACTIVATE** — future
-phases will teach a prepared release to hand off into an activation step; Phase 52 stops short of
-that on purpose (no backup is taken, no migration runs, no service is restarted, and
-`installed-version.json` is never modified by any of the commands below).
+Phase 52 added a second, additive command surface to the same `scripts/update-debian.sh` — a CLI
+upgrade engine that **discovers, validates, and stages** a target release; Phase 53 added the
+safety layer that must exist before anything can be activated: a verified pre-upgrade backup, a
+persistent-data placement check, and migration discovery/validation/planning. This is deliberately
+**not** a replacement for the plain `sudo ./scripts/update-debian.sh` above: only that command (and
+`--ref=`/`--skip-backup`) actually rebuilds, restarts, and deploys a change today. The upgrade
+engine's job is **PREPARE**, not **ACTIVATE** — a future phase will teach a prepared release to
+hand off into an activation step; today it stops at `READY FOR ACTIVATION` on purpose (no service
+is restarted, no migration is executed, and `installed-version.json` is never modified by any of
+the commands below). See [docs/upgrade-safety.md](docs/upgrade-safety.md) for the full step-by-step
+workflow and the persistent-data inventory, and [docs/restore.md](docs/restore.md) for verifying/
+restoring a backup.
 
 ```bash
 sudo ./scripts/update-debian.sh --check                        # is a newer stable release available?
 sudo ./scripts/update-debian.sh --status                       # upgrade/version status report
-sudo ./scripts/update-debian.sh --latest                       # validate + stage the latest stable release
-sudo ./scripts/update-debian.sh --target-version 1.1.0         # validate + stage a specific stable release
+sudo ./scripts/update-debian.sh --latest                       # validate, back up, and stage the latest stable release
+sudo ./scripts/update-debian.sh --target-version 1.1.0         # validate, back up, and stage a specific stable release
 sudo ./scripts/update-debian.sh --dry-run --latest              # show what --latest would do; changes nothing
 sudo ./scripts/update-debian.sh --target-version 1.1.0 --yes   # skip the confirmation prompt (for automation)
 sudo ./scripts/update-debian.sh --help
@@ -403,14 +407,53 @@ running version consistency and whatever the upgrade engine last did (see "Upgra
 validate installed/running version consistency, discover available stable releases, reject a
 same-version or older ("downgrade") target, validate the release's metadata (see "Release
 metadata" below), check local disk space, ask for confirmation (`[y/N]`, never defaulted to yes —
-skip with `--yes`), then fetch the target tag and stage it into an isolated `git worktree` under
-`$SILVERTASK_INSTALL_DIR/upgrade-staging/<version>` — a second checkout that shares git objects
-with the main install but never touches `$SILVERTASK_INSTALL_DIR/source` (what the plain `update-
-debian.sh` above actually builds from) or the running application.
+skip with `--yes`), acquire the upgrade lock, fetch the target tag and stage it into an isolated
+`git worktree` under `$SILVERTASK_INSTALL_DIR/upgrade-staging/<version>` (a second checkout that
+shares git objects with the main install but never touches `$SILVERTASK_INSTALL_DIR/source` — what
+the plain `update-debian.sh` above actually builds from — or the running application), then run the
+full safety pipeline below (persistent-data check → backup → backup verification → migration
+validation → migration planning) before reporting `READY FOR ACTIVATION`.
 
 **`--dry-run`** (with `--latest`/`--target-version`) runs every validation step and reports the
-same plan, but never fetches new git tags, never creates a worktree, never acquires the upgrade
-lock, and never writes upgrade state — the only side effect is an informational log line.
+same plan, but never fetches new git tags, never creates a worktree, never creates a backup, never
+acquires the upgrade lock, and never writes upgrade state — the only side effect is an
+informational log line. Its persistent-data check *does* run for real (it's pure read-only path
+comparison), and its disk-space-for-backup check reports real numbers; its migration plan section
+honestly reports "not available in dry-run" rather than fabricating one (generating a real plan
+requires a staged, built worktree, which dry-run never creates).
+
+**Pre-upgrade backup**: before touching anything, `--latest`/`--target-version` create and verify a
+full backup — database (`pg_dump`, custom format), attachments, and configuration — by invoking the
+existing `scripts/backup-debian.sh` (see [Backup](#backup) below) tagged `pre-upgrade` and linked to
+this attempt's upgrade ID. **A failed or unverifiable backup blocks the upgrade outright** — the
+engine never proceeds to staging/migration work on an unbacked-up installation. Verification is
+structural, not just "the file exists": `pg_restore --list` actually reads the dump's table of
+contents, and the configuration copy is checked for its required keys (values are never printed or
+logged either way).
+
+**Persistent data check**: confirms `Attachments__StorageRoot` isn't nested inside anything an
+upgrade replaces or discards (`$SILVERTASK_INSTALL_DIR/source`, `.../publish`, or
+`.../upgrade-staging`) — the standard install location
+(`/var/lib/silver-task/attachments`) already passes cleanly; this only fires on genuine
+misconfiguration, and blocks with a specific remediation message rather than proceeding. See
+[docs/upgrade-safety.md](docs/upgrade-safety.md) for the full persistent-data inventory.
+
+**Migration validation & planning**: uses the project's own EF Core CLI (`dotnet-ef`, pinned in
+`.config/dotnet-tools.json`) as the sole authority — never a second migration mechanism, and never
+executes one. `dotnet ef migrations list` against the *currently installed* code (a real, read-only
+database connection — the same read `dotnet ef database update` itself relies on) confirms the
+running installation's own migrations are fully applied before planning anything new; `dotnet ef
+migrations list --no-connect` against the *staged* release (zero database connection) validates its
+migrations are well-formed with no duplicates; the difference between the two lists is the pending-
+migration plan, and `dotnet ef migrations script --idempotent` (also zero database connection)
+generates the actual SQL as a real file (`migration-plan.sql`, next to the staged release) for
+review — nothing is ever applied. Each upgrade is classified `SAFE` / `REQUIRES_BACKUP` /
+`REQUIRES_MAINTENANCE_MODE` (see [docs/upgrade-safety.md](docs/upgrade-safety.md)).
+
+**Upgrade ID**: every `--latest`/`--target-version` attempt (not `--dry-run`) gets a unique ID
+(`upgrade-<timestamp>-<random>`) linking its upgrade state, pre-upgrade backup manifest, and log
+entries together — see the manifest's `"upgradeId"` field and `docs/restore.md` → "Finding the
+right backup."
 
 **Release discovery**: stable releases are discovered from the repository's own git tags
 (`git ls-remote --tags` against the configured remote — never a second repository, never a URL
@@ -448,9 +491,13 @@ DETECTED` if a previous attempt's leftover state file shows it never finished cl
 currently holds the lock — safe to just retry in that case; nothing was ever activated.
 
 **Upgrade state**: `$SILVERTASK_INSTALL_DIR/upgrade-state.json` records the most recent prepare
-attempt (current/target version, status, step, timestamps) for `--status` to report — left in place
-after success, failure, or a crash, and only ever overwritten by the next real attempt, never
-auto-deleted.
+attempt — upgrade ID, current/target version, status, step, timestamps, and (Phase 53) per-stage
+status for the backup, backup verification, persistent-data check, migration validation, and
+migration plan — for `--status` to report. Left in place after success, failure, or a crash, and
+only ever overwritten by the next real attempt, never auto-deleted. Status values: `IDLE`,
+`CHECKING`, `VALIDATING`, `PREPARING`, `CHECKING_PERSISTENT_DATA`, `BACKING_UP`,
+`VERIFYING_BACKUP`, `PLANNING_MIGRATIONS`, `READY_FOR_ACTIVATION`, `FAILED` — never `COMPLETED`;
+nothing is activated yet, so nothing is ever reported as fully "complete."
 
 **Upgrade log**: `/var/log/silver-task/upgrade.log` — a structured, timestamped history of every
 upgrade-engine invocation, separate from the installer's own `/var/log/silver-task-install.log`.
@@ -469,27 +516,53 @@ writes.
 | 5 | Unsupported upgrade path (downgrade, or a release's `minimumSupportedVersion` not met) |
 | 6 | Upgrade already in progress |
 | 7 | Repository access failure |
-| 8 | Insufficient disk space |
+| 8 | Insufficient disk space (release staging, or — same code, checked again later — backup) |
+| 9 | Database backup failed |
+| 10 | Database backup verification failed |
+| 11 | Configuration backup failed |
+| 12 | Configuration backup verification failed |
+| 13 | Persistent data safety check failed |
+| 14 | Current database migration state invalid |
+| 15 | Target release migration validation failed |
+| 16 | Migration planning failed |
 
-**Current limitations (Phase 52)**: this is a foundation, not the full upgrade system. There is no
+**Current limitations**: this is a safety foundation, not the full upgrade system. There is no
 web-based one-click upgrade UI, no automatic activation of a staged release, and no automatic
 database rollback — activating a prepared release still means running the plain `sudo
-./scripts/update-debian.sh` (optionally `--ref=v1.1.0`) documented above. Disk-space checking is an
-approximation (precise backup-size estimation is future work). A future phase is expected to teach
-the engine to hand a validated, staged release off into a real activation step.
+./scripts/update-debian.sh` (optionally `--ref=v1.1.0`) documented above, which does its own
+independent backup as it always has (the Phase 53 pre-upgrade backup above doesn't replace it, and
+isn't yet consumed by anything — that hand-off is future work). Disk-space checking is an
+approximation in both places (precise backup-size estimation is future work). A future phase is
+expected to teach the engine to hand a validated, staged release *and* its verified backup off into
+a real, controlled activation step (maintenance mode, service handling, running the generated
+migration plan, restart, post-upgrade validation).
 
 ## Backup
 
 ```bash
-sudo ./scripts/backup-debian.sh                # backs up to /var/backups/silver-task, keeps last 7
-sudo ./scripts/backup-debian.sh --keep=30       # keep the last 30 backup sets instead
+sudo ./scripts/backup-debian.sh                       # backs up to /var/backups/silver-task, keeps last 7
+sudo ./scripts/backup-debian.sh --keep=30              # keep the last 30 backup sets instead
+sudo ./scripts/backup-debian.sh --max-age-days=90      # also delete anything older than 90 days
 ```
 
 Each run creates a timestamped set containing: a `pg_dump` (custom format) of the database, a
 `tar.gz` of the file storage directory, and a copy of the environment file (permissions restricted
-to root — it contains secrets, and the backup log never records their values). The script verifies
-the database dump is non-empty before reporting success, and applies retention (deletes the oldest
-sets beyond `--keep`) only after a successful backup.
+to root — it contains secrets, and the backup log never records their values). Beyond "the file
+exists and is non-empty," the database dump is verified with `pg_restore --list` (a real structural
+read of its table of contents) and the configuration copy is checked for its required keys —
+verification failure blocks the whole run rather than reporting a false success. Every run also
+writes `manifest.json` into the backup set (type, timestamps, and — when triggered by the [upgrade
+engine](#upgrade-engine) — the upgrade ID and installed/target versions; never any secret value) —
+see [docs/restore.md](docs/restore.md) → "Finding the right backup."
+
+Retention (`--keep`/`--max-age-days`) only deletes directories matching this script's own
+`YYYYMMDD-HHMMSS` naming, never the single newest backup, and never a backup still linked to an
+in-progress upgrade (status other than `FAILED` in `upgrade-state.json`) — see
+`st_assert_safe_backup_dir`/`st_is_backup_set_name` in `scripts/lib/common.sh`.
+
+The upgrade engine (`--latest`/`--target-version`, above) calls this same script internally
+(tagged `pre-upgrade`, linked to its upgrade ID) — there is only one backup implementation in this
+project, reused everywhere a backup is needed.
 
 Run this on a schedule via cron or a systemd timer, e.g. nightly:
 
@@ -501,7 +574,10 @@ echo "0 3 * * * root /opt/silver-task/source/scripts/backup-debian.sh >> /var/lo
 
 **There is no automated restore script** — restoring is rarer and higher-stakes than backing up, so
 it's deliberately a manual, reviewable set of commands rather than something a script runs
-unattended:
+unattended. This is the production restore procedure; to just verify a backup is good (including
+every pre-upgrade backup the [upgrade engine](#upgrade-engine) creates) without any risk to
+production, see [docs/restore.md](docs/restore.md) → "Restoring into an isolated test database"
+instead:
 
 1. **Stop the app**: `sudo systemctl stop silvertask` (avoids writes to a database mid-restore).
 2. **Restore the database** into either the existing database (if you're recovering from
@@ -745,7 +821,7 @@ v1.0.1 to date).
 ### Development phases
 
 This project was built incrementally across 49 phases plus the documentation/installer and
-versioning-foundation phases that followed. Phases 1–13 have detailed prose write-ups (see the
+upgrade-engine phases that followed. Phases 1–13 have detailed prose write-ups (see the
 [Appendix](#appendix-feature--phase-implementation-notes)); phases 14–44 are listed by title only
 (the prose-per-phase style wasn't kept up); phases 45–49 have full write-ups in the Appendix and,
 for 45–47, their own dedicated sections there.
@@ -808,6 +884,14 @@ for 45–47, their own dedicated sections there.
   target release into an isolated `git worktree` — see [Upgrade Engine](#upgrade-engine). Prepares
   and validates only: no activation, no web UI, no database rollback yet; the existing plain
   `update-debian.sh` invocation remains the only thing that actually deploys a change.
+- [x] **Phase 53** — Upgrade Safety, Backups & Migration Orchestration. Extended
+  `scripts/backup-debian.sh` with a crash-safe manifest, real structural backup verification
+  (`pg_restore --list`, required-key checks), and safer retention; extended the upgrade engine with
+  a persistent-data placement check and migration discovery/validation/planning via the project's
+  own EF Core CLI (never executing one). A successful `--latest`/`--target-version` run now creates
+  and verifies a pre-upgrade backup before ending in `READY_FOR_ACTIVATION` — see [Upgrade
+  Engine](#upgrade-engine), [docs/upgrade-safety.md](docs/upgrade-safety.md), and
+  [docs/restore.md](docs/restore.md). Still no activation, web UI, or automatic rollback.
 
 ### GitHub / secrets hygiene
 
