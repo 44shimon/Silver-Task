@@ -300,6 +300,10 @@ Jwt__Secret=$JWT_SECRET
 Cors__AllowedOrigins__0=$CORS_ORIGIN
 Attachments__StorageRoot=$STORAGE_ROOT
 General__ApplicationBaseUrl=$APP_BASE_URL
+# Phase 54 — maintenance-mode flag file (scripts/lib/upgrade.sh's st_up_maintenance_enable/disable).
+# Deliberately under the stable install root, not the publish directory that gets swapped during
+# an upgrade activation, so both the old and new running binary check the same path.
+Maintenance__FlagFile=$SILVERTASK_INSTALL_DIR/maintenance.json
 Smtp__Host=$SMTP_HOST
 Smtp__Port=$SMTP_PORT
 Smtp__EnableSsl=true

@@ -203,6 +203,12 @@ foreach (var proxy in app.Configuration.GetSection("ForwardedHeaders:KnownProxie
 }
 app.UseForwardedHeaders(forwardedHeadersOptions);
 
+// Phase 54 — checked before literally everything else (including ExceptionHandlingMiddleware and
+// the static SPA assets below), so a maintenance window enabled by scripts/update-debian.sh
+// --activate blocks the whole app, not just authenticated API routes. See the middleware's own
+// doc comment for why /api/health* is deliberately exempted.
+app.UseMiddleware<MaintenanceModeMiddleware>();
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseDefaultFiles();

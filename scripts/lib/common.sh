@@ -31,6 +31,12 @@
 : "${SILVERTASK_UPGRADE_LOG_FILE:=$SILVERTASK_UPGRADE_LOG_DIR/upgrade.log}"
 : "${SILVERTASK_RELEASES_DIR:=releases}"
 
+# --- Phase 54 — controlled activation. Must match Maintenance__FlagFile in the generated
+# silvertask.env (install-debian.sh) exactly — this is how the running ASP.NET Core process and
+# this shell agree on where the maintenance flag lives. Deliberately under the stable install
+# root, not SILVERTASK_PUBLISH_DIR (which activation replaces), so the flag survives the swap. ---
+: "${SILVERTASK_MAINTENANCE_FLAG_FILE:=$SILVERTASK_INSTALL_DIR/maintenance.json}"
+
 # --- Output / logging ---
 # Every log line goes to both the terminal and SILVERTASK_LOG_FILE (when writable — scripts
 # run read-only-safe commands, like --help, before root/log-file setup happens). Never pass

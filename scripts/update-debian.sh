@@ -7,15 +7,16 @@
 #      --skip-backup/--ref=) — UNCHANGED since Phase 51: backs up, fetches/checks out the latest
 #      source in place, rebuilds, migrates, restarts, and health-checks. This is what actually
 #      deploys a change; Phase 52 does not alter a single line of its behavior.
-#   2. The upgrade ENGINE (--check/--status/--latest/--target-version, optionally with
-#      --dry-run/--yes) — Phase 52 built discovery/validation/staging; Phase 53 adds the safety
+#   2. The upgrade ENGINE (--check/--status/--latest/--target-version/--activate, optionally with
+#      --dry-run/--yes) — Phase 52 built discovery/validation/staging; Phase 53 added the safety
 #      layer that must exist before anything can activate: a verified pre-upgrade backup
 #      (database + attachments + configuration, via scripts/backup-debian.sh), a persistent-data
 #      placement check, and migration discovery/validation/planning via the project's own EF Core
-#      CLI — never executing a migration. A successful --latest/--target-version run now ends in
-#      READY_FOR_ACTIVATION, still WITHOUT activating anything (no restart, no change to
-#      installed-version.json). Activation itself is Phase 54, not yet implemented. See README
-#      "Upgrade Engine" for the full explanation.
+#      CLI — never executing a migration. A successful --latest/--target-version run ends in
+#      READY_FOR_ACTIVATION, still without activating anything. Phase 54's --activate is what
+#      actually does: maintenance mode, an atomic-as-practical release swap, running the real
+#      migration, restarting the service, health/version validation, and only then committing
+#      installed-version.json. See README "Upgrade Engine" for the full explanation.
 #
 # Usage:
 #   sudo ./scripts/update-debian.sh                                # legacy: update to latest + activate
@@ -27,16 +28,21 @@
 #   sudo ./scripts/update-debian.sh --target-version 1.1.0         # validate, back up, and stage a specific release
 #   sudo ./scripts/update-debian.sh --dry-run --latest             # show what --latest would do, change nothing
 #   sudo ./scripts/update-debian.sh --target-version 1.1.0 --yes   # skip the confirmation prompt
+#   sudo ./scripts/update-debian.sh --activate                     # activate a prepared, READY_FOR_ACTIVATION release
+#   sudo ./scripts/update-debian.sh --activate --yes                # activate without the confirmation prompt
 #   sudo ./scripts/update-debian.sh --help
 #
-# Exit codes (upgrade-engine modes: --check/--status/--latest/--target-version; the legacy path
-# always used a plain 0 = success / 1 = failure and still does):
-#   0 success / no blocking problem        6 upgrade already in progress    12 config backup verification failed
-#   1 general error                        7 repository access failure     13 persistent data safety check failed
-#   2 invalid arguments                    8 insufficient disk space       14 current migration state invalid
-#   3 version inconsistency                9 database backup failed        15 target migration validation failed
-#   4 target version unavailable          10 database backup verify failed 16 migration planning failed
-#   5 unsupported upgrade path            11 configuration backup failed
+# Exit codes (upgrade-engine modes: --check/--status/--latest/--target-version/--activate; the
+# legacy path always used a plain 0 = success / 1 = failure and still does):
+#   0 success / no blocking problem        9 database backup failed        18 maintenance mode failure
+#   1 general error                       10 database backup verify failed 19 application activation failure
+#   2 invalid arguments                   11 configuration backup failed   20 service startup failure
+#   3 version inconsistency               12 config backup verification failed 21 migration execution failure
+#   4 target version unavailable          13 persistent data safety check failed 22 health check timeout
+#   5 unsupported upgrade path            14 current migration state invalid 23 version validation failure
+#   6 upgrade already in progress         15 target migration validation failed 24 smoke test failure
+#   7 repository access failure           16 migration planning failed     25 interrupted upgrade detected (--status)
+#   8 insufficient disk space             17 activation prerequisites missing
 
 set -euo pipefail
 
@@ -55,26 +61,33 @@ Legacy full update (unchanged since Phase 51 — actually deploys a change):
   --ref=<git-ref>           Update to a specific tag/branch instead, and activate it.
   --skip-backup             Skip the pre-update backup (not recommended).
 
-Upgrade engine (PREPARES a release; never activates one):
+Upgrade engine — prepare (--latest/--target-version) then activate (--activate) are separate,
+deliberately confirmed steps:
   --check                   Report whether a newer stable release is available. Read-only.
   --status                  Report installed/running version and upgrade-lock status. Read-only.
   --latest                  Validate, back up, and stage the latest stable release.
   --target-version X.Y.Z    Validate, back up, and stage a specific stable release.
   --dry-run                 With --latest/--target-version: report only, change nothing.
-  --yes                     With --latest/--target-version: skip the confirmation prompt.
+  --activate                Activate a prepared (READY_FOR_ACTIVATION) release. See below.
+  --yes                     With --latest/--target-version/--activate: skip the confirmation prompt.
 
   --help, -h                Show this message.
 
 --check and --status never modify anything. --latest/--target-version (without --dry-run) stage
 the release into an isolated git worktree, create and verify a pre-upgrade backup (database +
 attachments + configuration), check persistent-data placement, and validate/plan any required
-migrations — but never replace the running application, run a migration, or restart services. See
-README "Upgrade Engine" for the full prepare-vs-activate explanation.
+migrations — but never replace the running application, run a migration, or restart services.
+
+--activate requires a release already READY_FOR_ACTIVATION (i.e. a prior --latest/--target-version
+succeeded and nothing has changed since). It enables maintenance mode, swaps in the prepared
+release, runs any required migration, restarts the service, validates health/version, and only
+then commits the installed version and disables maintenance mode. See README "Upgrade Engine" for
+the full prepare-vs-activate explanation and docs/upgrade-activation.md for the full workflow.
 EOF
 }
 
 # --- Argument parsing ---
-MODE="legacy"              # legacy | check | status | prepare | help
+MODE="legacy"              # legacy | check | status | prepare | activate | help
 TARGET_SELECTOR=""         # "" | "latest" | "target-version"
 TARGET_VERSION=""
 DRY_RUN=false
@@ -85,7 +98,7 @@ REF=""
 st_up_require_mode_legacy() {
     if [ "$MODE" != "legacy" ]; then
         st_up_usage >&2
-        echo "ERROR: --check, --status, --latest, and --target-version cannot be combined with each other." >&2
+        echo "ERROR: --check, --status, --latest, --target-version, and --activate cannot be combined with each other." >&2
         exit 2
     fi
 }
@@ -122,6 +135,7 @@ while [ $# -gt 0 ]; do
             MODE="prepare"; TARGET_SELECTOR="target-version"; TARGET_VERSION="${1#*=}"
             ;;
         --dry-run) DRY_RUN=true ;;
+        --activate) st_up_require_mode_legacy; MODE="activate" ;;
         --yes) ASSUME_YES=true ;;
         --help|-h) MODE="help" ;;
         *)
@@ -142,9 +156,9 @@ if [ "$DRY_RUN" = true ] && [ "$MODE" != "prepare" ]; then
     echo "ERROR: --dry-run requires --latest or --target-version." >&2
     exit 2
 fi
-if [ "$ASSUME_YES" = true ] && [ "$MODE" != "prepare" ]; then
+if [ "$ASSUME_YES" = true ] && [ "$MODE" != "prepare" ] && [ "$MODE" != "activate" ]; then
     st_up_usage >&2
-    echo "ERROR: --yes requires --latest or --target-version." >&2
+    echo "ERROR: --yes requires --latest, --target-version, or --activate." >&2
     exit 2
 fi
 if [ "$MODE" = "prepare" ] && [ "$TARGET_SELECTOR" = "target-version" ]; then
@@ -233,59 +247,114 @@ cmd_status() {
         lock_active=true
     fi
 
+    declare -A state=()
+    local state_output=""
+    if state_output="$(st_up_state_read 2>/dev/null)"; then
+        while IFS='=' read -r key value; do
+            [ -n "$key" ] && state["$key"]="$value"
+        done <<< "$state_output"
+    fi
+    st_up_maintenance_probe
+
     if [ "$lock_active" = true ]; then
         echo "Upgrade Status: IN PROGRESS"
         echo ""
         echo "Target Version: ${ST_UP_LOCK_TARGET:-unknown}"
         echo "Started: ${ST_UP_LOCK_STARTED:-unknown}"
-    else
-        declare -A state=()
-        local state_output=""
-        if state_output="$(st_up_state_read 2>/dev/null)"; then
-            while IFS='=' read -r key value; do
-                [ -n "$key" ] && state["$key"]="$value"
-            done <<< "$state_output"
+        if [ "$ST_UP_MAINTENANCE_ACTIVE" = true ]; then
+            echo "Maintenance Mode: ACTIVE"
         fi
-        case "${state[status]:-}" in
-            CHECKING|VALIDATING|PREPARING|UPGRADE_IN_PROGRESS|BACKING_UP|VERIFYING_BACKUP|CHECKING_PERSISTENT_DATA|PLANNING_MIGRATIONS)
-                echo "Upgrade Status: STALE UPGRADE LOCK DETECTED"
-                echo ""
-                echo "A previous upgrade preparation did not finish cleanly:"
-                echo "  Upgrade ID: ${state[upgradeId]:-unknown}"
-                echo "  Target Version: ${state[targetVersion]:-unknown}"
-                echo "  Started: ${state[startTimeUtc]:-unknown}"
-                echo "  Last step: ${state[currentStep]:-unknown}"
-                echo ""
-                echo "No process currently holds the upgrade lock — it is safe to retry with --latest"
-                echo "or --target-version. The interrupted attempt made no changes to the running"
-                echo "application, database, or installed version (this engine only ever prepares —"
-                echo "see README 'Upgrade Engine'). Any pre-upgrade backup it managed to create before"
-                echo "being interrupted is still on disk and was not deleted."
-                ;;
-            READY_FOR_ACTIVATION)
-                echo "Upgrade Status: READY FOR ACTIVATION"
-                echo ""
-                echo "  Upgrade ID: ${state[upgradeId]:-unknown}"
-                echo "  Target Version: ${state[targetVersion]:-unknown}"
-                echo "  Prepared: ${state[lastUpdatedUtc]:-unknown}"
-                echo "  Backup: ${state[backupStatus]:-unknown} (verification: ${state[backupVerificationStatus]:-unknown})"
-                echo "  Persistent data check: ${state[persistentDataCheckStatus]:-unknown}"
-                echo "  Migration validation: ${state[migrationValidationStatus]:-unknown}"
-                echo "  Migration plan: ${state[migrationPlanStatus]:-unknown}"
-                echo ""
-                echo "A validated release and pre-upgrade backup are staged, but nothing has been"
-                echo "activated — the running application is still on the installed version above."
-                echo "Activation is not yet implemented (Phase 54)."
-                ;;
-            *)
-                echo "Upgrade Status: IDLE"
-                if [ -n "${state[status]:-}" ]; then
-                    echo ""
-                    echo "Last attempt: ${state[status]} (target ${state[targetVersion]:-unknown}, ${state[lastUpdatedUtc]:-unknown})"
-                fi
-                ;;
-        esac
+        exit 0
     fi
+
+    # Phase 54 — a maintenance flag left active with NO process holding the upgrade lock is
+    # always a red flag (reboot, power loss, kill -9 mid-activation — brief's own §29 scenarios),
+    # regardless of what upgrade-state.json's own status says. Checked before the state-based
+    # cases below, and reported/exited distinctly (exit 25) since this is more urgent than a
+    # merely-stale prepare attempt: the application may currently be unreachable.
+    if [ "$ST_UP_MAINTENANCE_ACTIVE" = true ]; then
+        echo "Upgrade Status: INTERRUPTED UPGRADE DETECTED"
+        echo ""
+        echo "Maintenance mode is still ACTIVE but no process currently holds the upgrade lock —"
+        echo "activation was interrupted (server reboot, power loss, or the process was killed)."
+        echo ""
+        echo "  Upgrade ID: ${ST_UP_MAINTENANCE_UPGRADE_ID:-unknown}"
+        echo "  Previous Version: ${state[currentVersion]:-unknown}"
+        echo "  Target Version: ${ST_UP_MAINTENANCE_TARGET:-unknown}"
+        echo "  Last Recorded Step: ${state[currentStep]:-unknown}"
+        echo "  Maintenance Mode Status: ACTIVE since ${ST_UP_MAINTENANCE_STARTED:-unknown}"
+        echo "  Backup: ${state[backupDir]:-unknown}"
+        echo ""
+        echo "The application is likely returning 503 to normal traffic right now. This is NOT"
+        echo "automatically resumed or cleaned up — investigate (systemctl status"
+        echo "$SILVERTASK_SERVICE_NAME, journalctl -u $SILVERTASK_SERVICE_NAME, $SILVERTASK_UPGRADE_LOG_FILE)"
+        echo "and resolve manually before retrying. See docs/upgrade-activation.md \"Interrupted"
+        echo "upgrade detection.\""
+        exit 25
+    fi
+
+    case "${state[status]:-}" in
+        CHECKING|VALIDATING|PREPARING|UPGRADE_IN_PROGRESS|BACKING_UP|VERIFYING_BACKUP|CHECKING_PERSISTENT_DATA|PLANNING_MIGRATIONS|ACTIVATING|MAINTENANCE_ENABLED|MIGRATING|STARTING_SERVICES)
+            echo "Upgrade Status: STALE UPGRADE LOCK DETECTED"
+            echo ""
+            echo "A previous upgrade attempt did not finish cleanly:"
+            echo "  Upgrade ID: ${state[upgradeId]:-unknown}"
+            echo "  Target Version: ${state[targetVersion]:-unknown}"
+            echo "  Started: ${state[startTimeUtc]:-unknown}"
+            echo "  Last step: ${state[currentStep]:-unknown}"
+            echo ""
+            echo "No process currently holds the upgrade lock, and maintenance mode is not active —"
+            echo "it is safe to retry with --latest/--target-version (a prepare-stage interruption)"
+            echo "or --activate (if this was already READY_FOR_ACTIVATION). Any pre-upgrade backup it"
+            echo "managed to create before being interrupted is still on disk and was not deleted."
+            ;;
+        READY_FOR_ACTIVATION)
+            echo "Upgrade Status: READY FOR ACTIVATION"
+            echo ""
+            echo "  Upgrade ID: ${state[upgradeId]:-unknown}"
+            echo "  Target Version: ${state[targetVersion]:-unknown}"
+            echo "  Prepared: ${state[lastUpdatedUtc]:-unknown}"
+            echo "  Backup: ${state[backupStatus]:-unknown} (verification: ${state[backupVerificationStatus]:-unknown})"
+            echo "  Persistent data check: ${state[persistentDataCheckStatus]:-unknown}"
+            echo "  Migration validation: ${state[migrationValidationStatus]:-unknown}"
+            echo "  Migration plan: ${state[migrationPlanStatus]:-unknown} (required: ${state[migrationRequired]:-unknown})"
+            echo ""
+            echo "A validated release and pre-upgrade backup are staged, but nothing has been"
+            echo "activated — the running application is still on the installed version above."
+            echo "Run 'sudo ./scripts/update-debian.sh --activate' to activate it."
+            ;;
+        COMPLETED)
+            echo "Upgrade Status: COMPLETED"
+            echo "Last Upgrade ID: ${state[upgradeId]:-unknown}"
+            echo "Previous Version: ${state[currentVersion]:-unknown}"
+            echo "Target Version: ${state[targetVersion]:-unknown}"
+            echo "Started: ${state[startTimeUtc]:-unknown}"
+            echo "Completed: ${state[completedAtUtc]:-unknown}"
+            echo ""
+            echo "Health Check: $([ "${state[healthCheckStatus]:-}" = OK ] && echo PASSED || echo "${state[healthCheckStatus]:-unknown}")"
+            echo "Version Validation: $([ "${state[versionValidationStatus]:-}" = OK ] && echo PASSED || echo "${state[versionValidationStatus]:-unknown}")"
+            echo "Smoke Tests: $([ "${state[smokeTestStatus]:-}" = OK ] && echo PASSED || echo "${state[smokeTestStatus]:-unknown}")"
+            ;;
+        FAILED)
+            echo "Upgrade Status: FAILED"
+            echo ""
+            echo "  Upgrade ID: ${state[upgradeId]:-unknown}"
+            echo "  Previous Version: ${state[currentVersion]:-unknown}"
+            echo "  Target Version: ${state[targetVersion]:-unknown}"
+            echo "  Failed during: ${state[currentStep]:-unknown}"
+            echo "  Last updated: ${state[lastUpdatedUtc]:-unknown}"
+            echo ""
+            echo "The installed version was NOT changed. See $SILVERTASK_UPGRADE_LOG_FILE for the"
+            echo "specific failure and docs/upgrade-activation.md \"Failure handling.\""
+            ;;
+        *)
+            echo "Upgrade Status: IDLE"
+            if [ -n "${state[status]:-}" ]; then
+                echo ""
+                echo "Last attempt: ${state[status]} (target ${state[targetVersion]:-unknown}, ${state[lastUpdatedUtc]:-unknown})"
+            fi
+            ;;
+    esac
     exit 0
 }
 
@@ -415,8 +484,19 @@ cmd_prepare() {
         echo "Migration Plan: not available in dry-run (requires staging the release — run without"
         echo "  --dry-run, or a real --latest/--target-version prepare, to generate the concrete SQL plan)."
         echo ""
-        echo "Activation Plan: not yet implemented (Phase 54). Today, only the legacy full update"
-        echo "  (sudo ./scripts/update-debian.sh --ref=v$target) actually activates a change."
+        echo "Maintenance Mode Plan: a subsequent 'sudo ./scripts/update-debian.sh --activate' would"
+        echo "  enable maintenance mode (503 for all but /api/health*) before touching anything live."
+        echo "Activation Plan: build v$target into a fresh directory, then (only if that succeeds)"
+        echo "  swap it in for $SILVERTASK_PUBLISH_DIR — the previous release is kept, never deleted."
+        echo "Service Restart Plan: 'systemctl stop silvertask' before the swap, 'systemctl start"
+        echo "  silvertask' after migrations — no other service is touched (database, nginx untouched)."
+        echo "Health Check Plan: poll $SILVERTASK_PUBLISH_DIR's /api/health/ready with bounded retries;"
+        echo "  timeout fails the activation and leaves maintenance mode on for manual investigation."
+        echo "Version Commit Plan: installed-version.json is only rewritten after health AND version"
+        echo "  validation both pass — never before."
+        echo ""
+        echo "None of the above runs until a separate, explicitly confirmed 'sudo ./scripts/update-debian.sh"
+        echo "--activate' — --latest/--target-version (even without --dry-run) only prepares."
         echo ""
         echo "Preparation plan: fetch tag v$target, stage into an isolated git worktree under"
         echo "  $SILVERTASK_UPGRADE_STAGING_DIR/$target, create + verify a pre-upgrade backup, validate"
@@ -557,6 +637,7 @@ cmd_prepare() {
         esac
     fi
     ST_UP_STATE_BACKUP_STATUS="OK"; ST_UP_STATE_BACKUP_VERIFICATION_STATUS="OK"
+    ST_UP_STATE_BACKUP_DIR="$ST_UP_BACKUP_DIR"
     st_info "[OK] Database backup created"
     st_info "[OK] Database backup verified"
     st_info "[OK] Configuration backup created"
@@ -603,6 +684,11 @@ cmd_prepare() {
         exit 16
     fi
     ST_UP_STATE_MIGRATION_PLAN_STATUS="OK"
+    if [ "$ST_UP_MIGRATION_PENDING_COUNT" -gt 0 ] || [ "$ST_UP_META_REQUIRES_DATA_MIGRATION" = "true" ]; then
+        ST_UP_STATE_MIGRATION_REQUIRED="true"
+    else
+        ST_UP_STATE_MIGRATION_REQUIRED="false"
+    fi
     st_info "[OK] Migration plan generated"
     st_info ""
     st_info "Migration Plan"
@@ -638,10 +724,339 @@ cmd_prepare() {
     st_info " $installed -> $target staged at $ST_UP_STAGED_DIR"
     st_info " Pre-upgrade backup: $ST_UP_BACKUP_DIR"
     st_info " The running application is still on $installed — nothing has been activated."
-    st_info " Full production activation (maintenance mode, controlled service handling, restart,"
-    st_info " post-upgrade validation) is Phase 54, not yet implemented. Today, activating still"
-    st_info " means running the legacy full update:"
-    st_info "   sudo ./scripts/update-debian.sh --ref=v$target"
+    st_info " To activate this prepared release:"
+    st_info "   sudo ./scripts/update-debian.sh --activate"
+    st_info "=================================================================="
+    exit 0
+}
+
+cmd_activate() {
+    st_up_log "activate: starting (yes=$ASSUME_YES)"
+
+    if ! st_up_activation_prerequisites_check; then
+        st_error "UPGRADE ACTIVATION BLOCKED"
+        st_error "$ST_UP_ACTIVATION_BLOCKED_REASON"
+        st_up_log "activate: BLOCKED, $ST_UP_ACTIVATION_BLOCKED_REASON"
+        exit 17
+    fi
+    local upgrade_id="$ST_UP_ACTIVATE_UPGRADE_ID"
+    local previous_version="$ST_UP_ACTIVATE_CURRENT_VERSION"
+    local target="$ST_UP_ACTIVATE_TARGET_VERSION"
+    local backup_dir="$ST_UP_ACTIVATE_BACKUP_DIR"
+    local migration_required="$ST_UP_ACTIVATE_MIGRATION_REQUIRED"
+
+    echo "Silver Task Upgrade Activation"
+    echo ""
+    echo "Current Version: $previous_version"
+    echo "Target Version: $target"
+    echo "Upgrade ID: $upgrade_id"
+    echo ""
+    echo "Database Backup: VERIFIED"
+    echo "Configuration Backup: VERIFIED"
+    if [ "$migration_required" = "true" ]; then
+        echo "Migration Required: YES"
+    else
+        echo "Migration Required: NO"
+    fi
+    echo ""
+    echo "The application will enter maintenance mode during activation."
+    echo ""
+    if [ "$ASSUME_YES" != true ]; then
+        local reply=""
+        read -r -p "Continue? [y/N]: " reply || true
+        case "$reply" in
+            y|Y) ;;
+            *)
+                st_info "Aborted by administrator."
+                st_up_log "activate: aborted by administrator ($previous_version -> $target)"
+                exit 0
+                ;;
+        esac
+    fi
+
+    st_step "Acquiring upgrade lock"
+    if ! st_up_lock_acquire "$target"; then
+        st_up_lock_probe || true
+        st_error "UPGRADE ALREADY IN PROGRESS (target ${ST_UP_LOCK_TARGET:-unknown}, started ${ST_UP_LOCK_STARTED:-unknown}, pid ${ST_UP_LOCK_PID:-unknown})."
+        st_up_log "activate: aborted, lock held by pid ${ST_UP_LOCK_PID:-unknown}"
+        exit 6
+    fi
+    # Same crash-safety guarantee as cmd_prepare's lock: flock auto-releases if this process dies;
+    # the trap makes a clean exit (success or a handled failure below) release it immediately.
+    trap 'st_up_lock_release' EXIT
+
+    local start_time
+    start_time="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    local -a timeline=("$start_time Activation started")
+
+    ST_UP_STATE_BACKUP_STATUS="OK"; ST_UP_STATE_BACKUP_VERIFICATION_STATUS="OK"
+    ST_UP_STATE_PERSISTENT_DATA_STATUS="OK"; ST_UP_STATE_MIGRATION_VALIDATION_STATUS="OK"
+    ST_UP_STATE_MIGRATION_PLAN_STATUS="OK"; ST_UP_STATE_BACKUP_DIR="$backup_dir"
+    ST_UP_STATE_MIGRATION_REQUIRED="$migration_required"
+    ST_UP_STATE_ACTIVATION_STATUS="PENDING"; ST_UP_STATE_MAINTENANCE_STATUS="PENDING"
+    ST_UP_STATE_MIGRATION_EXECUTION_STATUS="PENDING"; ST_UP_STATE_SERVICE_STATUS="PENDING"
+    ST_UP_STATE_HEALTH_CHECK_STATUS="PENDING"; ST_UP_STATE_VERSION_VALIDATION_STATUS="PENDING"
+    ST_UP_STATE_SMOKE_TEST_STATUS="PENDING"
+    st_up_state_write "ACTIVATING" "$previous_version" "$target" "checking out and building target release" "$start_time" "$upgrade_id"
+    st_up_log "activate: lock acquired, upgrade $upgrade_id, activating $previous_version -> $target"
+
+    # Printed on any failure path below — brief's "failure recovery information," never claiming
+    # the previous application is active again unless that's actually been verified (it isn't,
+    # automatically, anywhere in this function — Phase 54 does not implement auto-recovery).
+    print_recovery_info() {
+        local failed_step="$1" extra="${2:-}"
+        echo ""
+        echo "Upgrade failed during: $failed_step"
+        echo ""
+        echo "Previous Version: $previous_version"
+        echo "Target Version: $target"
+        echo "Upgrade ID: $upgrade_id"
+        echo ""
+        echo "Database Backup: VERIFIED ($backup_dir)"
+        echo "Configuration Backup: VERIFIED ($backup_dir)"
+        echo ""
+        echo "The system has NOT marked version $target as installed."
+        [ -n "$extra" ] && echo "$extra"
+        echo "See $SILVERTASK_UPGRADE_LOG_FILE for details."
+    }
+
+    # --- Build the target release into a FRESH directory before touching anything live. A
+    # failure here leaves the old application completely untouched and still running. ---
+    st_step "Building target release $target"
+    local new_publish_dir="${SILVERTASK_PUBLISH_DIR}.new"
+    rm -rf "$new_publish_dir"
+    if ! (
+        git -C "$SILVERTASK_SOURCE_DIR" fetch --tags
+        git -C "$SILVERTASK_SOURCE_DIR" checkout "v$target"
+        cd "$SILVERTASK_SOURCE_DIR"
+        dotnet tool restore
+        dotnet publish Silver-Task.Server/Silver-Task.Server.csproj -c Release -o "$new_publish_dir"
+    ) >> "$SILVERTASK_UPGRADE_LOG_FILE" 2>&1; then
+        rm -rf "$new_publish_dir"
+        ST_UP_STATE_ACTIVATION_STATUS="FAILED"
+        st_up_state_write "FAILED" "$previous_version" "$target" "building target release" "$start_time" "$upgrade_id"
+        st_error "UPGRADE FAILED"; st_error "ACTIVATION_FAILED"
+        print_recovery_info "ACTIVATION_FAILED (build)" "The running application was never stopped and is unaffected."
+        st_up_log "activate: FAILED, could not build target release $target"
+        exit 19
+    fi
+    ST_UP_STATE_ACTIVATION_STATUS="BUILT"
+    timeline+=("$(date -u '+%Y-%m-%dT%H:%M:%SZ') Target release built")
+    st_info "[OK] Target release built (old application still running, untouched)"
+
+    # --- Enter maintenance mode — the OLD, still-running app immediately starts returning 503. ---
+    st_step "Enabling maintenance mode"
+    if ! st_up_maintenance_enable "$upgrade_id" "$target"; then
+        rm -rf "$new_publish_dir"
+        ST_UP_STATE_MAINTENANCE_STATUS="FAILED"
+        st_up_state_write "FAILED" "$previous_version" "$target" "enabling maintenance mode" "$start_time" "$upgrade_id"
+        st_error "UPGRADE FAILED"; st_error "MAINTENANCE_MODE_FAILED"
+        print_recovery_info "MAINTENANCE_MODE_FAILED" "The running application was never stopped and is unaffected."
+        st_up_log "activate: FAILED, could not enable maintenance mode"
+        exit 18
+    fi
+    ST_UP_STATE_MAINTENANCE_STATUS="ACTIVE"
+    st_up_state_write "MAINTENANCE_ENABLED" "$previous_version" "$target" "maintenance mode active" "$start_time" "$upgrade_id"
+    timeline+=("$(date -u '+%Y-%m-%dT%H:%M:%SZ') Maintenance mode enabled")
+    st_info "[OK] Maintenance mode enabled"
+
+    # --- Every failure from here on keeps maintenance mode ACTIVE — brief: "keep maintenance mode
+    # active unless safe recovery restores service," and Phase 54 does not implement that recovery
+    # yet. Surfaced loudly in every recovery-info block below, never silently left ambiguous. ---
+
+    st_step "Stopping service"
+    if ! systemctl stop "$SILVERTASK_SERVICE_NAME" >> "$SILVERTASK_UPGRADE_LOG_FILE" 2>&1; then
+        ST_UP_STATE_SERVICE_STATUS="FAILED"
+        st_up_state_write "FAILED" "$previous_version" "$target" "stopping service" "$start_time" "$upgrade_id"
+        st_error "UPGRADE FAILED"; st_error "SERVICE_START_FAILED"
+        print_recovery_info "SERVICE_STOP_FAILED" "Maintenance mode is still ACTIVE."
+        st_up_log "activate: FAILED, could not stop $SILVERTASK_SERVICE_NAME"
+        exit 20
+    fi
+
+    st_step "Activating release (swapping in $target)"
+    local previous_publish_dir="${SILVERTASK_PUBLISH_DIR}.previous"
+    rm -rf "$previous_publish_dir"
+    if ! (
+        [ -d "$SILVERTASK_PUBLISH_DIR" ] && mv "$SILVERTASK_PUBLISH_DIR" "$previous_publish_dir"
+        mv "$new_publish_dir" "$SILVERTASK_PUBLISH_DIR"
+    ) >> "$SILVERTASK_UPGRADE_LOG_FILE" 2>&1; then
+        ST_UP_STATE_ACTIVATION_STATUS="FAILED"
+        st_up_state_write "FAILED" "$previous_version" "$target" "swapping release directories" "$start_time" "$upgrade_id"
+        st_error "UPGRADE FAILED"; st_error "ACTIVATION_FAILED"
+        print_recovery_info "ACTIVATION_FAILED (directory swap)" "Maintenance mode is still ACTIVE, service is STOPPED — manual recovery required. Check $SILVERTASK_PUBLISH_DIR / $previous_publish_dir / $new_publish_dir by hand before doing anything else."
+        st_up_log "activate: FAILED, directory swap failed — manual recovery required"
+        exit 19
+    fi
+    chown -R "$SILVERTASK_SERVICE_USER:$SILVERTASK_SERVICE_USER" "$SILVERTASK_PUBLISH_DIR"
+    ST_UP_STATE_ACTIVATION_STATUS="OK"
+    st_up_state_write "ACTIVATING" "$previous_version" "$target" "release activated, running migrations" "$start_time" "$upgrade_id"
+    timeline+=("$(date -u '+%Y-%m-%dT%H:%M:%SZ') Release activated (previous kept at $previous_publish_dir)")
+    st_info "[OK] Release activated — previous version preserved at $previous_publish_dir"
+
+    st_step "Running database migrations"
+    st_up_state_write "MIGRATING" "$previous_version" "$target" "running database migrations" "$start_time" "$upgrade_id"
+    if ! (
+        cd "$SILVERTASK_SOURCE_DIR"
+        st_load_env_file "$SILVERTASK_ENV_FILE"
+        dotnet ef database update --project Silver-Task.Server --startup-project Silver-Task.Server
+    ) >> "$SILVERTASK_UPGRADE_LOG_FILE" 2>&1; then
+        ST_UP_STATE_MIGRATION_EXECUTION_STATUS="FAILED"
+        st_up_state_write "FAILED" "$previous_version" "$target" "running database migrations" "$start_time" "$upgrade_id"
+        st_error "UPGRADE FAILED"; st_error "MIGRATION_FAILED"
+        print_recovery_info "MIGRATION_FAILED" "Maintenance mode is still ACTIVE, service is STOPPED. Do not restore the database automatically — see docs/restore.md and the exact failed migration in $SILVERTASK_UPGRADE_LOG_FILE."
+        st_up_log "activate: FAILED, migration failed — see $SILVERTASK_UPGRADE_LOG_FILE for the exact migration"
+        exit 21
+    fi
+    ST_UP_STATE_MIGRATION_EXECUTION_STATUS="OK"
+    timeline+=("$(date -u '+%Y-%m-%dT%H:%M:%SZ') Migrations completed")
+    st_info "[OK] Migrations completed"
+
+    st_step "Starting service"
+    st_up_state_write "STARTING_SERVICES" "$previous_version" "$target" "starting service" "$start_time" "$upgrade_id"
+    if ! systemctl start "$SILVERTASK_SERVICE_NAME" >> "$SILVERTASK_UPGRADE_LOG_FILE" 2>&1; then
+        ST_UP_STATE_SERVICE_STATUS="FAILED"
+        st_up_state_write "FAILED" "$previous_version" "$target" "starting service" "$start_time" "$upgrade_id"
+        st_error "UPGRADE FAILED"; st_error "SERVICE_START_FAILED"
+        print_recovery_info "SERVICE_START_FAILED" "Maintenance mode is still ACTIVE. Check: systemctl status $SILVERTASK_SERVICE_NAME, journalctl -u $SILVERTASK_SERVICE_NAME -n 100."
+        st_up_log "activate: FAILED, could not start $SILVERTASK_SERVICE_NAME"
+        exit 20
+    fi
+    ST_UP_STATE_SERVICE_STATUS="OK"
+    timeline+=("$(date -u '+%Y-%m-%dT%H:%M:%SZ') Service started")
+    st_info "[OK] Service started"
+
+    st_step "Running health checks"
+    st_up_state_write "VALIDATING" "$previous_version" "$target" "running health checks" "$start_time" "$upgrade_id"
+    if ! st_health_check "http://127.0.0.1:5000" 15 3; then
+        ST_UP_STATE_HEALTH_CHECK_STATUS="FAILED"
+        st_up_state_write "FAILED" "$previous_version" "$target" "health check" "$start_time" "$upgrade_id"
+        st_error "UPGRADE FAILED"; st_error "HEALTH_CHECK_FAILED"
+        print_recovery_info "HEALTH_CHECK_FAILED" "Maintenance mode is still ACTIVE. Check: systemctl status $SILVERTASK_SERVICE_NAME, journalctl -u $SILVERTASK_SERVICE_NAME -n 100."
+        st_up_log "activate: FAILED, health check timeout"
+        exit 22
+    fi
+    ST_UP_STATE_HEALTH_CHECK_STATUS="OK"
+    timeline+=("$(date -u '+%Y-%m-%dT%H:%M:%SZ') Health checks passed")
+    st_info "[OK] Health checks passed"
+
+    st_step "Validating version consistency"
+    local running_version
+    running_version="$(st_up_running_version "http://127.0.0.1:5000" || true)"
+    if [ "$running_version" != "$target" ]; then
+        ST_UP_STATE_VERSION_VALIDATION_STATUS="FAILED"
+        st_up_state_write "FAILED" "$previous_version" "$target" "version validation" "$start_time" "$upgrade_id"
+        st_error "UPGRADE FAILED"; st_error "VERSION_VALIDATION_FAILED"
+        st_error "Target Version: $target | Running Backend Version: ${running_version:-unreachable}"
+        print_recovery_info "VERSION_VALIDATION_FAILED" "Maintenance mode is still ACTIVE."
+        st_up_log "activate: FAILED, version mismatch (target=$target running=${running_version:-unreachable})"
+        exit 23
+    fi
+    # Best-effort frontend check — a literal grep for the version string the Phase-51 footer bakes
+    # into the built JS bundle (VersionFooter.tsx). Not fatal if the asset can't be located/parsed
+    # (logged only, backend version already proved consistency above); a CONFIRMED mismatch (asset
+    # found, wrong version inside it) is real signal and is treated as a hard failure.
+    local index_html bundle_path frontend_check="undetectable"
+    index_html="$(curl -fsS --max-time 5 "http://127.0.0.1:5000/" 2>/dev/null || true)"
+    bundle_path="$(printf '%s' "$index_html" | grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' | head -1)"
+    if [ -n "$bundle_path" ]; then
+        if curl -fsS --max-time 5 "http://127.0.0.1:5000$bundle_path" 2>/dev/null | grep -q "Silver Task v$target"; then
+            frontend_check="confirmed"
+        else
+            frontend_check="mismatch"
+        fi
+    fi
+    case "$frontend_check" in
+        mismatch)
+            ST_UP_STATE_VERSION_VALIDATION_STATUS="FAILED"
+            st_up_state_write "FAILED" "$previous_version" "$target" "version validation" "$start_time" "$upgrade_id"
+            st_error "UPGRADE FAILED"; st_error "VERSION_VALIDATION_FAILED"
+            st_error "Served frontend bundle does not contain the expected version string \"Silver Task v$target\"."
+            print_recovery_info "VERSION_VALIDATION_FAILED (frontend)" "Maintenance mode is still ACTIVE."
+            st_up_log "activate: FAILED, frontend version mismatch"
+            exit 23
+            ;;
+        confirmed) st_info "[OK] Frontend bundle confirms version $target" ;;
+        *) st_warn "Could not confirm frontend version from the served bundle (non-fatal — backend version already confirmed)." ;;
+    esac
+    ST_UP_STATE_VERSION_VALIDATION_STATUS="OK"
+    timeline+=("$(date -u '+%Y-%m-%dT%H:%M:%SZ') Version validated")
+    st_info "[OK] Backend version confirmed: $target"
+
+    st_step "Running smoke tests"
+    # Deliberately no authenticated calls — no service account exists to make one safely, and the
+    # brief itself says not to modify production data merely to test the upgrade. This checks the
+    # SPA shell is actually served; API/database reachability were already proven by the health
+    # check above.
+    local smoke_status
+    smoke_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:5000/" 2>/dev/null || echo 000)"
+    if [ "$smoke_status" != "200" ]; then
+        ST_UP_STATE_SMOKE_TEST_STATUS="FAILED"
+        st_up_state_write "FAILED" "$previous_version" "$target" "smoke tests" "$start_time" "$upgrade_id"
+        st_error "UPGRADE FAILED"; st_error "SMOKE_TEST_FAILED"
+        st_error "GET / returned HTTP $smoke_status, expected 200."
+        print_recovery_info "SMOKE_TEST_FAILED" "Maintenance mode is still ACTIVE."
+        st_up_log "activate: FAILED, smoke test failed (GET / -> $smoke_status)"
+        exit 24
+    fi
+    ST_UP_STATE_SMOKE_TEST_STATUS="OK"
+    timeline+=("$(date -u '+%Y-%m-%dT%H:%M:%SZ') Smoke tests passed")
+    st_info "[OK] Smoke tests passed (SPA shell reachable, API health reachable, database reachable)"
+
+    # --- Only now: commit the installed version. Everything above has proven the new release is
+    # actually healthy; nothing before this point ever touched installed-version.json. ---
+    st_step "Committing installed version"
+    local new_commit
+    new_commit="$(git -C "$SILVERTASK_SOURCE_DIR" rev-parse --short HEAD)"
+    cat > "$SILVERTASK_INSTALL_DIR/installed-version.json" <<EOF
+{
+  "version": "$target",
+  "gitCommit": "$new_commit",
+  "installedAtUtc": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+}
+EOF
+    chown "$SILVERTASK_SERVICE_USER:$SILVERTASK_SERVICE_USER" "$SILVERTASK_INSTALL_DIR/installed-version.json"
+    timeline+=("$(date -u '+%Y-%m-%dT%H:%M:%SZ') Installed version committed")
+    st_info "[OK] Installed version committed: $target"
+
+    st_step "Disabling maintenance mode"
+    st_up_maintenance_disable
+    timeline+=("$(date -u '+%Y-%m-%dT%H:%M:%SZ') Maintenance mode disabled")
+    st_info "[OK] Maintenance mode disabled — normal traffic restored"
+
+    st_step "Final availability check"
+    local final_status
+    final_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:5000/api/health" 2>/dev/null || echo 000)"
+    if [ "$final_status" != "200" ]; then
+        st_error "UPGRADE COMPLETION ERROR — APPLICATION NOT AVAILABLE"
+        st_error "GET /api/health returned HTTP $final_status after maintenance mode was disabled."
+        st_up_log "activate: WARNING, final availability check failed after commit ($final_status) — installed version was already committed, investigate immediately"
+        # Deliberately not a nonzero exit that implies the whole upgrade failed — the version IS
+        # committed and migrations DID run; this is specifically "came back unhealthy after
+        # traffic was restored," the brief's own distinct case, surfaced loudly rather than
+        # silently claiming success.
+    else
+        st_info "[OK] Final availability check passed"
+    fi
+
+    ST_UP_STATE_COMPLETED_AT="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    st_up_state_write "COMPLETED" "$previous_version" "$target" "upgrade complete" "$start_time" "$upgrade_id"
+    timeline+=("$ST_UP_STATE_COMPLETED_AT Upgrade completed")
+    st_up_log "activate: COMPLETED, upgrade $upgrade_id ($previous_version -> $target)"
+
+    echo ""
+    echo "Timeline:"
+    local entry
+    for entry in "${timeline[@]}"; do
+        echo "  $entry"
+    done
+    echo ""
+    st_info "=================================================================="
+    st_info " UPGRADE COMPLETE"
+    st_info " $previous_version -> $target"
+    st_info " Upgrade ID: $upgrade_id"
+    st_info " Previous release preserved at: $previous_publish_dir"
+    st_info " Pre-upgrade backup: $backup_dir"
     st_info "=================================================================="
     exit 0
 }
@@ -650,6 +1065,7 @@ case "$MODE" in
     check) cmd_check ;;
     status) cmd_status ;;
     prepare) cmd_prepare ;;
+    activate) cmd_activate ;;
 esac
 
 # --- Legacy full update (Phase 51 and earlier — unchanged) ---

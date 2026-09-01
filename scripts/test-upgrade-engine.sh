@@ -31,6 +31,7 @@ export SILVERTASK_UPGRADE_STAGING_DIR="$TEST_ROOT/install/upgrade-staging"
 export SILVERTASK_UPGRADE_LOG_DIR="$TEST_ROOT/upgrade-log"
 export SILVERTASK_UPGRADE_LOG_FILE="$TEST_ROOT/upgrade-log/upgrade.log"
 export SILVERTASK_BACKUP_DIR="$TEST_ROOT/backups"
+export SILVERTASK_MAINTENANCE_FLAG_FILE="$TEST_ROOT/install/maintenance.json"
 mkdir -p "$SILVERTASK_INSTALL_DIR" "$SILVERTASK_UPGRADE_LOG_DIR" "$SILVERTASK_BACKUP_DIR"
 
 # shellcheck source=lib/common.sh
@@ -275,6 +276,72 @@ assert_false "refuses a relative path"     test_unsafe_backup_dir "relative/path
 assert_false "refuses a system directory"  test_unsafe_backup_dir "/etc"
 assert_false "refuses a nonexistent path"  test_unsafe_backup_dir "$TEST_ROOT/does-not-exist"
 assert_true  "accepts the real backup dir" st_assert_safe_backup_dir "$SILVERTASK_BACKUP_DIR"
+
+echo "== st_up_maintenance_enable / st_up_maintenance_disable / st_up_maintenance_probe (Phase 54) =="
+st_up_maintenance_probe
+assert_eq "no flag file => not active" "false" "$ST_UP_MAINTENANCE_ACTIVE"
+
+st_up_maintenance_enable "upgrade-test-1" "1.1.0"
+st_up_maintenance_probe
+assert_eq "enabled => active" "true" "$ST_UP_MAINTENANCE_ACTIVE"
+assert_eq "upgrade id round-trips" "upgrade-test-1" "$ST_UP_MAINTENANCE_UPGRADE_ID"
+assert_eq "target round-trips" "1.1.0" "$ST_UP_MAINTENANCE_TARGET"
+assert_true "startedAtUtc populated" test -n "$ST_UP_MAINTENANCE_STARTED"
+
+st_up_maintenance_disable
+st_up_maintenance_probe
+assert_eq "disabled => not active" "false" "$ST_UP_MAINTENANCE_ACTIVE"
+
+echo "== st_up_activation_prerequisites_check (Phase 54) =="
+
+rm -f "$SILVERTASK_UPGRADE_STATE_FILE"
+assert_false "no prepared upgrade at all blocks activation" st_up_activation_prerequisites_check
+
+# Writes a fully-OK READY_FOR_ACTIVATION state via the real st_up_state_write (not hand-rolled
+# JSON), with an actually-existing staged worktree dir and backup dir+manifest on disk — tests
+# below mutate exactly one thing away from "fully OK" per case.
+write_ready_state() {
+    local staged_dir="$SILVERTASK_UPGRADE_STAGING_DIR/1.1.0"
+    local backup_dir="$TEST_ROOT/backups/fixture-ready"
+    mkdir -p "$staged_dir" "$backup_dir"
+    echo '{"type":"pre-upgrade"}' > "$backup_dir/manifest.json"
+    ST_UP_STATE_BACKUP_STATUS="OK"
+    ST_UP_STATE_BACKUP_VERIFICATION_STATUS="OK"
+    ST_UP_STATE_PERSISTENT_DATA_STATUS="OK"
+    ST_UP_STATE_MIGRATION_VALIDATION_STATUS="OK"
+    ST_UP_STATE_MIGRATION_PLAN_STATUS="OK"
+    ST_UP_STATE_MIGRATION_REQUIRED="true"
+    ST_UP_STATE_BACKUP_DIR="$backup_dir"
+    st_up_state_write "READY_FOR_ACTIVATION" "1.0.1" "1.1.0" "ready for activation" "2026-01-01T00:00:00Z" "upgrade-fixture"
+}
+
+write_ready_state
+assert_true "fully-OK READY_FOR_ACTIVATION state passes prerequisites" st_up_activation_prerequisites_check
+st_up_activation_prerequisites_check
+assert_eq "populates target version" "1.1.0" "$ST_UP_ACTIVATE_TARGET_VERSION"
+assert_eq "populates upgrade id" "upgrade-fixture" "$ST_UP_ACTIVATE_UPGRADE_ID"
+assert_eq "populates current (previous) version" "1.0.1" "$ST_UP_ACTIVATE_CURRENT_VERSION"
+assert_eq "populates backup dir" "$TEST_ROOT/backups/fixture-ready" "$ST_UP_ACTIVATE_BACKUP_DIR"
+assert_eq "populates migration required" "true" "$ST_UP_ACTIVATE_MIGRATION_REQUIRED"
+
+write_ready_state
+st_up_state_write "FAILED" "1.0.1" "1.1.0" "some step" "2026-01-01T00:00:00Z" "upgrade-fixture"
+assert_false "FAILED status blocks activation" st_up_activation_prerequisites_check
+
+write_ready_state
+ST_UP_STATE_BACKUP_VERIFICATION_STATUS="FAILED"
+st_up_state_write "READY_FOR_ACTIVATION" "1.0.1" "1.1.0" "ready for activation" "2026-01-01T00:00:00Z" "upgrade-fixture"
+assert_false "backupVerificationStatus != OK blocks activation" st_up_activation_prerequisites_check
+st_up_activation_prerequisites_check
+[ "$ST_UP_ACTIVATION_BLOCKED_REASON" != "" ] && PASS=$((PASS + 1)) || { FAIL=$((FAIL + 1)); echo "FAIL: blocked reason should be populated"; }
+
+write_ready_state
+rm -rf "$SILVERTASK_UPGRADE_STAGING_DIR/1.1.0"
+assert_false "missing staged worktree blocks activation" st_up_activation_prerequisites_check
+
+write_ready_state
+rm -f "$TEST_ROOT/backups/fixture-ready/manifest.json"
+assert_false "missing backup manifest blocks activation" st_up_activation_prerequisites_check
 
 echo ""
 echo "=================================================="

@@ -270,6 +270,7 @@ based on) and wires it into the systemd service via `EnvironmentFile=`.
 | `Attachments__StorageRoot` | Directory for uploaded files — see [File Storage](#file-storage) | No (has a default) |
 | `Smtp__Host`, `Smtp__Port`, `Smtp__EnableSsl`, `Smtp__Username`, `Smtp__Password`, `Smtp__FromAddress`, `Smtp__FromName` | Outgoing email — see [Email Configuration](#email-configuration) | No — app is fully functional without email |
 | `ForwardedHeaders__KnownProxies__0` (and `__1`, `__2`, ...) | Only needed if your reverse proxy is NOT on the same host as the app (defaults to trusting loopback only) | No |
+| `Maintenance__FlagFile` | Path checked by `MaintenanceModeMiddleware` — see [Upgrade Engine](#upgrade-engine) → "Activation." Empty/unset disables maintenance mode entirely | No — `install-debian.sh` sets it automatically |
 
 ## Database
 
@@ -378,15 +379,18 @@ step itself (which only ever adds/alters schema, never resets data).
 Phase 52 added a second, additive command surface to the same `scripts/update-debian.sh` — a CLI
 upgrade engine that **discovers, validates, and stages** a target release; Phase 53 added the
 safety layer that must exist before anything can be activated: a verified pre-upgrade backup, a
-persistent-data placement check, and migration discovery/validation/planning. This is deliberately
-**not** a replacement for the plain `sudo ./scripts/update-debian.sh` above: only that command (and
-`--ref=`/`--skip-backup`) actually rebuilds, restarts, and deploys a change today. The upgrade
-engine's job is **PREPARE**, not **ACTIVATE** — a future phase will teach a prepared release to
-hand off into an activation step; today it stops at `READY FOR ACTIVATION` on purpose (no service
-is restarted, no migration is executed, and `installed-version.json` is never modified by any of
-the commands below). See [docs/upgrade-safety.md](docs/upgrade-safety.md) for the full step-by-step
-workflow and the persistent-data inventory, and [docs/restore.md](docs/restore.md) for verifying/
-restoring a backup.
+persistent-data placement check, and migration discovery/validation/planning; **Phase 54 added
+activation itself** — `--activate` is the one command that actually replaces the running
+application, runs the migration, and commits the new installed version. This is deliberately
+**not** a replacement for the plain `sudo ./scripts/update-debian.sh` above, which still works
+exactly as it always has for a single-step update. The upgrade engine splits the same work into two
+explicit, separately-confirmed steps — **prepare** (`--latest`/`--target-version`, stops at `READY
+FOR ACTIVATION`) then **activate** (`--activate`) — so a validated, backed-up release can be
+reviewed before anything live is touched. See [docs/upgrade-safety.md](docs/upgrade-safety.md) for
+the prepare-stage workflow and persistent-data inventory,
+[docs/upgrade-activation.md](docs/upgrade-activation.md) for the full activation workflow,
+[docs/upgrade-operator-checklist.md](docs/upgrade-operator-checklist.md) for a concise runbook, and
+[docs/restore.md](docs/restore.md) for verifying/restoring a backup.
 
 ```bash
 sudo ./scripts/update-debian.sh --check                        # is a newer stable release available?
@@ -394,7 +398,8 @@ sudo ./scripts/update-debian.sh --status                       # upgrade/version
 sudo ./scripts/update-debian.sh --latest                       # validate, back up, and stage the latest stable release
 sudo ./scripts/update-debian.sh --target-version 1.1.0         # validate, back up, and stage a specific stable release
 sudo ./scripts/update-debian.sh --dry-run --latest              # show what --latest would do; changes nothing
-sudo ./scripts/update-debian.sh --target-version 1.1.0 --yes   # skip the confirmation prompt (for automation)
+sudo ./scripts/update-debian.sh --activate                     # activate a prepared (READY_FOR_ACTIVATION) release
+sudo ./scripts/update-debian.sh --activate --yes                # activate without the confirmation prompt
 sudo ./scripts/update-debian.sh --help
 ```
 
@@ -483,32 +488,80 @@ the installed version doesn't satisfy also blocks it (with a clear message), pre
 for future releases to declare "you must upgrade through an intermediate version first" without
 Phase 52 needing to build a full compatibility matrix for it.
 
-**Upgrade lock**: only one upgrade preparation can run at a time, enforced with `flock` on
-`/var/lock/silvertask-upgrade.lock` — an OS-held lock tied to the process, so a crashed/killed
-attempt releases it automatically and can never permanently block a future one. `--status` reports
-`IN PROGRESS` (with target/start time) while the lock is actually held, or `STALE UPGRADE LOCK
-DETECTED` if a previous attempt's leftover state file shows it never finished cleanly but nothing
-currently holds the lock — safe to just retry in that case; nothing was ever activated.
+**Upgrade lock**: only one upgrade operation (prepare *or* activate) can run at a time, enforced
+with `flock` on `/var/lock/silvertask-upgrade.lock` — an OS-held lock tied to the process, so a
+crashed/killed attempt releases it automatically and can never permanently block a future one.
+`--activate` acquires its own fresh instance of this same lock (the original prepare-time lock is
+already released by the time `--latest`/`--target-version` finishes) — activation is its own
+exclusive operation, not a resumption of the earlier one. `--status` reports `IN PROGRESS` (with
+target/start time, and whether maintenance mode is also active) while the lock is actually held.
 
-**Upgrade state**: `$SILVERTASK_INSTALL_DIR/upgrade-state.json` records the most recent prepare
-attempt — upgrade ID, current/target version, status, step, timestamps, and (Phase 53) per-stage
-status for the backup, backup verification, persistent-data check, migration validation, and
-migration plan — for `--status` to report. Left in place after success, failure, or a crash, and
-only ever overwritten by the next real attempt, never auto-deleted. Status values: `IDLE`,
-`CHECKING`, `VALIDATING`, `PREPARING`, `CHECKING_PERSISTENT_DATA`, `BACKING_UP`,
-`VERIFYING_BACKUP`, `PLANNING_MIGRATIONS`, `READY_FOR_ACTIVATION`, `FAILED` — never `COMPLETED`;
-nothing is activated yet, so nothing is ever reported as fully "complete."
+**Upgrade state**: `$SILVERTASK_INSTALL_DIR/upgrade-state.json` records the most recent upgrade
+attempt — upgrade ID, previous/target version, status, step, timestamps, per-stage status for the
+backup/persistent-data/migration-planning pipeline (Phase 53), and per-stage status for
+activation/maintenance/migration-execution/service/health/version/smoke-test (Phase 54) — for
+`--status` to report. Left in place after success, failure, or a crash, and only ever overwritten
+by the next real attempt, never auto-deleted. Status values: `IDLE`, `CHECKING`, `VALIDATING`,
+`PREPARING`, `CHECKING_PERSISTENT_DATA`, `BACKING_UP`, `VERIFYING_BACKUP`, `PLANNING_MIGRATIONS`,
+`READY_FOR_ACTIVATION`, `ACTIVATING`, `MAINTENANCE_ENABLED`, `MIGRATING`, `STARTING_SERVICES`,
+`FAILED`, `COMPLETED` — `COMPLETED` is only ever written once activation has fully succeeded,
+including the post-restart health/version/smoke validation.
 
 **Upgrade log**: `/var/log/silver-task/upgrade.log` — a structured, timestamped history of every
 upgrade-engine invocation, separate from the installer's own `/var/log/silver-task-install.log`.
 Never contains secrets/env vars/credentials, same discipline as every other log this project
 writes.
 
+### Activation
+
+`sudo ./scripts/update-debian.sh --activate` is the one command that actually replaces the running
+application. It requires a prior `--latest`/`--target-version` to have already left the
+installation `READY_FOR_ACTIVATION` (every safety-pipeline stage recorded `OK`, the staged release
+and its backup still present on disk) — otherwise `UPGRADE ACTIVATION BLOCKED` (exit `17`) with the
+specific missing prerequisite. After a confirmation panel (current/target version, upgrade ID,
+backup verification, whether a migration is required — `[y/N]`, never defaulted to yes, skip with
+`--activate --yes`), it: builds the target release into a **fresh** directory before touching
+anything live (a build failure here leaves the old application completely untouched) → enables
+**maintenance mode** → stops the service → swaps the publish directory in (the previous one is
+renamed aside, never deleted) → runs `dotnet ef database update` (the project's own migration
+command, nothing invented) → starts the service → polls `/api/health/ready` with bounded retries →
+validates the running version matches the target exactly (backend authoritative; a best-effort
+check also looks for the version string in the served frontend bundle) → runs smoke tests (SPA
+shell reachable — no authenticated calls, since no service account exists to make one safely) →
+**only now** commits `installed-version.json` → disables maintenance mode → one final availability
+check with normal traffic restored. See [docs/upgrade-activation.md](docs/upgrade-activation.md)
+for the full step-by-step breakdown, and [docs/upgrade-operator-checklist.md](docs/upgrade-operator-checklist.md)
+for a concise runbook.
+
+**Maintenance mode**: a small ASP.NET Core middleware (`MaintenanceModeMiddleware`) checks for a
+flag file (`Maintenance__FlagFile`, default `/opt/silver-task/maintenance.json` — deliberately
+outside the publish directory so it survives the swap) on every request; while present, everything
+except `GET /api/health*` returns `503` with `Retry-After: 30` and a generic message — never the
+upgrade ID/target version/any internal detail, which stay server-side only. No nginx reload is
+needed; it works whether the old or new binary is the one currently running.
+
+**Failure handling**: every failure path prints a recovery-information block (previous/target
+version, upgrade ID, backup location, an explicit "version X.Y.Z has NOT been marked installed")
+and records a specific failure state — `ACTIVATION_FAILED`, `MAINTENANCE_MODE_FAILED`,
+`SERVICE_START_FAILED`, `MIGRATION_FAILED`, `HEALTH_CHECK_FAILED`, `VERSION_VALIDATION_FAILED`,
+`SMOKE_TEST_FAILED` — not a generic error. **No automatic rollback exists** — a failure after
+maintenance mode was enabled leaves it enabled (deliberately: a clear maintenance response is safer
+than possibly-broken traffic) for manual investigation; the pre-upgrade backup and the preserved
+`<publish-dir>.previous` are what a human uses to recover, per
+[docs/restore.md](docs/restore.md).
+
+**Interrupted upgrade detection**: if the server reboots or the activation process is killed
+mid-way, `sudo ./scripts/update-debian.sh --status` detects it on the next run — a maintenance flag
+still active with no process holding the upgrade lock is unambiguous evidence — and reports
+`INTERRUPTED UPGRADE DETECTED` (exit `25`), distinct from the lighter-weight `STALE UPGRADE LOCK
+DETECTED` Phase 53 already reports for an interrupted *prepare* (where maintenance mode was never
+touched). Neither is auto-resumed or auto-cleaned-up.
+
 **Exit codes**:
 
 | Code | Meaning |
 |---|---|
-| 0 | Success / no blocking problem (including a deliberate no-op: already on target, or declined the confirmation prompt) |
+| 0 | Success / no blocking problem (including a deliberate no-op: already on target, or declined a confirmation prompt) |
 | 1 | General error |
 | 2 | Invalid arguments |
 | 3 | Version inconsistency (installed ≠ running, or unknown) |
@@ -525,17 +578,24 @@ writes.
 | 14 | Current database migration state invalid |
 | 15 | Target release migration validation failed |
 | 16 | Migration planning failed |
+| 17 | Activation prerequisites missing |
+| 18 | Maintenance mode failure |
+| 19 | Application activation failure (checkout/build/directory swap) |
+| 20 | Service startup failure |
+| 21 | Migration execution failure |
+| 22 | Health check timeout |
+| 23 | Version validation failure |
+| 24 | Smoke test failure |
+| 25 | Interrupted upgrade detected (`--status` only) |
 
-**Current limitations**: this is a safety foundation, not the full upgrade system. There is no
-web-based one-click upgrade UI, no automatic activation of a staged release, and no automatic
-database rollback — activating a prepared release still means running the plain `sudo
-./scripts/update-debian.sh` (optionally `--ref=v1.1.0`) documented above, which does its own
-independent backup as it always has (the Phase 53 pre-upgrade backup above doesn't replace it, and
-isn't yet consumed by anything — that hand-off is future work). Disk-space checking is an
-approximation in both places (precise backup-size estimation is future work). A future phase is
-expected to teach the engine to hand a validated, staged release *and* its verified backup off into
-a real, controlled activation step (maintenance mode, service handling, running the generated
-migration plan, restart, post-upgrade validation).
+**Current limitations**: automatic rollback is **not implemented** — recovering from a failed
+activation is a manual procedure (stop the service, restore `<publish-dir>.previous` and/or the
+pre-upgrade backup per [docs/restore.md](docs/restore.md), restart), not a scripted one. There is
+no web-based upgrade UI, and none is planned as part of this CLI-only design — upgrade
+administration always requires root/sudo on the host itself. Disk-space checking remains an
+approximation (precise sizing is future work). The legacy `sudo ./scripts/update-debian.sh` (no
+flags, or `--ref=`/`--skip-backup`) continues to work exactly as before and remains a valid
+single-step alternative to prepare-then-activate.
 
 ## Backup
 
@@ -892,6 +952,15 @@ for 45–47, their own dedicated sections there.
   and verifies a pre-upgrade backup before ending in `READY_FOR_ACTIVATION` — see [Upgrade
   Engine](#upgrade-engine), [docs/upgrade-safety.md](docs/upgrade-safety.md), and
   [docs/restore.md](docs/restore.md). Still no activation, web UI, or automatic rollback.
+- [x] **Phase 54** — Controlled Upgrade Activation & Health Validation. `sudo
+  ./scripts/update-debian.sh --activate` — the first command that actually changes anything: builds
+  the target release into a fresh directory, enables a new maintenance-mode middleware, swaps in
+  the release (previous kept, never deleted), runs the real `dotnet ef database update`, restarts
+  the service, validates health/version/smoke tests, and only then commits the installed version
+  and disables maintenance mode. See [Upgrade Engine](#upgrade-engine) →
+  "Activation," [docs/upgrade-activation.md](docs/upgrade-activation.md), and
+  [docs/upgrade-operator-checklist.md](docs/upgrade-operator-checklist.md). Automatic rollback and a
+  web UI are still not implemented — recovery from a failed activation remains a manual procedure.
 
 ### GitHub / secrets hygiene
 

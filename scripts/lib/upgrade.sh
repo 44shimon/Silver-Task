@@ -197,11 +197,17 @@ st_up_lock_probe() {
 # Never auto-deleted by this file's own functions; only overwritten by the next real prepare
 # attempt.
 #
-# Phase 53 — the sixth (optional, backward-compatible) `upgrade_id` argument, and the five
+# Phase 53 — the sixth (optional, backward-compatible) `upgrade_id` argument, and the
 # ST_UP_STATE_* globals below (set by the caller before each write, defaulting to "PENDING" the
 # first time a given stage hasn't been reached yet), extend this into the same kind of crash-safe
-# incremental record backup-debian.sh's own manifest.json is — update-debian.sh's cmd_prepare
-# writes this again after every stage completes, not just at the very end.
+# incremental record backup-debian.sh's own manifest.json is — update-debian.sh's cmd_prepare/
+# cmd_activate write this again after every stage completes, not just at the very end.
+# `currentVersion` always means "the version installed before this attempt" (Phase 52/53's
+# original meaning) — reported as "Previous Version" in Phase 54's activation-facing output, no
+# separate field needed. Phase 54 adds: backupDir (so activation/recovery messages and --status
+# can point at the exact pre-upgrade backup) and the six activation-stage status fields
+# (activationStatus/maintenanceStatus/migrationExecutionStatus/serviceStatus/healthCheckStatus/
+# versionValidationStatus/smokeTestStatus) plus completedAtUtc (empty until a real COMPLETED).
 st_up_state_write() {
     local status="$1" current_version="$2" target_version="$3" current_step="$4" start_time="$5" upgrade_id="${6:-}"
     cat > "$SILVERTASK_UPGRADE_STATE_FILE" <<EOF
@@ -210,13 +216,23 @@ st_up_state_write() {
   "currentVersion": "$(st_json_escape "$current_version")",
   "targetVersion": "$(st_json_escape "$target_version")",
   "startTimeUtc": "$(st_json_escape "$start_time")",
+  "completedAtUtc": "$(st_json_escape "${ST_UP_STATE_COMPLETED_AT:-}")",
   "currentStep": "$(st_json_escape "$current_step")",
   "status": "$(st_json_escape "$status")",
+  "backupDir": "$(st_json_escape "${ST_UP_STATE_BACKUP_DIR:-}")",
   "backupStatus": "$(st_json_escape "${ST_UP_STATE_BACKUP_STATUS:-PENDING}")",
   "backupVerificationStatus": "$(st_json_escape "${ST_UP_STATE_BACKUP_VERIFICATION_STATUS:-PENDING}")",
   "persistentDataCheckStatus": "$(st_json_escape "${ST_UP_STATE_PERSISTENT_DATA_STATUS:-PENDING}")",
   "migrationValidationStatus": "$(st_json_escape "${ST_UP_STATE_MIGRATION_VALIDATION_STATUS:-PENDING}")",
   "migrationPlanStatus": "$(st_json_escape "${ST_UP_STATE_MIGRATION_PLAN_STATUS:-PENDING}")",
+  "migrationRequired": "$(st_json_escape "${ST_UP_STATE_MIGRATION_REQUIRED:-unknown}")",
+  "activationStatus": "$(st_json_escape "${ST_UP_STATE_ACTIVATION_STATUS:-PENDING}")",
+  "maintenanceStatus": "$(st_json_escape "${ST_UP_STATE_MAINTENANCE_STATUS:-PENDING}")",
+  "migrationExecutionStatus": "$(st_json_escape "${ST_UP_STATE_MIGRATION_EXECUTION_STATUS:-PENDING}")",
+  "serviceStatus": "$(st_json_escape "${ST_UP_STATE_SERVICE_STATUS:-PENDING}")",
+  "healthCheckStatus": "$(st_json_escape "${ST_UP_STATE_HEALTH_CHECK_STATUS:-PENDING}")",
+  "versionValidationStatus": "$(st_json_escape "${ST_UP_STATE_VERSION_VALIDATION_STATUS:-PENDING}")",
+  "smokeTestStatus": "$(st_json_escape "${ST_UP_STATE_SMOKE_TEST_STATUS:-PENDING}")",
   "lastUpdatedUtc": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 }
 EOF
@@ -228,9 +244,11 @@ EOF
 st_up_state_read() {
     [ -f "$SILVERTASK_UPGRADE_STATE_FILE" ] || return 1
     local field
-    for field in upgradeId currentVersion targetVersion startTimeUtc currentStep status \
-        backupStatus backupVerificationStatus persistentDataCheckStatus \
-        migrationValidationStatus migrationPlanStatus lastUpdatedUtc; do
+    for field in upgradeId currentVersion targetVersion startTimeUtc completedAtUtc currentStep status \
+        backupDir backupStatus backupVerificationStatus persistentDataCheckStatus \
+        migrationValidationStatus migrationPlanStatus migrationRequired activationStatus maintenanceStatus \
+        migrationExecutionStatus serviceStatus healthCheckStatus versionValidationStatus \
+        smokeTestStatus lastUpdatedUtc; do
         printf '%s=%s\n' "$field" \
             "$(sed -n "s/.*\"$field\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\\1/p" "$SILVERTASK_UPGRADE_STATE_FILE" | head -1)"
     done
@@ -602,4 +620,114 @@ st_up_migration_generate_script() {
         cd "$staged_dir" || exit 1
         dotnet ef migrations script --idempotent --project Silver-Task.Server --startup-project Silver-Task.Server -o "$output_file"
     ) >> "$SILVERTASK_UPGRADE_LOG_FILE" 2>&1
+}
+
+# =====================================================================================
+# Phase 54 — controlled upgrade activation & health validation
+# =====================================================================================
+
+# --- Maintenance mode ---
+#
+# Writes/reads the exact flag file Silver-Task.Server's MaintenanceModeMiddleware checks (see its
+# own doc comment) — SILVERTASK_MAINTENANCE_FLAG_FILE must match Maintenance__FlagFile in
+# silvertask.env, which install-debian.sh already guarantees by deriving both from the same
+# SILVERTASK_INSTALL_DIR default. Chowned to the service user so the running app (which never runs
+# as root — see deploy/silvertask.service's User=) can actually read it; only ever written by root
+# (this script always runs under st_require_root).
+
+st_up_maintenance_enable() {
+    local upgrade_id="$1" target_version="$2"
+    cat > "$SILVERTASK_MAINTENANCE_FLAG_FILE" <<EOF
+{
+  "active": true,
+  "upgradeId": "$(st_json_escape "$upgrade_id")",
+  "targetVersion": "$(st_json_escape "$target_version")",
+  "startedAtUtc": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+}
+EOF
+    chmod 644 "$SILVERTASK_MAINTENANCE_FLAG_FILE" 2>/dev/null || true
+    chown "$SILVERTASK_SERVICE_USER:$SILVERTASK_SERVICE_USER" "$SILVERTASK_MAINTENANCE_FLAG_FILE" 2>/dev/null || true
+}
+
+st_up_maintenance_disable() {
+    rm -f "$SILVERTASK_MAINTENANCE_FLAG_FILE"
+}
+
+# Sets ST_UP_MAINTENANCE_ACTIVE=true/false and, when active, ST_UP_MAINTENANCE_UPGRADE_ID/
+# ST_UP_MAINTENANCE_TARGET/ST_UP_MAINTENANCE_STARTED from the flag file's own contents — for this
+# script's own CLI reporting (--status) only; the public HTTP 503 response never echoes these (see
+# the middleware's own doc comment for why).
+st_up_maintenance_probe() {
+    ST_UP_MAINTENANCE_ACTIVE=false
+    ST_UP_MAINTENANCE_UPGRADE_ID=""; ST_UP_MAINTENANCE_TARGET=""; ST_UP_MAINTENANCE_STARTED=""
+    [ -f "$SILVERTASK_MAINTENANCE_FLAG_FILE" ] || return 0
+    ST_UP_MAINTENANCE_ACTIVE=true
+    ST_UP_MAINTENANCE_UPGRADE_ID="$(sed -n 's/.*"upgradeId"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SILVERTASK_MAINTENANCE_FLAG_FILE" | head -1)"
+    ST_UP_MAINTENANCE_TARGET="$(sed -n 's/.*"targetVersion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SILVERTASK_MAINTENANCE_FLAG_FILE" | head -1)"
+    ST_UP_MAINTENANCE_STARTED="$(sed -n 's/.*"startedAtUtc"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SILVERTASK_MAINTENANCE_FLAG_FILE" | head -1)"
+}
+
+# --- Activation prerequisites ---
+#
+# Refuses to activate anything unless Phase 53's safety pipeline actually finished cleanly for a
+# real, still-present prepared release — the brief's own "REQUIRE A PREPARED AND VERIFIED UPGRADE."
+# Does NOT re-run Phase 53's validation from scratch (that already happened during --latest/
+# --target-version); it re-verifies the *evidence* — the state file's own stage flags, plus that
+# the staged worktree and backup directory it points at still physically exist (time may have
+# passed, or something may have been cleaned up, between prepare and activate). On success,
+# populates ST_UP_ACTIVATE_UPGRADE_ID/CURRENT_VERSION/TARGET_VERSION/BACKUP_DIR/MIGRATION_REQUIRED
+# and returns 0. On failure, sets ST_UP_ACTIVATION_BLOCKED_REASON and returns 1 (caller maps this
+# to exit 17, "UPGRADE ACTIVATION BLOCKED").
+st_up_activation_prerequisites_check() {
+    ST_UP_ACTIVATION_BLOCKED_REASON=""
+    ST_UP_ACTIVATE_UPGRADE_ID=""
+    ST_UP_ACTIVATE_CURRENT_VERSION=""
+    ST_UP_ACTIVATE_TARGET_VERSION=""
+    ST_UP_ACTIVATE_BACKUP_DIR=""
+    ST_UP_ACTIVATE_MIGRATION_REQUIRED="unknown"
+
+    local state_output
+    if ! state_output="$(st_up_state_read 2>/dev/null)"; then
+        ST_UP_ACTIVATION_BLOCKED_REASON="No prepared upgrade found — run --latest or --target-version first."
+        return 1
+    fi
+
+    local -A state=()
+    while IFS='=' read -r key value; do
+        [ -n "$key" ] && state["$key"]="$value"
+    done <<< "$state_output"
+
+    if [ "${state[status]:-}" != "READY_FOR_ACTIVATION" ]; then
+        ST_UP_ACTIVATION_BLOCKED_REASON="Upgrade state is \"${state[status]:-unknown}\", not READY_FOR_ACTIVATION."
+        return 1
+    fi
+
+    local field
+    for field in backupStatus backupVerificationStatus persistentDataCheckStatus migrationValidationStatus migrationPlanStatus; do
+        if [ "${state[$field]:-}" != "OK" ]; then
+            ST_UP_ACTIVATION_BLOCKED_REASON="Prerequisite \"$field\" is \"${state[$field]:-unknown}\", not OK."
+            return 1
+        fi
+    done
+
+    ST_UP_ACTIVATE_UPGRADE_ID="${state[upgradeId]:-}"
+    ST_UP_ACTIVATE_CURRENT_VERSION="${state[currentVersion]:-}"
+    ST_UP_ACTIVATE_TARGET_VERSION="${state[targetVersion]:-}"
+    ST_UP_ACTIVATE_BACKUP_DIR="${state[backupDir]:-}"
+    ST_UP_ACTIVATE_MIGRATION_REQUIRED="${state[migrationRequired]:-unknown}"
+
+    if [ -z "$ST_UP_ACTIVATE_TARGET_VERSION" ]; then
+        ST_UP_ACTIVATION_BLOCKED_REASON="No target version recorded in upgrade state."
+        return 1
+    fi
+    if [ ! -d "$SILVERTASK_UPGRADE_STAGING_DIR/$ST_UP_ACTIVATE_TARGET_VERSION" ]; then
+        ST_UP_ACTIVATION_BLOCKED_REASON="Staged release directory for $ST_UP_ACTIVATE_TARGET_VERSION no longer exists ($SILVERTASK_UPGRADE_STAGING_DIR/$ST_UP_ACTIVATE_TARGET_VERSION) — re-run --target-version $ST_UP_ACTIVATE_TARGET_VERSION to re-prepare."
+        return 1
+    fi
+    if [ -z "$ST_UP_ACTIVATE_BACKUP_DIR" ] || [ ! -f "$ST_UP_ACTIVATE_BACKUP_DIR/manifest.json" ]; then
+        ST_UP_ACTIVATION_BLOCKED_REASON="Referenced pre-upgrade backup is missing (expected manifest at ${ST_UP_ACTIVATE_BACKUP_DIR:-unknown}/manifest.json)."
+        return 1
+    fi
+
+    return 0
 }

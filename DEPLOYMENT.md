@@ -236,8 +236,20 @@ validate/plan any required database migrations using `dotnet ef` directly (never
 see README → "Upgrade Engine" and [docs/upgrade-safety.md](docs/upgrade-safety.md) for the full
 workflow, and [docs/restore.md](docs/restore.md) for verifying a backup.
 
-**These commands still only prepare a release — they never activate one.** No service restarts, no
-migration is executed, and `installed-version.json` is untouched by any of them; the plain
-`sudo ./scripts/update-debian.sh` documented above (unchanged since Phase 51, and still doing its
-own independent backup as it always has) remains the only command that actually deploys a change to
-a running installation.
+`--latest`/`--target-version`/`--dry-run` still only prepare a release — they never activate one.
+No service restarts, no migration is executed, and `installed-version.json` is untouched by any of
+them.
+
+Phase 54 added the command that does: `sudo ./scripts/update-debian.sh --activate`. It requires a
+prior `--latest`/`--target-version` to have left the installation `READY_FOR_ACTIVATION`, then (after
+an explicit `[y/N]` confirmation) builds the target release into a fresh directory, enables a new
+maintenance-mode middleware (`Maintenance__FlagFile` in `silvertask.env` — see the env var table
+above), stops the service, swaps the release in (the previous one is kept, never deleted), runs the
+real `dotnet ef database update`, restarts the service, validates health/version/smoke tests, and
+only then commits the installed version and disables maintenance mode. See README → "Upgrade
+Engine" → "Activation" and [docs/upgrade-activation.md](docs/upgrade-activation.md) for the full
+workflow. **Automatic rollback is still not implemented** — a failed activation leaves maintenance
+mode active and requires the same manual recovery procedure as before (the pre-upgrade backup and
+the preserved previous publish directory, per [docs/restore.md](docs/restore.md)). The plain
+`sudo ./scripts/update-debian.sh` (unchanged since Phase 51, still doing its own independent backup)
+remains a valid single-step alternative to prepare-then-activate.
