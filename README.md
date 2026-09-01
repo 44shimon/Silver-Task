@@ -17,7 +17,7 @@ data, no hardcoded task data anywhere in the UI.
 [Development Installation](#development-installation) · [Configuration](#configuration) ·
 [Database](#database) · [File Storage](#file-storage) · [Authentication](#authentication) ·
 [Email Configuration](#email-configuration) · [Background Workers](#background-workers) ·
-[Updating](#updating) · [Backup](#backup) · [Restore](#restore) ·
+[Updating](#updating) · [Upgrade Engine](#upgrade-engine) · [Backup](#backup) · [Restore](#restore) ·
 [Troubleshooting](#troubleshooting) · [Security](#security) · [Uninstallation](#uninstallation) ·
 [Project Structure](#project-structure) · [Development](#development) · [Testing](#testing) ·
 [Release Information](#release-information) ·
@@ -373,6 +373,111 @@ sudo ./scripts/update-debian.sh
 Your `.env` file, database, and uploaded files are never touched by an update beyond the migration
 step itself (which only ever adds/alters schema, never resets data).
 
+## Upgrade Engine
+
+Phase 52 adds a second, additive command surface to the same `scripts/update-debian.sh` — a CLI
+upgrade engine that **discovers, validates, and stages** a target release without activating it.
+This is deliberately **not** a replacement for the plain `sudo ./scripts/update-debian.sh` above:
+only that command (and `--ref=`/`--skip-backup`) actually backs up, rebuilds, migrates, restarts,
+and deploys a change today. The upgrade engine's job is **PREPARE**, not **ACTIVATE** — future
+phases will teach a prepared release to hand off into an activation step; Phase 52 stops short of
+that on purpose (no backup is taken, no migration runs, no service is restarted, and
+`installed-version.json` is never modified by any of the commands below).
+
+```bash
+sudo ./scripts/update-debian.sh --check                        # is a newer stable release available?
+sudo ./scripts/update-debian.sh --status                       # upgrade/version status report
+sudo ./scripts/update-debian.sh --latest                       # validate + stage the latest stable release
+sudo ./scripts/update-debian.sh --target-version 1.1.0         # validate + stage a specific stable release
+sudo ./scripts/update-debian.sh --dry-run --latest              # show what --latest would do; changes nothing
+sudo ./scripts/update-debian.sh --target-version 1.1.0 --yes   # skip the confirmation prompt (for automation)
+sudo ./scripts/update-debian.sh --help
+```
+
+**`--check`** and **`--status`** are read-only — they never write a lock, state, or log-of-mutation
+entry, and never touch application files, the database, or services. `--check` compares the
+installed version against the newest stable git tag; `--status` additionally reports installed-vs-
+running version consistency and whatever the upgrade engine last did (see "Upgrade state" below).
+
+**`--latest`** / **`--target-version X.Y.Z`** (mutually exclusive) resolve a target release, then:
+validate installed/running version consistency, discover available stable releases, reject a
+same-version or older ("downgrade") target, validate the release's metadata (see "Release
+metadata" below), check local disk space, ask for confirmation (`[y/N]`, never defaulted to yes —
+skip with `--yes`), then fetch the target tag and stage it into an isolated `git worktree` under
+`$SILVERTASK_INSTALL_DIR/upgrade-staging/<version>` — a second checkout that shares git objects
+with the main install but never touches `$SILVERTASK_INSTALL_DIR/source` (what the plain `update-
+debian.sh` above actually builds from) or the running application.
+
+**`--dry-run`** (with `--latest`/`--target-version`) runs every validation step and reports the
+same plan, but never fetches new git tags, never creates a worktree, never acquires the upgrade
+lock, and never writes upgrade state — the only side effect is an informational log line.
+
+**Release discovery**: stable releases are discovered from the repository's own git tags
+(`git ls-remote --tags` against the configured remote — never a second repository, never a URL
+taken from the command line). Only tags matching `vMAJOR.MINOR.PATCH` exactly are considered — pre-
+release tags (`v1.1.0-beta`, `v1.1.0-rc1`) and branch-like refs (`main`, `latest`, `development`)
+are excluded outright, not just deprioritized, and versions are sorted numerically (`1.9.0` <
+`1.10.0` < `2.0.0`), never alphabetically.
+
+**Release metadata** — `releases/<version>.json` in this repository, read directly from the target
+git tag (works even before a worktree is staged):
+```json
+{
+  "version": "1.1.0",
+  "channel": "stable",
+  "minimumSupportedVersion": "1.0.0",
+  "requiresDatabaseMigration": false,
+  "requiresDataMigration": false,
+  "requiresRestart": true
+}
+```
+Not every historical release needs one — `releases/1.0.1.json` is a real example; `v1.0.0` has none
+and falls back to documented safe defaults (a migration is conservatively assumed possible, a
+restart is assumed needed, no minimum-version floor). A present-but-malformed file (wrong
+`"version"`, an unsupported `"channel"`, or an invalid `minimumSupportedVersion`) blocks the
+upgrade outright rather than being silently ignored; a well-formed `minimumSupportedVersion` that
+the installed version doesn't satisfy also blocks it (with a clear message), preparing the ground
+for future releases to declare "you must upgrade through an intermediate version first" without
+Phase 52 needing to build a full compatibility matrix for it.
+
+**Upgrade lock**: only one upgrade preparation can run at a time, enforced with `flock` on
+`/var/lock/silvertask-upgrade.lock` — an OS-held lock tied to the process, so a crashed/killed
+attempt releases it automatically and can never permanently block a future one. `--status` reports
+`IN PROGRESS` (with target/start time) while the lock is actually held, or `STALE UPGRADE LOCK
+DETECTED` if a previous attempt's leftover state file shows it never finished cleanly but nothing
+currently holds the lock — safe to just retry in that case; nothing was ever activated.
+
+**Upgrade state**: `$SILVERTASK_INSTALL_DIR/upgrade-state.json` records the most recent prepare
+attempt (current/target version, status, step, timestamps) for `--status` to report — left in place
+after success, failure, or a crash, and only ever overwritten by the next real attempt, never
+auto-deleted.
+
+**Upgrade log**: `/var/log/silver-task/upgrade.log` — a structured, timestamped history of every
+upgrade-engine invocation, separate from the installer's own `/var/log/silver-task-install.log`.
+Never contains secrets/env vars/credentials, same discipline as every other log this project
+writes.
+
+**Exit codes**:
+
+| Code | Meaning |
+|---|---|
+| 0 | Success / no blocking problem (including a deliberate no-op: already on target, or declined the confirmation prompt) |
+| 1 | General error |
+| 2 | Invalid arguments |
+| 3 | Version inconsistency (installed ≠ running, or unknown) |
+| 4 | Target version unavailable |
+| 5 | Unsupported upgrade path (downgrade, or a release's `minimumSupportedVersion` not met) |
+| 6 | Upgrade already in progress |
+| 7 | Repository access failure |
+| 8 | Insufficient disk space |
+
+**Current limitations (Phase 52)**: this is a foundation, not the full upgrade system. There is no
+web-based one-click upgrade UI, no automatic activation of a staged release, and no automatic
+database rollback — activating a prepared release still means running the plain `sudo
+./scripts/update-debian.sh` (optionally `--ref=v1.1.0`) documented above. Disk-space checking is an
+approximation (precise backup-size estimation is future work). A future phase is expected to teach
+the engine to hand a validated, staged release off into a real activation step.
+
 ## Backup
 
 ```bash
@@ -697,6 +802,12 @@ for 45–47, their own dedicated sections there.
   reporting via `GET /api/health`, an on-disk `installed-version.json` record, and
   `scripts/check-version.sh` for git-tag compatibility — see `DEPLOYMENT.md` → "Version
   information." Foundation only: no automatic upgrade system, one-click upgrade, or rollback yet.
+- [x] **Phase 52** — Upgrade Engine Foundation. A CLI upgrade engine built into
+  `scripts/update-debian.sh` (`--check`/`--status`/`--latest`/`--target-version`/`--dry-run`) that
+  discovers stable git-tag releases, validates version/downgrade/metadata rules, and stages a
+  target release into an isolated `git worktree` — see [Upgrade Engine](#upgrade-engine). Prepares
+  and validates only: no activation, no web UI, no database rollback yet; the existing plain
+  `update-debian.sh` invocation remains the only thing that actually deploys a change.
 
 ### GitHub / secrets hygiene
 

@@ -1,0 +1,8 @@
+{
+  "version": "1.0.1",
+  "channel": "stable",
+  "minimumSupportedVersion": "1.0.0",
+  "requiresDatabaseMigration": false,
+  "requiresDataMigration": false,
+  "requiresRestart": true
+}

@@ -20,6 +20,17 @@
 : "${SILVERTASK_PUBLISH_DIR:=$SILVERTASK_INSTALL_DIR/publish}"
 : "${SILVERTASK_SOURCE_DIR:=$SILVERTASK_INSTALL_DIR/source}"
 
+# --- Phase 52 — upgrade engine (scripts/lib/upgrade.sh, update-debian.sh's --check/--status/
+# --latest/--target-version modes). Separate from the locations above: those describe the one
+# active installation; these describe the upgrade engine's own bookkeeping about *preparing* a
+# future one, and are never touched by the legacy full-update path. ---
+: "${SILVERTASK_UPGRADE_LOCK_FILE:=/var/lock/silvertask-upgrade.lock}"
+: "${SILVERTASK_UPGRADE_STATE_FILE:=$SILVERTASK_INSTALL_DIR/upgrade-state.json}"
+: "${SILVERTASK_UPGRADE_STAGING_DIR:=$SILVERTASK_INSTALL_DIR/upgrade-staging}"
+: "${SILVERTASK_UPGRADE_LOG_DIR:=/var/log/silver-task}"
+: "${SILVERTASK_UPGRADE_LOG_FILE:=$SILVERTASK_UPGRADE_LOG_DIR/upgrade.log}"
+: "${SILVERTASK_RELEASES_DIR:=releases}"
+
 # --- Output / logging ---
 # Every log line goes to both the terminal and SILVERTASK_LOG_FILE (when writable — scripts
 # run read-only-safe commands, like --help, before root/log-file setup happens). Never pass

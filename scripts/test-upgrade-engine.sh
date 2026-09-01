@@ -1,0 +1,189 @@
+#!/bin/bash
+# Silver Task — standalone tests for scripts/lib/upgrade.sh's portable logic (Phase 52).
+#
+# Deliberately root/Debian/flock-independent: exercises semver validation/comparison/sorting,
+# stable-tag discovery/filtering, version detection against on-disk fixtures, and release metadata
+# validation — everything that's pure string/file processing. flock-based locking, git-worktree
+# staging, and systemd/service interaction are reviewed and bash -n syntax-checked separately (see
+# the Phase 52 final report) but need a real Debian host to exercise end-to-end, the same
+# limitation every Debian-specific script in this repo has always had outside that environment.
+#
+# Usage: bash scripts/test-upgrade-engine.sh
+
+# Deliberately no `-e`, unlike every other script in this repo (lib/common.sh's own doc comment
+# says every sourcing script must set `-euo pipefail`) — several assertions below call functions
+# expected to return non-zero directly (e.g. `st_up_metadata_validate ...; RC=$?`), and `-e` would
+# abort the whole test run on the first one, before RC is even captured.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEST_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TEST_ROOT"' EXIT
+
+# Point every SILVERTASK_* location at the throwaway test root before sourcing common.sh — its
+# `: "${VAR:=default}"` guards mean these pre-set values win, so nothing this test does can ever
+# touch a real installation, /opt, or /var/log.
+export SILVERTASK_INSTALL_DIR="$TEST_ROOT/install"
+export SILVERTASK_LOG_FILE="$TEST_ROOT/install.log"
+export SILVERTASK_UPGRADE_LOCK_FILE="$TEST_ROOT/upgrade.lock"
+export SILVERTASK_UPGRADE_STATE_FILE="$TEST_ROOT/install/upgrade-state.json"
+export SILVERTASK_UPGRADE_STAGING_DIR="$TEST_ROOT/install/upgrade-staging"
+export SILVERTASK_UPGRADE_LOG_DIR="$TEST_ROOT/upgrade-log"
+export SILVERTASK_UPGRADE_LOG_FILE="$TEST_ROOT/upgrade-log/upgrade.log"
+mkdir -p "$SILVERTASK_INSTALL_DIR" "$SILVERTASK_UPGRADE_LOG_DIR"
+
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/upgrade.sh
+source "$SCRIPT_DIR/lib/upgrade.sh"
+
+PASS=0
+FAIL=0
+
+assert_true() {
+    local desc="$1"; shift
+    if "$@" >/dev/null 2>&1; then
+        PASS=$((PASS + 1))
+    else
+        FAIL=$((FAIL + 1)); echo "FAIL: $desc"
+    fi
+}
+
+assert_false() {
+    local desc="$1"; shift
+    if ! "$@" >/dev/null 2>&1; then
+        PASS=$((PASS + 1))
+    else
+        FAIL=$((FAIL + 1)); echo "FAIL: $desc (expected failure, got success)"
+    fi
+}
+
+assert_eq() {
+    local desc="$1" expected="$2" actual="$3"
+    if [ "$expected" = "$actual" ]; then
+        PASS=$((PASS + 1))
+    else
+        FAIL=$((FAIL + 1)); echo "FAIL: $desc (expected [$expected], got [$actual])"
+    fi
+}
+
+echo "== st_up_semver_valid =="
+assert_true  "1.0.0 is valid"              st_up_semver_valid "1.0.0"
+assert_true  "1.10.0 is valid"             st_up_semver_valid "1.10.0"
+assert_true  "20.3.100 is valid"           st_up_semver_valid "20.3.100"
+assert_false "1.0 is invalid (2 parts)"    st_up_semver_valid "1.0"
+assert_false "v1.0.0 is invalid (has v)"   st_up_semver_valid "v1.0.0"
+assert_false "1.0.0-beta is invalid"       st_up_semver_valid "1.0.0-beta"
+assert_false "1.0.0-rc1 is invalid"        st_up_semver_valid "1.0.0-rc1"
+assert_false "empty is invalid"            st_up_semver_valid ""
+assert_false "shell-injection attempt"     st_up_semver_valid "1.0.1; rm -rf /"
+assert_false "latest is invalid"           st_up_semver_valid "latest"
+assert_false "main is invalid"             st_up_semver_valid "main"
+
+echo "== st_up_semver_compare =="
+assert_eq "1.0.0 == 1.0.0" "0" "$(st_up_semver_compare 1.0.0 1.0.0)"
+assert_eq "1.0.0 < 1.0.1" "-1" "$(st_up_semver_compare 1.0.0 1.0.1)"
+assert_eq "1.0.1 > 1.0.0" "1" "$(st_up_semver_compare 1.0.1 1.0.0)"
+assert_eq "1.1.0 > 1.0.9" "1" "$(st_up_semver_compare 1.1.0 1.0.9)"
+assert_eq "1.9.0 < 1.10.0 (numeric, not lexicographic)" "-1" "$(st_up_semver_compare 1.9.0 1.10.0)"
+assert_eq "1.10.0 < 2.0.0" "-1" "$(st_up_semver_compare 1.10.0 2.0.0)"
+assert_eq "2.0.0 > 1.99.99" "1" "$(st_up_semver_compare 2.0.0 1.99.99)"
+
+echo "== st_up_semver_sort =="
+SORTED="$(printf '1.9.0\n1.10.0\n2.0.0\n1.0.1\n1.0.0\n' | st_up_semver_sort)"
+assert_eq "sort orders 1.9.0 before 1.10.0 before 2.0.0" \
+    "$(printf '1.0.0\n1.0.1\n1.9.0\n1.10.0\n2.0.0')" "$SORTED"
+
+echo "== st_up_filter_stable_tags (simulated git ls-remote --tags output) =="
+RAW_TAGS='19efe12c86148a2125e3e6c32babe98e27b450ac	refs/tags/v1.0.0
+87c49771d2f1bbc3d67193b3f1dc3bc591b83438	refs/tags/v1.0.1
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	refs/tags/v1.1.0-beta
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb	refs/tags/v1.1.0-rc1
+cccccccccccccccccccccccccccccccccccccccc	refs/tags/v1.9.0
+dddddddddddddddddddddddddddddddddddddddd	refs/tags/v1.10.0
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee	refs/tags/v2.0.0
+ffffffffffffffffffffffffffffffffffffffff	refs/tags/v2.0.0^{}
+0000000000000000000000000000000000000000	refs/tags/latest
+1111111111111111111111111111111111111111	refs/tags/main
+2222222222222222222222222222222222222222	refs/tags/development
+3333333333333333333333333333333333333333	refs/heads/main
+4444444444444444444444444444444444444444	refs/tags/vX.Y.Z'
+FILTERED="$(printf '%s\n' "$RAW_TAGS" | st_up_filter_stable_tags)"
+assert_eq "pre-release/peeled/branch-like/malformed tags excluded; numeric sort" \
+    "$(printf '1.0.0\n1.0.1\n1.9.0\n1.10.0\n2.0.0')" "$FILTERED"
+assert_eq "latest of filtered set is 2.0.0" "2.0.0" "$(printf '%s\n' "$FILTERED" | tail -1)"
+
+echo "== st_up_installed_version / st_up_installed_commit (on-disk fixture) =="
+cat > "$SILVERTASK_INSTALL_DIR/installed-version.json" <<'EOF'
+{
+  "version": "1.0.1",
+  "gitCommit": "abc1234",
+  "installedAtUtc": "2026-01-01T00:00:00Z"
+}
+EOF
+assert_eq "installed version read from fixture" "1.0.1" "$(st_up_installed_version)"
+assert_eq "installed commit read from fixture" "abc1234" "$(st_up_installed_commit)"
+
+echo "== st_up_running_version (unreachable app) =="
+assert_false "unreachable app returns failure, not a false version" \
+    st_up_running_version "http://127.0.0.1:1"
+
+echo "== st_up_version_consistency =="
+st_up_version_consistency
+assert_eq "unreachable running app => UNKNOWN, not MISMATCH" "UNKNOWN" "$ST_UP_CONSISTENCY"
+
+echo "== st_up_metadata_validate =="
+VALID_META='{
+  "version": "1.1.0",
+  "channel": "stable",
+  "minimumSupportedVersion": "1.0.0",
+  "requiresDatabaseMigration": true,
+  "requiresDataMigration": false,
+  "requiresRestart": true
+}'
+st_up_metadata_validate "1.1.0" "$VALID_META" "1.0.1"; RC=$?
+assert_eq "valid metadata returns 0" "0" "$RC"
+assert_eq "requiresDatabaseMigration parsed as true" "true" "$ST_UP_META_REQUIRES_DB_MIGRATION"
+assert_eq "requiresRestart parsed as true" "true" "$ST_UP_META_REQUIRES_RESTART"
+
+st_up_metadata_validate "1.1.0" "" "1.0.1"; RC=$?
+assert_eq "missing metadata (empty content) uses safe defaults, returns 0" "0" "$RC"
+assert_eq "default requiresDatabaseMigration is conservative (true)" "true" "$ST_UP_META_REQUIRES_DB_MIGRATION"
+assert_eq "default requiresRestart is true" "true" "$ST_UP_META_REQUIRES_RESTART"
+
+WRONG_VERSION_META='{"version": "1.2.0", "channel": "stable"}'
+st_up_metadata_validate "1.1.0" "$WRONG_VERSION_META" "1.0.1"; RC=$?
+assert_eq "version-field mismatch is malformed (1)" "1" "$RC"
+
+BAD_CHANNEL_META='{"version": "1.1.0", "channel": "beta"}'
+st_up_metadata_validate "1.1.0" "$BAD_CHANNEL_META" "1.0.1"; RC=$?
+assert_eq "unsupported channel is malformed (1)" "1" "$RC"
+
+BAD_MIN_VERSION_META='{"version": "1.1.0", "channel": "stable", "minimumSupportedVersion": "not-a-version"}'
+st_up_metadata_validate "1.1.0" "$BAD_MIN_VERSION_META" "1.0.1"; RC=$?
+assert_eq "invalid minimumSupportedVersion is malformed (1)" "1" "$RC"
+
+MIN_VERSION_NOT_MET_META='{"version": "2.0.0", "channel": "stable", "minimumSupportedVersion": "1.1.0"}'
+st_up_metadata_validate "2.0.0" "$MIN_VERSION_NOT_MET_META" "1.0.1"; RC=$?
+assert_eq "installed below minimumSupportedVersion blocks upgrade (2)" "2" "$RC"
+
+MIN_VERSION_MET_META='{"version": "2.0.0", "channel": "stable", "minimumSupportedVersion": "1.0.0"}'
+st_up_metadata_validate "2.0.0" "$MIN_VERSION_MET_META" "1.0.1"; RC=$?
+assert_eq "installed at/above minimumSupportedVersion allows upgrade (0)" "0" "$RC"
+
+echo "== st_up_state_write / st_up_state_read round-trip =="
+st_up_state_write "PREPARING" "1.0.1" "1.1.0" "staging release" "2026-01-01T00:00:00Z"
+STATE_OUTPUT="$(st_up_state_read)"
+assert_true "state file readable after write" test -f "$SILVERTASK_UPGRADE_STATE_FILE"
+echo "$STATE_OUTPUT" | grep -q '^status=PREPARING$' && PASS=$((PASS + 1)) || { FAIL=$((FAIL + 1)); echo "FAIL: state status round-trips as PREPARING"; }
+echo "$STATE_OUTPUT" | grep -q '^targetVersion=1.1.0$' && PASS=$((PASS + 1)) || { FAIL=$((FAIL + 1)); echo "FAIL: state targetVersion round-trips as 1.1.0"; }
+
+echo "== st_up_disk_space_check (smoke test — just must not crash and must set outputs) =="
+st_up_disk_space_check || true
+assert_true "ST_UP_DISK_REQUIRED_MB was set" test -n "${ST_UP_DISK_REQUIRED_MB:-}"
+
+echo ""
+echo "=================================================="
+echo "Passed: $PASS  Failed: $FAIL"
+echo "=================================================="
+[ "$FAIL" -eq 0 ]

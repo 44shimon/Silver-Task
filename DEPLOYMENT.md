@@ -218,3 +218,16 @@ automatically instead of relying on someone remembering to update every declarat
 
 There's still no runtime "About" page exposing version info in the UI to end users — this phase
 is the versioning foundation an automatic-upgrade system can build on, not that system itself.
+
+## Upgrade engine
+
+Phase 52 built the first consumer of the above: `scripts/update-debian.sh --check` / `--status` /
+`--latest` / `--target-version X.Y.Z` / `--dry-run` discover stable releases from this repo's own
+git tags, validate them against the installed version (rejecting downgrades, same-version no-ops,
+and metadata-declared incompatibilities), and stage a validated release into an isolated `git
+worktree` — see README → "Upgrade Engine" for the full command reference, exit codes, and file
+locations (`upgrade-state.json`, the `flock`-based lock, `/var/log/silver-task/upgrade.log`).
+**These commands only prepare a release — they never activate one.** No backup is taken, no
+migration runs, no service restarts, and `installed-version.json` is untouched by any of them; the
+plain `sudo ./scripts/update-debian.sh` documented above (unchanged since Phase 51) remains the
+only command that actually deploys a change to a running installation.
