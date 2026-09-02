@@ -20,6 +20,7 @@ data, no hardcoded task data anywhere in the UI.
 [Updating](#updating) · [Upgrade Engine](#upgrade-engine) · [Backup](#backup) · [Restore](#restore) ·
 [Troubleshooting](#troubleshooting) · [Security](#security) · [Uninstallation](#uninstallation) ·
 [Project Structure](#project-structure) · [Development](#development) · [Testing](#testing) ·
+[Performance Testing](#performance-testing) ·
 [Release Information](#release-information) ·
 [Appendix: feature & phase implementation notes](#appendix-feature--phase-implementation-notes)
 
@@ -278,6 +279,7 @@ based on) and wires it into the systemd service via `EnvironmentFile=`.
 | `Diagnostics__WorkerStaleMultiplier` | A background worker is `degraded` once its last successful tick is older than its own interval times this multiplier | No — defaults to `3` |
 | `Security__LoginRateLimit__PermitLimit` | Max `POST /api/auth/login` attempts per client IP per window — see [Security](#security) → "Security hardening" | No — defaults to `10` |
 | `Security__LoginRateLimit__WindowSeconds` | The window (seconds) the above limit applies over | No — defaults to `60` |
+| `Diagnostics__SlowOperationThresholdMs` | A request at/above this duration (ms) is recorded in `GET /api/admin/diagnostics`'s `recentSlowOperations` — see [Performance Testing](#performance-testing) | No — defaults to `1000` |
 
 ## Database
 
@@ -1001,6 +1003,7 @@ Silver-Task/
 │   ├── certify-release.sh     Automated install/upgrade/rollback lifecycle testing (disposable hosts only)
 │   ├── check-dependencies.sh  Dependency vulnerability scan (dotnet/npm), dev/CI use
 │   ├── security-probe.sh      Live unauthenticated/unauthorized/IDOR probe against a running instance
+│   ├── test-performance.sh    Load/scale testing (SMOKE/NORMAL/HEAVY profiles, --json reports)
 │   └── lib/common.sh          Shared helpers (logging, checks, secret generation)
 │
 ├── deploy/                    Reference config templates the installer generates from
@@ -1060,6 +1063,46 @@ verified through real `dotnet build`/`npm run build`/`typecheck`/`lint` runs plu
 testing against a running instance and database (documented per-phase in the
 [Appendix](#appendix-feature--phase-implementation-notes)) — real verification, just not automated
 or regression-proof yet.
+
+## Performance Testing
+
+> Real, complete spec for this phase (not inferred, unlike Phases 56–59) — see
+> [docs/performance.md](docs/performance.md) for the full architecture and
+> [docs/performance-runbook.md](docs/performance-runbook.md) for troubleshooting.
+
+```bash
+# 1. Seed a synthetic dataset (Development only — clearly-marked, never real data)
+dotnet run --project Silver-Task.Server -- --perf-seed=small    # or medium | large
+dotnet run --project Silver-Task.Server -- --perf-cleanup       # remove it again
+
+# 2. Measure — --target-env is required, with no default, so this can never accidentally
+#    run against production
+sudo ./scripts/test-performance.sh --target-env=development --dataset=small --profile=smoke
+sudo ./scripts/test-performance.sh --target-env=development --dataset=large --profile=heavy --json
+
+# 3. Regression-check a release candidate against its baseline (Phase 57 integration)
+sudo ./scripts/certify-release.sh --candidate=1.2.0 --with-performance \
+    --disposable-host-confirmed
+```
+
+- **Dataset profiles**: SMALL (100 tasks/10 users), MEDIUM (1,000/25), LARGE (5,000/50) — via
+  `PerformanceDataSeeder`, separate from `DemoDataSeeder`, same `Development`-only gate.
+- **Load profiles**: SMOKE (1 user, read-only), NORMAL (5 concurrent, read+write), HEAVY (20
+  concurrent, read+write) — `--concurrency=N` overrides any profile's default.
+- **Targets**: `scripts/perf-targets.conf` (FAST/ACCEPTABLE/WARNING/SLOW per operation, some with
+  dataset-size-specific overrides) — plain-text, adjustable, not hardcoded.
+- **Regression detection**: `certify-release.sh --with-performance` compares live baseline vs.
+  candidate; `--fail-on-regression` makes a detected regression block certification (exit `10`) —
+  off by default, reported either way.
+- **`GET /api/admin/diagnostics`** (Administrator-only, Phase 58) now also reports
+  `recentSlowOperations` — the most recent requests at or above
+  `Diagnostics__SlowOperationThresholdMs` (default 1000ms), operation name + duration only, never
+  the request body or query string.
+- **Real audit findings from this phase, fixed**: an N+1 in `SearchService.SearchTasksAsync`, a
+  missing `useMemo` in `KanbanBoard`, an undebounced Sheet-view search input, and unbounded DOM
+  rendering in `TaskTable`/`AdminUsersTable` (now row-virtualized above 100 rows via
+  `@tanstack/react-virtual`, client-side filtering/sorting otherwise left exactly as it was — see
+  docs/performance.md for why server-side pagination was deliberately not attempted).
 
 ## Release Information
 
@@ -1215,6 +1258,21 @@ for 45–47, their own dedicated sections there.
   `--security-check` (mirrors `--doctor`), `check-dependencies.sh`, and `security-probe.sh` (a
   scripted, repeatable version of Phase 47's one-time manual audit). Also corrected a stale
   `RELEASE_NOTES.md` claim about an already-fixed finding. No new *required* configuration.
+- [x] **Phase 60** — Performance, Scalability & Production Load Validation. A real, complete spec
+  (unlike Phases 56–59). A direct audit of Phases 1–59's actual implementation — not assumption —
+  found and fixed a confirmed N+1 in `SearchService.SearchTasksAsync`, a missing `useMemo` in
+  `KanbanBoard`, an undebounced Sheet-view search input, and unbounded DOM rendering in
+  `TaskTable`/`AdminUsersTable` (now row-virtualized above 100 rows via `@tanstack/react-virtual`
+  — a confirmed row-count threshold, client-side filter/sort/search architecture otherwise left
+  exactly as it was, a deliberate choice over a server-side pagination rewrite; see
+  [Performance Testing](#performance-testing)/docs/performance.md for the full reasoning). Added a
+  full measurement/testing toolchain: `PerformanceDataSeeder` (synthetic SMALL/MEDIUM/LARGE
+  datasets), `scripts/test-performance.sh` (SMOKE/NORMAL/HEAVY load profiles, mandatory
+  `--target-env` safety gate, `scripts/perf-targets.conf` FAST/ACCEPTABLE/WARNING/SLOW
+  classification, JSON Lines reports + durable cross-version history), a `--with-performance`
+  regression check integrated into `certify-release.sh` (Phase 57), and `recentSlowOperations` on
+  `GET /api/admin/diagnostics` (Phase 58). No index changes — every current query pattern was
+  already covered, confirmed by direct audit of every `Data/Configurations/*.cs` file.
 
 ### GitHub / secrets hygiene
 

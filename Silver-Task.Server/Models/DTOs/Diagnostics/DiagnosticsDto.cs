@@ -21,6 +21,13 @@ namespace Silver_Task.Server.Models.DTOs.Diagnostics
         public required DiskSpaceDiagnosticsDto DiskSpace { get; set; }
 
         public required List<WorkerHeartbeatDto> BackgroundWorkers { get; set; }
+
+        /// <summary>Phase 60 — the most recent requests that took at least
+        /// Diagnostics:SlowOperationThresholdMs (default 1000ms) to complete, newest first.
+        /// Operation is "{Controller}.{Action}" only — never the full URL/query string/request
+        /// body. Never affects the top-level Status (a slow endpoint isn't the same signal as a
+        /// database/disk/worker problem) — purely informational, for "what's been slow recently."</summary>
+        public required List<SlowOperationDto> RecentSlowOperations { get; set; }
     }
 
     public class DatabaseDiagnosticsDto
@@ -59,5 +66,14 @@ namespace Silver_Task.Server.Models.DTOs.Diagnostics
         public DateTime? LastSuccessfulRunUtc { get; set; }
 
         public double? IntervalSeconds { get; set; }
+    }
+
+    public class SlowOperationDto
+    {
+        public required string Operation { get; set; }
+
+        public long DurationMs { get; set; }
+
+        public DateTime RecordedAtUtc { get; set; }
     }
 }

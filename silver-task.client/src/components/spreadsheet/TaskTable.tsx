@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { flexRender, type ExpandedState } from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
 // TanStack Table v9 replaced useReactTable with a new modular `features`-based
 // useTable API. useLegacyTable is the officially bundled v8-compatible layer —
 // used here deliberately (not left over from a migration) since a static grid
@@ -54,6 +55,14 @@ interface TaskTableProps {
 }
 
 const columnHelper = legacyCreateColumnHelper<TaskTreeNode>();
+
+// Phase 60 — row virtualization only kicks in above this threshold. Below it, the table renders
+// exactly as it always has (unbounded height, whole-page scroll) — most projects never approach
+// this, and there's no reason to change the scroll behavior of a small, typical task list just to
+// solve a problem it doesn't have. Above it, only visible rows become real DOM <tr>s, so a
+// project with thousands of tasks doesn't render thousands of real rows at once.
+const VIRTUALIZATION_ROW_THRESHOLD = 100;
+const ESTIMATED_ROW_HEIGHT_PX = 37;
 
 export function TaskTable({
   projectId,
@@ -284,62 +293,134 @@ export function TaskTable({
     onExpandedChange: setExpanded,
   });
 
+  const rows = table.getRowModel().rows;
+  const shouldVirtualize = rows.length > VIRTUALIZATION_ROW_THRESHOLD;
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Always called (Rules of Hooks) — simply unused when shouldVirtualize is false, since
+  // scrollContainerRef won't be attached to any DOM node in that branch.
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT_PX,
+    overscan: 10,
+    // Row height isn't perfectly fixed (wrapped titles, custom field content) — measure the
+    // actual rendered height after each row mounts rather than trusting the estimate forever.
+    measureElement: (element) => element.getBoundingClientRect().height,
+  });
+
   const hasSubtasks = tasks.some((t) => t.parentTaskId);
+
+  const headerGroups = (
+    <thead>
+      {table.getHeaderGroups().map((headerGroup) => (
+        <tr key={headerGroup.id}>
+          {headerGroup.headers.map((header) => (
+            <th key={header.id} style={{ width: header.getSize() }}>
+              <div className="task-table__header-content">
+                {flexRender(header.column.columnDef.header, header.getContext())}
+              </div>
+              {header.column.getCanResize() && (
+                <div
+                  className={`task-table__resizer${header.column.getIsResizing() ? ' task-table__resizer--active' : ''}`}
+                  onMouseDown={header.getResizeHandler()}
+                  onTouchStart={header.getResizeHandler()}
+                />
+              )}
+            </th>
+          ))}
+        </tr>
+      ))}
+    </thead>
+  );
+
+  const emptyStateRow = tasks.length === 0 && (
+    <tr>
+      <td colSpan={columns.length} className="task-table__empty-state">
+        {isFiltered ? 'No tasks match your search/filters.' : 'No tasks yet. Click "New Task" to add one.'}
+      </td>
+    </tr>
+  );
+
+  const hierarchyToolbar = hasSubtasks && (
+    <div className="task-table__hierarchy-toolbar">
+      <button type="button" className="task-table__hierarchy-toolbar-button" onClick={() => setExpanded(true)}>
+        Expand All
+      </button>
+      <button type="button" className="task-table__hierarchy-toolbar-button" onClick={() => setExpanded({})}>
+        Collapse All
+      </button>
+    </div>
+  );
+
+  if (!shouldVirtualize) {
+    // Unchanged from before Phase 60 — small/typical task lists render exactly as they always
+    // have, whole-page scroll, every row a real <tr>.
+    return (
+      <div className="task-table-wrapper">
+        {hierarchyToolbar}
+        <table className="task-table" style={{ width: table.getTotalSize() }}>
+          {headerGroups}
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id}>
+                {row.getVisibleCells().map((cell) => (
+                  <td key={cell.id} style={{ width: cell.column.getSize() }}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
+            ))}
+            {emptyStateRow}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // Virtualized path (>100 rows): the table body scrolls in its own bounded area instead of the
+  // whole page, and only the rows currently in (or near) view become real <tr>s. Two padding rows
+  // reserve the vertical space of everything above/below the visible window — the standard table
+  // technique for TanStack Virtual, since absolutely-positioning individual <tr>s doesn't compose
+  // with normal table layout.
+  const virtualRows = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
+  const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
+  const paddingBottom = virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   return (
     <div className="task-table-wrapper">
-      {hasSubtasks && (
-        <div className="task-table__hierarchy-toolbar">
-          <button type="button" className="task-table__hierarchy-toolbar-button" onClick={() => setExpanded(true)}>
-            Expand All
-          </button>
-          <button type="button" className="task-table__hierarchy-toolbar-button" onClick={() => setExpanded({})}>
-            Collapse All
-          </button>
-        </div>
-      )}
-      <table className="task-table" style={{ width: table.getTotalSize() }}>
-        <thead>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <th key={header.id} style={{ width: header.getSize() }}>
-                  <div className="task-table__header-content">
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </div>
-                  {header.column.getCanResize() && (
-                    <div
-                      className={`task-table__resizer${header.column.getIsResizing() ? ' task-table__resizer--active' : ''}`}
-                      onMouseDown={header.getResizeHandler()}
-                      onTouchStart={header.getResizeHandler()}
-                    />
-                  )}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row) => (
-            <tr key={row.id}>
-              {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} style={{ width: cell.column.getSize() }}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
-              ))}
-            </tr>
-          ))}
-          {tasks.length === 0 && (
-            <tr>
-              <td colSpan={columns.length} className="task-table__empty-state">
-                {isFiltered
-                  ? 'No tasks match your search/filters.'
-                  : 'No tasks yet. Click "New Task" to add one.'}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      {hierarchyToolbar}
+      <div ref={scrollContainerRef} className="task-table__scroll-container">
+        <table className="task-table" style={{ width: table.getTotalSize() }}>
+          {headerGroups}
+          <tbody>
+            {paddingTop > 0 && (
+              <tr aria-hidden style={{ height: paddingTop }}>
+                <td colSpan={columns.length} style={{ padding: 0, border: 'none' }} />
+              </tr>
+            )}
+            {virtualRows.map((virtualRow) => {
+              const row = rows[virtualRow.index];
+              return (
+                <tr key={row.id} data-index={virtualRow.index} ref={virtualizer.measureElement}>
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} style={{ width: cell.column.getSize() }}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+            {paddingBottom > 0 && (
+              <tr aria-hidden style={{ height: paddingBottom }}>
+                <td colSpan={columns.length} style={{ padding: 0, border: 'none' }} />
+              </tr>
+            )}
+            {emptyStateRow}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

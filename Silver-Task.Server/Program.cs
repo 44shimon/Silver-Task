@@ -169,6 +169,9 @@ builder.Services.AddScoped<ISavedViewService, SavedViewService>();
 // AddHostedService) and outlive per-request scopes. See IWorkerHeartbeatRegistry's own doc
 // comment.
 builder.Services.AddSingleton<IWorkerHeartbeatRegistry, WorkerHeartbeatRegistry>();
+// Phase 60 — same "must outlive per-request scopes" reasoning as the heartbeat registry above;
+// fed by SlowOperationActionFilter (registered as an MVC filter further below).
+builder.Services.AddSingleton<ISlowOperationTracker, SlowOperationTracker>();
 builder.Services.AddScoped<IDiagnosticsService, DiagnosticsService>();
 builder.Services.AddHostedService<DueDateNotificationBackgroundService>();
 builder.Services.AddHostedService<RecurringTaskGenerationBackgroundService>();
@@ -183,7 +186,12 @@ builder.Services.AddHostedService<DigestSchedulerBackgroundService>();
 // connection with zero extra plumbing.
 builder.Services.AddSignalR();
 
-builder.Services.AddControllers()
+builder.Services.AddControllers(options =>
+    {
+        // Phase 60 — times every action; anything at/above Diagnostics:SlowOperationThresholdMs
+        // gets recorded in ISlowOperationTracker and surfaced on GET /api/admin/diagnostics.
+        options.Filters.Add<Silver_Task.Server.Filters.SlowOperationActionFilter>();
+    })
     .AddJsonOptions(options =>
     {
         // Enums (Status, Priority, Role, ...) travel over the wire as their string names
@@ -205,6 +213,32 @@ if (args.Contains("--seed"))
     }
 
     await Silver_Task.Server.Data.Seeding.DemoDataSeeder.RunAsync(app.Services);
+    return;
+}
+
+// Phase 60 — bulk synthetic performance-test data: `dotnet run -- --perf-seed=small|medium|large`
+// / `dotnet run -- --perf-cleanup`. Same Development-only gate as --seed above; see
+// PerformanceDataSeeder's own doc comment for why this is a separate seeder rather than an
+// extension of DemoDataSeeder.
+var perfSeedArg = args.FirstOrDefault(a => a.StartsWith("--perf-seed=", StringComparison.Ordinal));
+if (perfSeedArg is not null)
+{
+    if (!app.Environment.IsDevelopment())
+    {
+        throw new InvalidOperationException("--perf-seed is only allowed in the Development environment.");
+    }
+
+    await Silver_Task.Server.Data.Seeding.PerformanceDataSeeder.SeedAsync(app.Services, perfSeedArg["--perf-seed=".Length..]);
+    return;
+}
+if (args.Contains("--perf-cleanup"))
+{
+    if (!app.Environment.IsDevelopment())
+    {
+        throw new InvalidOperationException("--perf-cleanup is only allowed in the Development environment.");
+    }
+
+    await Silver_Task.Server.Data.Seeding.PerformanceDataSeeder.CleanupAsync(app.Services);
     return;
 }
 

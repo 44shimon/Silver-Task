@@ -20,6 +20,7 @@ namespace Silver_Task.Server.Services
     public class DiagnosticsService(
         AppDbContext db,
         IWorkerHeartbeatRegistry heartbeats,
+        ISlowOperationTracker slowOperations,
         IConfiguration configuration,
         IWebHostEnvironment environment) : IDiagnosticsService
     {
@@ -55,6 +56,7 @@ namespace Silver_Task.Server.Services
 
         private readonly AppDbContext _db = db;
         private readonly IWorkerHeartbeatRegistry _heartbeats = heartbeats;
+        private readonly ISlowOperationTracker _slowOperations = slowOperations;
         private readonly IConfiguration _configuration = configuration;
         private readonly IWebHostEnvironment _environment = environment;
 
@@ -68,6 +70,11 @@ namespace Silver_Task.Server.Services
 
             var uptimeSeconds = (DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime()).TotalSeconds;
 
+            var recentSlowOperations = _slowOperations.GetRecent()
+                .OrderByDescending(o => o.RecordedAtUtc)
+                .Select(o => new SlowOperationDto { Operation = o.Operation, DurationMs = o.DurationMs, RecordedAtUtc = o.RecordedAtUtc })
+                .ToList();
+
             return new DiagnosticsDto
             {
                 Status = overallStatus,
@@ -77,6 +84,7 @@ namespace Silver_Task.Server.Services
                 Database = database,
                 DiskSpace = diskSpace,
                 BackgroundWorkers = workers,
+                RecentSlowOperations = recentSlowOperations,
             };
         }
 

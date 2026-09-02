@@ -249,17 +249,25 @@ namespace Silver_Task.Server.Services
 
             var projectNames = await _db.Projects.Where(p => accessibleProjectIds.Contains(p.Id)).Select(p => new { p.Id, p.Name, p.OwnerId }).ToDictionaryAsync(p => p.Id, p => p);
             var isAdmin = callerRole == UserRole.Administrator;
+
+            // Phase 60 — batch-loaded once instead of one GetProjectRoleAsync call per distinct
+            // project in the candidate set (confirmed N+1 in a performance audit; SearchProjectsAsync
+            // below already uses this exact batched shape, but the fix was never actually applied
+            // here despite an earlier comment claiming otherwise).
+            var candidateProjectIds = candidates.Select(t => t.ProjectId).Distinct().ToList();
             var roleByProject = new Dictionary<Guid, ProjectRole?>();
+            if (!isAdmin)
+            {
+                roleByProject = await _db.ProjectMembers
+                    .Where(m => candidateProjectIds.Contains(m.ProjectId) && m.UserId == callerId)
+                    .ToDictionaryAsync(m => m.ProjectId, m => (ProjectRole?)m.Role);
+            }
 
             var results = new List<SearchResultDto>();
             foreach (var task in candidates)
             {
-                if (!isAdmin && !roleByProject.ContainsKey(task.ProjectId))
-                {
-                    roleByProject[task.ProjectId] = await _projectAccess.GetProjectRoleAsync(task.ProjectId, callerId);
-                }
                 var projectOwnerId = projectNames.GetValueOrDefault(task.ProjectId)?.OwnerId ?? Guid.Empty;
-                CustomFieldPrivacy.RedactTaskValues(task, callerId, callerRole, projectOwnerId, isAdmin ? null : roleByProject[task.ProjectId]);
+                CustomFieldPrivacy.RedactTaskValues(task, callerId, callerRole, projectOwnerId, isAdmin ? null : roleByProject.GetValueOrDefault(task.ProjectId));
 
                 var (score, snippet) = ScoreAndSnippet(task.Title, task.Description, task.CustomValues.Select(v => (v.CustomField?.Name ?? "", v.Value ?? "")), phrase);
 

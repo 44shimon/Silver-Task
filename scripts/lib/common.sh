@@ -57,6 +57,13 @@
 : "${SILVERTASK_CERTIFICATION_DIR:=$SILVERTASK_UPGRADE_LOG_DIR/certifications}"
 : "${SILVERTASK_CERTIFICATION_LOG_FILE:=$SILVERTASK_UPGRADE_LOG_DIR/certification.log}"
 
+# --- Phase 60 — performance & scalability testing (scripts/lib/perf.sh,
+# scripts/test-performance.sh). Same reasoning as Phase 57's certification dir — lives alongside
+# the existing upgrade log directory, independent of SILVERTASK_INSTALL_DIR. ---
+: "${SILVERTASK_PERFORMANCE_DIR:=$SILVERTASK_UPGRADE_LOG_DIR/performance}"
+: "${SILVERTASK_PERFORMANCE_LOG_FILE:=$SILVERTASK_UPGRADE_LOG_DIR/performance.log}"
+: "${SILVERTASK_PERFORMANCE_HISTORY_FILE:=$SILVERTASK_PERFORMANCE_DIR/performance-history.jsonl}"
+
 # --- Output / logging ---
 # Every log line goes to both the terminal and SILVERTASK_LOG_FILE (when writable — scripts
 # run read-only-safe commands, like --help, before root/log-file setup happens). Never pass

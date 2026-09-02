@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Task } from '@/types/task';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { daysFromTodayDateOnly, todayDateOnly } from '@/utils/dateOnly';
 import { taskMatchesQuery } from '@/utils/taskSearch';
 import {
@@ -61,6 +62,9 @@ export function useMyTasksFilters(
   initialDependencyState: DependencyStateFilter | null = null,
 ) {
   const [searchQuery, setSearchQuery] = useState('');
+  // Phase 60 — same debounce as useTaskFilters: the input stays instant, only the expensive
+  // filter+sort recompute below lags 300ms behind typing.
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(initialQuickFilter);
   const [filters, setFilters] = useState<MyTasksFilters>({ ...EMPTY_FILTERS, dependencyState: initialDependencyState });
   const [sortField, setSortFieldState] = useState<MyTaskSortField>('dueDate');
@@ -103,7 +107,7 @@ export function useMyTasksFilters(
 
     // Same shared matcher as useTaskFilters — title/description/project/assigned-user (no
     // custom-field pass here, since My Tasks spans projects with different field schemas).
-    items = items.filter((task) => taskMatchesQuery(task, searchQuery));
+    items = items.filter((task) => taskMatchesQuery(task, debouncedSearchQuery));
 
     items = items.filter((task) => matchesQuickFilter(task, quickFilter, today, weekEnd));
     items = items.filter((task) => matchesCommonFilters(task, filters));
@@ -116,7 +120,7 @@ export function useMyTasksFilters(
       const result = compareTasksByField(a, b, sortField);
       return sortDirection === 'asc' ? result : -result;
     });
-  }, [tasks, searchQuery, quickFilter, filters, sortField, sortDirection, today, weekEnd]);
+  }, [tasks, debouncedSearchQuery, quickFilter, filters, sortField, sortDirection, today, weekEnd]);
 
   return {
     filteredTasks,

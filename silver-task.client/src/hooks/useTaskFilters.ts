@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Task } from '@/types/task';
 import type { CustomField } from '@/types/customField';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { taskMatchesQuery } from '@/utils/taskSearch';
 import { daysFromTodayDateOnly, todayDateOnly } from '@/utils/dateOnly';
 import {
@@ -57,6 +58,10 @@ export const SORT_FIELDS: TaskSortField[] = [
  * schemas) are specific to this hook. */
 export function useTaskFilters(tasks: Task[], customFields: CustomField[] = []) {
   const [searchQuery, setSearchQuery] = useState('');
+  // Phase 60 — the input itself stays bound to the instant `searchQuery` (typing must never feel
+  // laggy), but the expensive full filter+sort recompute below only re-runs 300ms after typing
+  // stops, matching the debounce GlobalSearch already uses for its own (server-side) search.
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS);
   const [sortField, setSortFieldState] = useState<TaskSortField>('title');
@@ -97,7 +102,7 @@ export function useTaskFilters(tasks: Task[], customFields: CustomField[] = []) 
 
     // Matches title/description/project/assigned-user/Text-LongText-custom-fields — shared
     // with useMyTasksFilters (and any future view) via taskMatchesQuery, not reimplemented here.
-    items = items.filter((task) => taskMatchesQuery(task, searchQuery, textFieldIds));
+    items = items.filter((task) => taskMatchesQuery(task, debouncedSearchQuery, textFieldIds));
 
     items = items.filter((task) => matchesQuickFilter(task, quickFilter, today, weekEnd));
     items = items.filter((task) => matchesCommonFilters(task, filters));
@@ -112,7 +117,7 @@ export function useTaskFilters(tasks: Task[], customFields: CustomField[] = []) 
       const result = compareTasksByField(a, b, sortField);
       return sortDirection === 'asc' ? result : -result;
     });
-  }, [tasks, searchQuery, quickFilter, filters, sortField, sortDirection, textFieldIds, today, weekEnd]);
+  }, [tasks, debouncedSearchQuery, quickFilter, filters, sortField, sortDirection, textFieldIds, today, weekEnd]);
 
   return {
     filteredTasks,

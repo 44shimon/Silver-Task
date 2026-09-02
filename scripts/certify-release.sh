@@ -31,6 +31,17 @@
 #                                 --disposable-host-confirmed.
 # --cleanup                      Run uninstall-debian.sh --remove-data --force at the end,
 #                                 regardless of outcome. Default: leave the installation in place.
+# --with-performance              (Phase 60) Also run scripts/test-performance.sh once against the
+#                                 live baseline and once against the live candidate, and report any
+#                                 regression between them. Never blocks certification by itself —
+#                                 see --fail-on-regression. No dataset is seeded as part of this
+#                                 (PerformanceDataSeeder is Development-only; this installs in
+#                                 Production mode like a real deployment) — measurements run
+#                                 against whatever data exists, which is usually little to none.
+#                                 For a real, dataset-driven performance run, use
+#                                 scripts/test-performance.sh directly against a dev/test instance.
+# --fail-on-regression             With --with-performance: a detected regression blocks
+#                                 certification (exit 10) instead of only being reported.
 #
 # Exit codes (this script's own independent scheme — not update-debian.sh's):
 #   0  CERTIFIED — every required stage passed
@@ -43,6 +54,7 @@
 #   7  candidate validation (post-activation health/version) failed
 #   8  rollback failed
 #   9  rollback validation (baseline health/version not restored) failed
+#   10 performance regression detected (only with --with-performance --fail-on-regression)
 #
 # A NOT_CERTIFIED report is still written on any failure (0 is the only "fully passed" exit).
 
@@ -56,6 +68,8 @@ source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/upgrade.sh"
 # shellcheck source=lib/certify.sh
 source "$SCRIPT_DIR/lib/certify.sh"
+# shellcheck source=lib/perf.sh
+source "$SCRIPT_DIR/lib/perf.sh"
 
 st_cert_usage() {
     cat <<'EOF'
@@ -74,9 +88,15 @@ WHATEVER HOST IT RUNS ON. Only ever run it on a disposable, non-production host.
                                  --disposable-host-confirmed.
   --cleanup                     Run uninstall-debian.sh --remove-data --force at the end,
                                  regardless of outcome. Default: leave the installation in place.
+  --with-performance             (Phase 60) Also measure performance against the live baseline and
+                                 candidate and report any regression between them. Never blocks by
+                                 itself — see --fail-on-regression.
+  --fail-on-regression           With --with-performance: a detected regression blocks
+                                 certification (exit 10) instead of only being reported.
   --help, -h                    Show this message.
 
-See docs/release-certification.md for the full workflow and what each stage checks.
+See docs/release-certification.md for the full workflow and what each stage checks, and
+docs/performance.md for what --with-performance measures and its limitations in this context.
 EOF
 }
 
@@ -86,6 +106,8 @@ CHANNEL="stable"
 DISPOSABLE_CONFIRMED=false
 ASSUME_YES=false
 CLEANUP=false
+WITH_PERFORMANCE=false
+FAIL_ON_REGRESSION=false
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -100,6 +122,8 @@ while [ $# -gt 0 ]; do
         --disposable-host-confirmed) DISPOSABLE_CONFIRMED=true ;;
         --yes) ASSUME_YES=true ;;
         --cleanup) CLEANUP=true ;;
+        --with-performance) WITH_PERFORMANCE=true ;;
+        --fail-on-regression) FAIL_ON_REGRESSION=true ;;
         --help|-h) st_cert_usage; exit 0 ;;
         *)
             st_cert_usage >&2
@@ -138,6 +162,11 @@ fi
 if [ -n "$BASELINE" ] && [ "$BASELINE" = "$CANDIDATE" ]; then
     st_cert_usage >&2
     echo "ERROR: --baseline and --candidate must be different versions (nothing to upgrade)." >&2
+    exit 2
+fi
+if [ "$FAIL_ON_REGRESSION" = true ] && [ "$WITH_PERFORMANCE" != true ]; then
+    st_cert_usage >&2
+    echo "ERROR: --fail-on-regression requires --with-performance." >&2
     exit 2
 fi
 if [ "$DISPOSABLE_CONFIRMED" != true ]; then
@@ -252,13 +281,81 @@ stage_rollback_validate() {
     [ "$running" = "$BASELINE" ]
 }
 
+# --- Phase 60 — optional performance measurement (--with-performance), non-fatal by itself
+# (a measurement failure is recorded but never calls exit — this is a diagnostic add-on, not part
+# of the core install/upgrade/rollback lifecycle actually being certified). No dataset is seeded
+# (PerformanceDataSeeder is Development-only; install-debian.sh runs the app in Production mode
+# here, same as a real deployment) — measurements run against whatever data exists, usually little
+# to none. Real, dataset-driven performance testing is scripts/test-performance.sh run directly.
+st_cert_perf_extract() {
+    local json="$1" key="$2"
+    printf '%s' "$json" | sed -n "s/.*\"$key\":\([0-9][0-9]*\).*/\1/p"
+}
+
+run_performance_stage() {
+    local label="$1"
+    st_step "performance ($label)"
+    local rc=0
+    "$SCRIPT_DIR/test-performance.sh" --target-env=test --base-url=http://127.0.0.1:5000 \
+        --dataset=small --profile=smoke --yes --json >> "$SILVERTASK_CERTIFICATION_LOG_FILE" 2>&1 || rc=$?
+    local ops
+    ops="$(st_perf_history_read 1 2>/dev/null | sed -n 's/.*"operations":\({[^}]*}\).*/\1/p' | head -1)"
+    if [ "$rc" -eq 0 ]; then
+        st_cert_report_stage "$REPORT_PATH" "performance_$label" "PASS" "0" "$ops"
+        st_info "[OK] performance ($label)"
+    else
+        st_cert_report_stage "$REPORT_PATH" "performance_$label" "FAIL" "$rc" "see $SILVERTASK_CERTIFICATION_LOG_FILE"
+        st_warn "Performance measurement failed for $label (exit $rc) — non-blocking, see $SILVERTASK_CERTIFICATION_LOG_FILE"
+    fi
+    printf '%s' "$ops"
+}
+
 run_stage "baseline_install"     3 stage_baseline_install
 run_stage "baseline_health"      4 stage_baseline_health
+PERF_BASELINE_OPS=""
+PERF_CANDIDATE_OPS=""
+if [ "$WITH_PERFORMANCE" = true ]; then
+    PERF_BASELINE_OPS="$(run_performance_stage baseline)"
+fi
 run_stage "candidate_prepare"    5 stage_candidate_prepare
 run_stage "candidate_activate"   6 stage_candidate_activate
 run_stage "candidate_validate"   7 stage_candidate_validate
+if [ "$WITH_PERFORMANCE" = true ]; then
+    PERF_CANDIDATE_OPS="$(run_performance_stage candidate)"
+fi
 run_stage "rollback"             8 stage_rollback
 run_stage "rollback_validate"    9 stage_rollback_validate
+
+# --- Regression comparison — reported, never blocking unless --fail-on-regression. A regression
+# is a >=50% slowdown with at least a 50ms absolute difference (so a 5ms->8ms blip on trivial data
+# never reads as an alarming "60% regression"). ---
+if [ "$WITH_PERFORMANCE" = true ] && [ -n "$PERF_BASELINE_OPS" ] && [ -n "$PERF_CANDIDATE_OPS" ]; then
+    st_step "performance regression comparison"
+    REGRESSION_FOUND=false
+    for op in login dashboard my_tasks project_sheet filter search_common admin_users; do
+        baseline_ms="$(st_cert_perf_extract "$PERF_BASELINE_OPS" "$op")"
+        candidate_ms="$(st_cert_perf_extract "$PERF_CANDIDATE_OPS" "$op")"
+        [ -n "$baseline_ms" ] && [ -n "$candidate_ms" ] || continue
+        is_regression="$(awk -v b="$baseline_ms" -v c="$candidate_ms" 'BEGIN { print (c > b * 1.5 && c - b > 50) ? "yes" : "no" }')"
+        if [ "$is_regression" = "yes" ]; then
+            REGRESSION_FOUND=true
+            st_warn "PERFORMANCE REGRESSION: $op ${baseline_ms}ms -> ${candidate_ms}ms"
+        fi
+    done
+    if [ "$REGRESSION_FOUND" = true ]; then
+        st_cert_report_stage "$REPORT_PATH" "performance_regression_check" "FAIL" "" "regression(s) detected — see $SILVERTASK_CERTIFICATION_LOG_FILE"
+        if [ "$FAIL_ON_REGRESSION" = true ]; then
+            st_cert_report_finish "$REPORT_PATH" "NOT_CERTIFIED" "performance_regression_check"
+            st_cert_log "certify: FAILED, performance regression detected with --fail-on-regression"
+            st_error "CERTIFICATION FAILED — performance regression detected and --fail-on-regression was passed."
+            st_error "Report: $REPORT_PATH"
+            exit 10
+        fi
+    else
+        st_cert_report_stage "$REPORT_PATH" "performance_regression_check" "PASS" "0" "no regression detected"
+        st_info "[OK] no performance regression detected"
+    fi
+fi
 
 # Every required stage passed — the verdict is locked in as CERTIFIED here, before cleanup runs,
 # so a teardown failure below can never flip a genuinely certified result to NOT_CERTIFIED (see

@@ -5,6 +5,16 @@
   background: var(--bg);
 }
 
+/* Phase 60 — only used above TaskTable.tsx's VIRTUALIZATION_ROW_THRESHOLD; a small/typical task
+   list never gets this and keeps the normal whole-page scroll. Bounded height is required for row
+   virtualization to mean anything (there has to be a fixed viewport for "off-screen" to be a
+   concept); .task-table th's existing `position: sticky; top: 0` keeps the header pinned to this
+   container's top as rows scroll underneath it, the same way it already pins to the page today. */
+.task-table__scroll-container {
+  overflow-y: auto;
+  max-height: 600px;
+}
+
 .task-table {
   border-collapse: separate;
   border-spacing: 0;

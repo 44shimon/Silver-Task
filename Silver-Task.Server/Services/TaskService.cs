@@ -1211,6 +1211,14 @@ namespace Silver_Task.Server.Services
             }
         }
 
+        // Phase 60 — a single task's activity history is naturally self-bounding (it only grows as
+        // fast as that one task is edited), but with no cap at all a pathologically long-lived,
+        // heavily-edited task could still return an unbounded list. 200 is far more than any UI
+        // would ever want to render for one task's history; not exposed as a request parameter
+        // since this is a safety ceiling, not a real pagination UX (unlike GetDeliveryLogAsync's
+        // genuinely page-through-able admin log).
+        private const int TaskActivityLimit = 200;
+
         public async Task<IReadOnlyList<TaskActivity>> GetActivitiesForTaskAsync(Guid taskId, Guid callerId, UserRole callerRole)
         {
             var task = await LoadTaskAsync(taskId);
@@ -1220,6 +1228,7 @@ namespace Silver_Task.Server.Services
                 .Include(a => a.User)
                 .Where(a => a.TaskId == taskId)
                 .OrderByDescending(a => a.CreatedAt)
+                .Take(TaskActivityLimit)
                 .ToListAsync();
         }
 

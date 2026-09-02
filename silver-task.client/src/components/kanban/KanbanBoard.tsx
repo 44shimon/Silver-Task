@@ -1,4 +1,4 @@
-import { useState, type DragEvent } from 'react';
+import { useMemo, useState, type DragEvent } from 'react';
 import type { Task, TaskStatus } from '@/types/task';
 import { taskFieldChange, useUpdateTask } from '@/hooks/useTasks';
 import { groupTasksByStatus } from '@/utils/kanbanGrouping';
@@ -25,7 +25,10 @@ export function KanbanBoard({ projectId, tasks, onOpenDetail, canEdit }: KanbanB
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
 
-  const columns = groupTasksByStatus(tasks);
+  // Phase 60 — was recomputed on every render (including every drag-over highlight change via
+  // setDragOverColumnId, which has nothing to do with the task list itself) before this memo;
+  // every other view (Calendar/Timeline/Gantt) already memoizes its equivalent derived grouping.
+  const columns = useMemo(() => groupTasksByStatus(tasks), [tasks]);
   const errorTaskId = updateTask.isError ? (updateTask.variables?.task.id ?? null) : null;
 
   function handleDrop(taskId: string, statusId: string) {
