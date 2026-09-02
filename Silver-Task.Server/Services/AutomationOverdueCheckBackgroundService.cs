@@ -24,11 +24,14 @@ namespace Silver_Task.Server.Services
     /// </summary>
     public class AutomationOverdueCheckBackgroundService(
         IServiceScopeFactory scopeFactory,
+        IWorkerHeartbeatRegistry heartbeats,
         ILogger<AutomationOverdueCheckBackgroundService> logger) : BackgroundService
     {
         private static readonly TimeSpan Interval = TimeSpan.FromMinutes(15);
+        private const string WorkerName = "automation-overdue-check";
 
         private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
+        private readonly IWorkerHeartbeatRegistry _heartbeats = heartbeats;
         private readonly ILogger<AutomationOverdueCheckBackgroundService> _logger = logger;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -74,6 +77,7 @@ namespace Silver_Task.Server.Services
                         .Where(t => ids.Contains(t.Id))
                         .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.OverdueAutomationProcessedAt, DateTime.UtcNow), stoppingToken);
                 }
+                _heartbeats.ReportSuccess(WorkerName, Interval);
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {

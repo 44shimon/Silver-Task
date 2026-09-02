@@ -67,6 +67,7 @@ below needs a real server/hosting account before it can be executed, not just do
 | Email | Real SMTP credentials (any provider — Microsoft 365, Google Workspace, SendGrid SMTP relay, etc.) | `Smtp__*` env vars — see `deploy/silvertask.env.example` |
 | Monitoring | See "Monitoring" section below | your existing ops stack |
 | Disk / memory / CPU | No unusual requirements — a small Postgres-backed CRUD app; size per expected user/task/attachment volume, monitor disk headroom for both the database and `Attachments:StorageRoot` | your infrastructure |
+| Security | See [docs/security-checklist.md](docs/security-checklist.md) (Phase 59) — run `sudo ./scripts/update-debian.sh --security-check` after deployment, and apply the hardened `deploy/silvertask.service` manually if upgrading an existing installation (`--activate` never re-copies the systemd unit) | this repo's own tooling + your infrastructure |
 
 ## Deployment steps
 
@@ -154,18 +155,28 @@ provides for a monitoring stack to hook into:
   liveness/readiness from any external monitor (Uptime Robot, a Kubernetes/orchestrator probe, a
   simple cron + alert script). `/ready` failing means "app is up but the database is unreachable,"
   which is the single most useful automated signal this app can currently give you.
+- `GET /api/admin/diagnostics` (Phase 58, Administrator-only — see
+  [docs/monitoring-runbook.md](docs/monitoring-runbook.md)) — a richer `healthy`/`degraded`/
+  `failing` snapshot on top of the anonymous health endpoints above: database latency (not just
+  reachability), attachment storage disk space/free percentage, and a per-worker heartbeat for
+  each of the 6 interval-driven background services (email delivery, digest scheduling, due-date
+  notifications, recurring task generation, automation overdue checks, notification retention).
+  `sudo ./scripts/update-debian.sh --doctor` also gained a matching read-only check against the
+  anonymous health endpoint.
 - Structured application logs via the standard ASP.NET Core `ILogger` — every background service
   logs failures per-tick (`_logger.LogError`) rather than crashing silently; ship stdout/stderr
   (or `journalctl -u silvertask` under the example systemd unit) to whatever log aggregation you
-  already run.
+  already run. The monitoring runbook above maps a `degraded` worker back to the exact log message
+  to grep for.
 - The Admin → Email delivery log (`/api/admin/email/deliveries`) is a built-in, admin-visible
   signal for email-specific failures without needing external tooling.
-- Disk space for both PostgreSQL's own data directory and `Attachments:StorageRoot` should be
-  monitored by your existing host-level tooling — this app doesn't self-report disk usage.
+- Disk space for PostgreSQL's own data directory should still be monitored by your existing
+  host-level tooling — only `Attachments:StorageRoot` is self-reported (via the new diagnostics
+  endpoint above).
 
 Building a dedicated metrics/APM integration is real, additional work — not attempted here per the
-phase's "do not rebuild the application" instruction; the health endpoints above are the
-appropriately-scoped v1.0.0 answer to "can the outside world tell if this is broken."
+phase's "do not rebuild the application" instruction; the health/diagnostics endpoints above are
+the appropriately-scoped answer to "can the outside world tell if this is broken, and why."
 
 ## Rollback procedure
 

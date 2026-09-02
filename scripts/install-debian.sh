@@ -361,6 +361,7 @@ sed \
     -e "s#ExecStart=.*#ExecStart=$DOTNET_BIN $SILVERTASK_PUBLISH_DIR/Silver-Task.Server.dll#" \
     -e "s#User=.*#User=$SILVERTASK_SERVICE_USER#" \
     -e "s#EnvironmentFile=.*#EnvironmentFile=$SILVERTASK_ENV_FILE#" \
+    -e "s#ReadWritePaths=.*#ReadWritePaths=$SILVERTASK_INSTALL_DIR $STORAGE_ROOT#" \
     "$REPO_ROOT/deploy/silvertask.service" > "/etc/systemd/system/${SILVERTASK_SERVICE_NAME}.service"
 systemctl daemon-reload
 systemctl enable "$SILVERTASK_SERVICE_NAME" >> "$SILVERTASK_LOG_FILE" 2>&1

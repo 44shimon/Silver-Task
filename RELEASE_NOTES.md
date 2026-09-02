@@ -119,5 +119,8 @@ deployment/release preparation work are all new since the last major documented 
   `DEPLOYMENT.md`'s "Monitoring" section.
 - **~910KB single-chunk frontend bundle** (234KB gzipped) — functional, but a candidate for
   route-level code-splitting in a future release.
-- One **Medium** (dormant — see `README.md`) and several **Low** findings from the Phase 47 audit
-  remain open by design; none are security-critical or user-facing.
+- Phase 47's audit had one Low finding (a hardcoded demo-seed password, already correctly gated to
+  `--seed` + `Environment.IsDevelopment()` — see `README.md`'s "Security" section); the one Medium
+  finding from that audit (admin Email Templates Reset/Preview showing no failure feedback) was
+  fixed in this same release, above. *(Corrected in Phase 59 — this bullet previously described
+  the Medium finding as still open, which stopped being accurate the moment it was fixed.)*

@@ -61,6 +61,7 @@
 #   7 repository access failure           16 migration planning failed     25 interrupted upgrade detected (--status) 34 interrupted rollback detected (--status)
 #   8 insufficient disk space             17 activation prerequisites missing 26 rollback eligibility failed
 #   35 blocked by maintenance-window policy   36 preflight (--doctor) check failed   37 invalid/disallowed release channel
+#   38 security posture check (--security-check) failed
 #
 # Codes 6/18/19 are reused for the equivalent rollback failure categories (lock busy / maintenance
 # mode / release-switch) — same meaning Phase 54 already gave them, not redefined.
@@ -107,6 +108,9 @@ Release channels, history, maintenance window, and preflight (Phase 56):
   --limit=N                 With --history: how many entries to show (default 20).
   --doctor                  Preflight-check the toolchain, configuration, and installation state.
                             Read-only — modifies nothing.
+  --security-check          Check the deployed security posture (file permissions, firewall,
+                            PostgreSQL exposure, systemd hardening, response headers). Read-only —
+                            modifies nothing. See docs/security-checklist.md.
   --override-maintenance-window  With --activate/--rollback: proceed even if an
                             Upgrade__MaintenanceWindow policy is configured and the current time is
                             outside it (requires typed confirmation).
@@ -134,7 +138,7 @@ EOF
 }
 
 # --- Argument parsing ---
-MODE="legacy"              # legacy | check | status | prepare | activate | rollback | history | doctor | help
+MODE="legacy"              # legacy | check | status | prepare | activate | rollback | history | doctor | security-check | help
 TARGET_SELECTOR=""         # "" | "latest" | "target-version"
 TARGET_VERSION=""
 DRY_RUN=false
@@ -152,7 +156,7 @@ OVERRIDE_MAINTENANCE_WINDOW=false
 st_up_require_mode_legacy() {
     if [ "$MODE" != "legacy" ]; then
         st_up_usage >&2
-        echo "ERROR: --check, --status, --latest, --target-version, --activate, --rollback, --history, and --doctor cannot be combined with each other." >&2
+        echo "ERROR: --check, --status, --latest, --target-version, --activate, --rollback, --history, --doctor, and --security-check cannot be combined with each other." >&2
         exit 2
     fi
 }
@@ -204,6 +208,7 @@ while [ $# -gt 0 ]; do
         --history) st_up_require_mode_legacy; MODE="history" ;;
         --limit=*) HISTORY_LIMIT="${1#*=}"; LIMIT_EXPLICIT=true ;;
         --doctor) st_up_require_mode_legacy; MODE="doctor" ;;
+        --security-check) st_up_require_mode_legacy; MODE="security-check" ;;
         --override-maintenance-window) OVERRIDE_MAINTENANCE_WINDOW=true ;;
         --help|-h) MODE="help" ;;
         *)
@@ -1859,11 +1864,141 @@ cmd_doctor() {
         warn=$((warn + 1))
     fi
 
+    # Phase 58 — one more read-only signal: is the currently-running application actually healthy
+    # right now? Never a FAIL (an already-unhealthy app is exactly the kind of thing --doctor might
+    # be run to help diagnose, so it must not itself block the rest of the preflight report) — and
+    # only the existing anonymous /api/health/ready is used, no credentials needed. See
+    # docs/monitoring-runbook.md for the richer, admin-only GET /api/admin/diagnostics.
+    st_step "Checking application health"
+    if curl -fsS --max-time 5 "http://127.0.0.1:5000/api/health/ready" >/dev/null 2>&1; then
+        echo "  PASS  application reports healthy (GET /api/health/ready)"
+    else
+        echo "  WARN  application did not report healthy on GET /api/health/ready (service may be stopped, starting, or the database may be unreachable)"
+        warn=$((warn + 1))
+    fi
+
     echo ""
     echo "Summary: $fail FAIL, $warn WARN"
     st_up_log "doctor: $fail FAIL, $warn WARN"
     if [ "$fail" -gt 0 ]; then
         exit 36
+    fi
+    exit 0
+}
+
+# --- Phase 59 — security posture check. Deliberately separate from --doctor (which is toolchain/
+# operational readiness for an upgrade, not security posture) rather than folding checks into it —
+# each command stays focused, matching this script's own established pattern of narrow, single-
+# purpose modes. Read-only, modifies nothing. See docs/security-checklist.md for remediation.
+st_up_check_perm() {
+    local path="$1" expected="$2" label="$3"
+    local actual
+    actual="$(stat -c '%a' "$path" 2>/dev/null)" || return 2
+    if [ "$actual" = "$expected" ]; then
+        echo "  PASS  $label is $expected"
+        return 0
+    fi
+    echo "  WARN  $label is $actual, expected $expected"
+    return 1
+}
+
+cmd_security_check() {
+    echo "Silver Task Security Posture Check (--security-check)"
+    echo "Read-only — nothing below modifies the installation. See docs/security-checklist.md."
+    echo ""
+    local fail=0 warn=0
+
+    st_step "Checking file permissions"
+    if [ -f "$SILVERTASK_ENV_FILE" ]; then
+        st_up_check_perm "$SILVERTASK_ENV_FILE" "640" "$SILVERTASK_ENV_FILE" || warn=$((warn + 1))
+    else
+        echo "  WARN  $SILVERTASK_ENV_FILE not found — cannot check its permissions"
+        warn=$((warn + 1))
+    fi
+    if [ -d "$SILVERTASK_BACKUP_DIR" ]; then
+        st_up_check_perm "$SILVERTASK_BACKUP_DIR" "700" "$SILVERTASK_BACKUP_DIR" || warn=$((warn + 1))
+    else
+        echo "  PASS  $SILVERTASK_BACKUP_DIR does not exist yet (nothing to check)"
+    fi
+    local storage_root
+    storage_root="$(sed -n 's/^Attachments__StorageRoot=//p' "$SILVERTASK_ENV_FILE" 2>/dev/null | head -1)"
+    storage_root="${storage_root:-/var/lib/silver-task/attachments}"
+    if [ -d "$storage_root" ]; then
+        st_up_check_perm "$storage_root" "750" "attachments storage root ($storage_root)" || warn=$((warn + 1))
+    else
+        echo "  WARN  attachments storage root ($storage_root) does not exist"
+        warn=$((warn + 1))
+    fi
+    if [ -f "$SILVERTASK_MAINTENANCE_FLAG_FILE" ]; then
+        st_up_check_perm "$SILVERTASK_MAINTENANCE_FLAG_FILE" "640" "maintenance flag file" || warn=$((warn + 1))
+    else
+        echo "  PASS  maintenance flag file not present (maintenance mode not active)"
+    fi
+
+    st_step "Checking firewall (ufw)"
+    if command -v ufw >/dev/null 2>&1; then
+        if ufw status 2>/dev/null | grep -q "^Status: active"; then
+            echo "  PASS  ufw is active"
+        else
+            echo "  WARN  ufw is installed but not active"
+            warn=$((warn + 1))
+        fi
+    else
+        echo "  WARN  ufw not found on PATH — firewall state could not be checked"
+        warn=$((warn + 1))
+    fi
+
+    st_step "Checking PostgreSQL is not publicly exposed"
+    if command -v ss >/dev/null 2>&1; then
+        local pg_listen
+        pg_listen="$(ss -tln 2>/dev/null | grep ':5432 ' || true)"
+        if [ -z "$pg_listen" ]; then
+            echo "  PASS  nothing listening on 5432 from this host's perspective (or ss unavailable)"
+        elif printf '%s\n' "$pg_listen" | grep -qE '(127\.0\.0\.1|\[?::1\]?):5432'; then
+            echo "  PASS  PostgreSQL listens on loopback only"
+        else
+            echo "  FAIL  PostgreSQL appears to be listening on a non-loopback address:"
+            echo "        $pg_listen"
+            fail=$((fail + 1))
+        fi
+    else
+        echo "  WARN  ss not found on PATH — PostgreSQL exposure could not be checked"
+        warn=$((warn + 1))
+    fi
+
+    st_step "Checking systemd unit hardening"
+    local unit_file="/etc/systemd/system/${SILVERTASK_SERVICE_NAME}.service"
+    if [ -f "$unit_file" ]; then
+        if grep -q "^ProtectSystem=" "$unit_file" 2>/dev/null; then
+            echo "  PASS  deployed unit includes systemd sandboxing directives"
+        else
+            echo "  WARN  deployed unit ($unit_file) predates Phase 59's systemd hardening — see"
+            echo "        docs/security-checklist.md \"Applying this to an existing installation\""
+            warn=$((warn + 1))
+        fi
+    else
+        echo "  WARN  $unit_file not found — cannot check systemd hardening"
+        warn=$((warn + 1))
+    fi
+
+    st_step "Checking application security headers"
+    local headers
+    headers="$(curl -fsSI --max-time 5 "http://127.0.0.1:5000/api/health" 2>/dev/null || true)"
+    if [ -z "$headers" ]; then
+        echo "  WARN  could not reach the application to check response headers"
+        warn=$((warn + 1))
+    elif printf '%s' "$headers" | grep -qi "^Content-Security-Policy:"; then
+        echo "  PASS  security response headers present"
+    else
+        echo "  FAIL  Content-Security-Policy header missing from the application's own response"
+        fail=$((fail + 1))
+    fi
+
+    echo ""
+    echo "Summary: $fail FAIL, $warn WARN"
+    st_up_log "security-check: $fail FAIL, $warn WARN"
+    if [ "$fail" -gt 0 ]; then
+        exit 38
     fi
     exit 0
 }
@@ -1876,6 +2011,7 @@ case "$MODE" in
     rollback) cmd_rollback ;;
     history) cmd_history ;;
     doctor) cmd_doctor ;;
+    security-check) cmd_security_check ;;
 esac
 
 # --- Legacy full update (Phase 51 and earlier — unchanged) ---

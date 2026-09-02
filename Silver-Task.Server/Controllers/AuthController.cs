@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Silver_Task.Server.Common;
 using Silver_Task.Server.Models.DTOs.Auth;
 using Silver_Task.Server.Models.DTOs.Users;
@@ -15,8 +16,13 @@ namespace Silver_Task.Server.Controllers
         private readonly IUserService _userService = userService;
         private readonly IPermissionService _permissionService = permissionService;
 
+        /// <summary>Phase 59 — the "login" rate-limit policy (Program.cs, partitioned per client
+        /// IP) is on top of, not instead of, AuthService's existing per-account lockout: the
+        /// lockout stops repeated guesses against one account, this stops spraying many accounts
+        /// (or plain brute force) from one source fast enough to matter.</summary>
         [HttpPost("login")]
         [AllowAnonymous]
+        [EnableRateLimiting("login")]
         public async Task<ActionResult<UserDto>> Login([FromBody] LoginRequest request)
         {
             var result = await _authService.LoginAsync(request.Email, request.Password);

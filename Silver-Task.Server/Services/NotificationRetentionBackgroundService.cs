@@ -10,11 +10,14 @@ namespace Silver_Task.Server.Services
     /// </summary>
     public class NotificationRetentionBackgroundService(
         IServiceScopeFactory scopeFactory,
+        IWorkerHeartbeatRegistry heartbeats,
         ILogger<NotificationRetentionBackgroundService> logger) : BackgroundService
     {
         private static readonly TimeSpan Interval = TimeSpan.FromHours(24);
+        private const string WorkerName = "notification-retention";
 
         private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
+        private readonly IWorkerHeartbeatRegistry _heartbeats = heartbeats;
         private readonly ILogger<NotificationRetentionBackgroundService> _logger = logger;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -35,6 +38,7 @@ namespace Silver_Task.Server.Services
                 using var scope = _scopeFactory.CreateScope();
                 var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
                 await notificationService.PurgeExpiredAsync();
+                _heartbeats.ReportSuccess(WorkerName, Interval);
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {

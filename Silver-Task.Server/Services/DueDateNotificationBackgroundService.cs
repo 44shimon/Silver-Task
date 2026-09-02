@@ -15,11 +15,14 @@ namespace Silver_Task.Server.Services
     /// </summary>
     public class DueDateNotificationBackgroundService(
         IServiceScopeFactory scopeFactory,
+        IWorkerHeartbeatRegistry heartbeats,
         ILogger<DueDateNotificationBackgroundService> logger) : BackgroundService
     {
         private static readonly TimeSpan Interval = TimeSpan.FromMinutes(15);
+        private const string WorkerName = "due-date-notifications";
 
         private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
+        private readonly IWorkerHeartbeatRegistry _heartbeats = heartbeats;
         private readonly ILogger<DueDateNotificationBackgroundService> _logger = logger;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -43,6 +46,7 @@ namespace Silver_Task.Server.Services
                 using var scope = _scopeFactory.CreateScope();
                 var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
                 await notificationService.CreateDueSoonAndOverdueNotificationsAsync();
+                _heartbeats.ReportSuccess(WorkerName, Interval);
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {

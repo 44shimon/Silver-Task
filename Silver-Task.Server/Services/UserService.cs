@@ -27,8 +27,10 @@ namespace Silver_Task.Server.Services
         Task<User> UpdateAsync(Guid id, UpdateUserRequest request, Guid callerId);
 
         /// <summary>Admin-only password reset — the existing IPasswordHasher is reused, so this
-        /// stores a hash exactly like a normal signup/login rehash, never the plaintext.</summary>
-        Task ResetPasswordAsync(Guid id, string newPassword);
+        /// stores a hash exactly like a normal signup/login rehash, never the plaintext. callerId
+        /// is logged (Phase 59 admin-action audit trail — see the implementation's doc comment),
+        /// never used for authorization here (UsersController is already Administrator-gated).</summary>
+        Task ResetPasswordAsync(Guid id, string newPassword, Guid callerId);
 
         /// <summary>Self-service profile edit — Name/Email only. Unlike UpdateAsync (the
         /// Administrator-only full edit), there is no Role/IsActive parameter at all here, so
@@ -50,12 +52,14 @@ namespace Silver_Task.Server.Services
         AppDbContext db,
         IPasswordHasher<User> passwordHasher,
         ISystemSettingsService systemSettings,
-        INotificationService notificationService) : IUserService
+        INotificationService notificationService,
+        ILogger<UserService> logger) : IUserService
     {
         private readonly AppDbContext _db = db;
         private readonly IPasswordHasher<User> _passwordHasher = passwordHasher;
         private readonly ISystemSettingsService _systemSettings = systemSettings;
         private readonly INotificationService _notificationService = notificationService;
+        private readonly ILogger<UserService> _logger = logger;
 
         // Deleted users never appear in the normal admin list — same "gone from active lists,
         // preserved in historical records" split Phase 25 already established for custom fields.
@@ -116,11 +120,28 @@ namespace Silver_Task.Server.Services
             }
 
             var previousRole = user.Role;
+            var previousIsActive = user.IsActive;
 
             user.Name = request.Name.Trim();
             user.Role = request.Role;
             user.IsActive = request.IsActive;
             user.UpdatedAt = DateTime.UtcNow;
+
+            // Phase 59 — admin-action audit trail. Role/active-state changes are the two fields on
+            // this endpoint with real security consequences (everything else, like Name, is
+            // cosmetic) — logged distinctly from ordinary CRUD so they're greppable on their own.
+            if (previousRole != request.Role)
+            {
+                _logger.LogWarning(
+                    "Admin action: user {UserId} role changed from {PreviousRole} to {NewRole} by {CallerId}",
+                    user.Id, previousRole, request.Role, callerId);
+            }
+            if (previousIsActive != request.IsActive)
+            {
+                _logger.LogWarning(
+                    "Admin action: user {UserId} {ActiveState} by {CallerId}",
+                    user.Id, request.IsActive ? "activated" : "deactivated", callerId);
+            }
 
             if (previousRole != request.Role)
             {
@@ -133,7 +154,7 @@ namespace Silver_Task.Server.Services
             return user;
         }
 
-        public async Task ResetPasswordAsync(Guid id, string newPassword)
+        public async Task ResetPasswordAsync(Guid id, string newPassword, Guid callerId)
         {
             await ValidatePasswordAsync(newPassword);
 
@@ -141,6 +162,8 @@ namespace Silver_Task.Server.Services
             user.PasswordHash = _passwordHasher.HashPassword(user, newPassword);
             user.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
+
+            _logger.LogWarning("Admin action: password reset for user {UserId} by {CallerId}", user.Id, callerId);
         }
 
         public async Task<User> UpdateProfileAsync(Guid id, UpdateProfileRequest request)
@@ -219,6 +242,8 @@ namespace Silver_Task.Server.Services
             user.UpdatedAt = DateTime.UtcNow;
 
             await _db.SaveChangesAsync();
+
+            _logger.LogWarning("Admin action: user {UserId} deleted by {CallerId}", user.Id, callerId);
         }
 
         /// <summary>Shared by every password-setting path (signup, admin reset, self-service

@@ -28,11 +28,14 @@ namespace Silver_Task.Server.Services
     /// </summary>
     public class DigestSchedulerBackgroundService(
         IServiceScopeFactory scopeFactory,
+        IWorkerHeartbeatRegistry heartbeats,
         ILogger<DigestSchedulerBackgroundService> logger) : BackgroundService
     {
         private static readonly TimeSpan Interval = TimeSpan.FromMinutes(10);
+        private const string WorkerName = "digest-scheduler";
 
         private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
+        private readonly IWorkerHeartbeatRegistry _heartbeats = heartbeats;
         private readonly ILogger<DigestSchedulerBackgroundService> _logger = logger;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -67,6 +70,8 @@ namespace Silver_Task.Server.Services
                     isDue: p => IsDueWeekly(p, utcNow),
                     generate: (svc, userId, ct) => svc.TryGenerateWeeklyDigestAsync(userId, ct),
                     stoppingToken);
+
+                _heartbeats.ReportSuccess(WorkerName, Interval);
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {

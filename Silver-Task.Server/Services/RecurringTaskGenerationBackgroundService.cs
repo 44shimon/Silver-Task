@@ -14,11 +14,14 @@ namespace Silver_Task.Server.Services
     /// </summary>
     public class RecurringTaskGenerationBackgroundService(
         IServiceScopeFactory scopeFactory,
+        IWorkerHeartbeatRegistry heartbeats,
         ILogger<RecurringTaskGenerationBackgroundService> logger) : BackgroundService
     {
         private static readonly TimeSpan Interval = TimeSpan.FromMinutes(5);
+        private const string WorkerName = "recurring-task-generation";
 
         private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
+        private readonly IWorkerHeartbeatRegistry _heartbeats = heartbeats;
         private readonly ILogger<RecurringTaskGenerationBackgroundService> _logger = logger;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -44,6 +47,7 @@ namespace Silver_Task.Server.Services
                 {
                     _logger.LogInformation("Recurring task sweep generated {Count} occurrence(s).", generatedCount);
                 }
+                _heartbeats.ReportSuccess(WorkerName, Interval);
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {

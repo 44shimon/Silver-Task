@@ -65,7 +65,7 @@ namespace Silver_Task.Server.Controllers
         [HttpPost("{id:guid}/reset-password")]
         public async Task<IActionResult> ResetPassword(Guid id, [FromBody] ResetPasswordRequest request)
         {
-            await _userService.ResetPasswordAsync(id, request.NewPassword);
+            await _userService.ResetPasswordAsync(id, request.NewPassword, User.GetUserId());
             return NoContent();
         }
     }

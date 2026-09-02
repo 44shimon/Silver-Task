@@ -139,7 +139,7 @@ namespace Silver_Task.Server.Services
         private readonly ITagService _tagService = tagService;
         private readonly IAutomationDispatcher _automationDispatcher = automationDispatcher;
         private readonly INotificationService _notificationService = notificationService;
-        private readonly string _storageRoot = ResolveStorageRoot(configuration, environment);
+        private readonly string _storageRoot = AttachmentStorageResolver.ResolveStorageRoot(configuration, environment);
 
         private IQueryable<Attachment> WithDisplayIncludes(IQueryable<Attachment> query) =>
             query.Include(a => a.Folder)
@@ -1122,16 +1122,6 @@ namespace Silver_Task.Server.Services
                 .Include(a => a.DeletedByUser)
                 .FirstOrDefaultAsync(a => a.Id == attachmentId);
             return attachment ?? throw new NotFoundException($"Attachment '{attachmentId}' was not found.");
-        }
-
-        private static string ResolveStorageRoot(IConfiguration configuration, IWebHostEnvironment environment)
-        {
-            var configuredRoot = configuration["Attachments:StorageRoot"];
-            if (string.IsNullOrWhiteSpace(configuredRoot))
-            {
-                configuredRoot = "App_Data/attachments";
-            }
-            return Path.IsPathRooted(configuredRoot) ? configuredRoot : Path.Combine(environment.ContentRootPath, configuredRoot);
         }
     }
 }

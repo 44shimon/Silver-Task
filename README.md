@@ -273,6 +273,11 @@ based on) and wires it into the systemd service via `EnvironmentFile=`.
 | `Maintenance__FlagFile` | Path checked by `MaintenanceModeMiddleware` — see [Upgrade Engine](#upgrade-engine) → "Activation." Empty/unset disables maintenance mode entirely | No — `install-debian.sh` sets it automatically |
 | `Upgrade__Channel` | Release channel (`stable` or `beta`) for `scripts/update-debian.sh --check/--status/--latest/--target-version` — see [Upgrade Engine](#upgrade-engine) → "Release channels." An explicit `--channel` flag overrides this | No — defaults to `stable` |
 | `Upgrade__MaintenanceWindow` | `HH:MM-HH:MM` (server-local time) restricting when `--activate`/`--rollback` may run — see [Upgrade Engine](#upgrade-engine) → "Maintenance window policy" | No — unset means no restriction |
+| `Diagnostics__DbLatencyDegradedMs` | Database round-trip time (ms) above which `GET /api/admin/diagnostics` reports `database.status` as `degraded` — see [docs/monitoring-runbook.md](docs/monitoring-runbook.md) | No — defaults to `1000` |
+| `Diagnostics__DiskFreePercentDegraded` | Free-space percentage on the attachments storage drive below which `diskSpace.status` is `degraded` | No — defaults to `10` |
+| `Diagnostics__WorkerStaleMultiplier` | A background worker is `degraded` once its last successful tick is older than its own interval times this multiplier | No — defaults to `3` |
+| `Security__LoginRateLimit__PermitLimit` | Max `POST /api/auth/login` attempts per client IP per window — see [Security](#security) → "Security hardening" | No — defaults to `10` |
+| `Security__LoginRateLimit__WindowSeconds` | The window (seconds) the above limit applies over | No — defaults to `60` |
 
 ## Database
 
@@ -356,6 +361,11 @@ distributed locking in this codebase — see [Known limitations](#known-limitati
 service the installer creates runs exactly one instance, with `Restart=always` so a crashed process
 comes back automatically; do not scale this service horizontally without adding distributed
 coordination first.
+
+The 6 interval-driven workers (everything above except automation execution, which is event-driven)
+each report a heartbeat after every successful tick — see
+[docs/monitoring-runbook.md](docs/monitoring-runbook.md) for how to read that via
+`GET /api/admin/diagnostics` and what a stale worker means.
 
 ## Updating
 
@@ -922,6 +932,38 @@ manually:
   admin routes) with **no Critical, High, or Medium findings**. See
   [Release Information](#release-information) for the full audit history.
 
+### Security hardening (Phase 59)
+
+> Inferred scope — see [docs/security-checklist.md](docs/security-checklist.md) for the full
+> design rationale and administrator checklist covering authentication, authorization, secrets,
+> configuration, deployment, input validation, headers, audit events, and dependency review.
+
+Built on top of the Phase 47 audit above, closing gaps found by a renewed audit against the full
+Phases 1–58 implementation (not just the original v1.0.0 code):
+
+- **Security response headers** on every response (`SecurityHeadersMiddleware`) —
+  `Content-Security-Policy: default-src 'self'` (verified safe for this SPA: no inline scripts/
+  styles, no CSS-in-JS, no external CDNs, same-origin SignalR), `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Strict-
+  Transport-Security` (`UseHsts()`, Production only).
+- **Login rate limiting** — `POST /api/auth/login` is limited per client IP (`Security__LoginRateLimit__PermitLimit`,
+  default 10/60s), on top of the existing per-account lockout — the lockout stops repeated guesses
+  against one account, this stops spraying many accounts from one source.
+- **Admin-action audit logging** — role changes, activation/deactivation, password resets, and
+  user deletion now log a structured `ILogger` line (`Admin action: ...`), the same mechanism this
+  app already documents as its audit trail (ships to wherever you send `journalctl -u silvertask`).
+- **systemd sandboxing** — `deploy/silvertask.service` now includes standard hardening directives
+  (`ProtectSystem=strict`, `NoNewPrivileges`, `PrivateTmp`, etc.) on top of already running as a
+  non-root user. **Existing installations**: `--activate` never re-copies the systemd unit, so this
+  does not apply automatically on upgrade — see the checklist for how to apply it manually.
+- **`scripts/update-debian.sh --security-check`** — a new read-only PASS/WARN/FAIL mode (mirrors
+  `--doctor`) checking file permissions, firewall state, PostgreSQL exposure, systemd hardening,
+  and response headers.
+- **`scripts/check-dependencies.sh`** — wraps `dotnet list package --vulnerable`/`npm audit`
+  (dev/CI use, alongside `certify-release.sh`, not run on every production deploy).
+- **`scripts/security-probe.sh`** — a repeatable, live version of Phase 47's one-time manual audit:
+  unauthenticated access, cross-role access, and an IDOR probe against a running instance.
+
 ## Uninstallation
 
 ```bash
@@ -957,6 +999,8 @@ Silver-Task/
 │   ├── backup-debian.sh
 │   ├── uninstall-debian.sh
 │   ├── certify-release.sh     Automated install/upgrade/rollback lifecycle testing (disposable hosts only)
+│   ├── check-dependencies.sh  Dependency vulnerability scan (dotnet/npm), dev/CI use
+│   ├── security-probe.sh      Live unauthenticated/unauthorized/IDOR probe against a running instance
 │   └── lib/common.sh          Shared helpers (logging, checks, secret generation)
 │
 ├── deploy/                    Reference config templates the installer generates from
@@ -1149,6 +1193,28 @@ for 45–47, their own dedicated sections there.
   gates anything in the runtime upgrade engine. See [Upgrade Engine](#upgrade-engine) →
   "Automated upgrade testing & release certification." No change to any Phase 51–56 default
   behavior; `update-debian.sh` itself is untouched by this phase.
+- [x] **Phase 58** — Production Monitoring, Diagnostics & Operational Health *(inferred scope — the
+  original spec never arrived intact; see [docs/monitoring-runbook.md](docs/monitoring-runbook.md)
+  for the full explanation)*. A new Administrator-only `GET /api/admin/diagnostics` reports a
+  single `healthy`/`degraded`/`failing` verdict (database reachability + latency, attachment
+  storage disk space, and a heartbeat from each of the 6 interval-driven background workers) —
+  the existing anonymous `GET /api/health`/`GET /api/health/ready` are untouched, still used by
+  external uptime monitors. `scripts/update-debian.sh --doctor` gained one more read-only check
+  against the existing health endpoint. No new required configuration — three optional
+  `Diagnostics__*` thresholds all have defaults, so existing installations remain compatible with
+  zero configuration changes.
+- [x] **Phase 59** — Security Hardening & Production Security Validation *(inferred scope — the
+  original spec never arrived intact; see [docs/security-checklist.md](docs/security-checklist.md)
+  for the full explanation)*. A renewed audit against Phases 1–58 (not just the original Phase 47
+  code) found and fixed: no security response headers anywhere (now
+  `SecurityHeadersMiddleware` — CSP/`X-Content-Type-Options`/`X-Frame-Options`/`Referrer-Policy`/
+  HSTS), no rate limiting on login (now IP-partitioned, on top of the existing per-account
+  lockout), no admin-action audit logging (`UserService` role/activation/password-reset/deletion
+  now logged), and zero systemd sandboxing in `deploy/silvertask.service` (now hardened — existing
+  installs must apply it manually, since `--activate` never re-copies the unit). Added
+  `--security-check` (mirrors `--doctor`), `check-dependencies.sh`, and `security-probe.sh` (a
+  scripted, repeatable version of Phase 47's one-time manual audit). Also corrected a stale
+  `RELEASE_NOTES.md` claim about an already-fixed finding. No new *required* configuration.
 
 ### GitHub / secrets hygiene
 

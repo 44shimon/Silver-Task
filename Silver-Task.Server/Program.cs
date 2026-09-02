@@ -100,6 +100,28 @@ builder.Services.AddAuthorization(options =>
         .Build();
 });
 
+// Phase 59 — first-party, ships in the shared framework already (no new package). Only applied to
+// AuthController.Login ([EnableRateLimiting("login")]) — this is on top of, not instead of,
+// AuthService's existing per-account lockout (see AuthService.cs); the lockout stops repeated
+// guesses against one account, this stops spraying many accounts from one IP fast enough to
+// matter. Partitioned per client IP so one abusive source can't exhaust a shared global limit and
+// lock out everyone else. Threshold is generous by design (default 10/60s) — well above any
+// plausible legitimate login-retry pattern, well below what a credential-stuffing script wants.
+var loginRateLimitPermits = builder.Configuration.GetValue("Security:LoginRateLimit:PermitLimit", 10);
+var loginRateLimitWindowSeconds = builder.Configuration.GetValue("Security:LoginRateLimit:WindowSeconds", 60);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("login", context => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+        {
+            PermitLimit = loginRateLimitPermits,
+            Window = TimeSpan.FromSeconds(loginRateLimitWindowSeconds),
+            QueueLimit = 0
+        }));
+});
+
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IUserService, UserService>();
@@ -143,6 +165,11 @@ builder.Services.AddScoped<ITemplateService, TemplateService>();
 builder.Services.AddScoped<ITemplateInstantiationService, TemplateInstantiationService>();
 builder.Services.AddScoped<ISavedViewFilterEngine, SavedViewFilterEngine>();
 builder.Services.AddScoped<ISavedViewService, SavedViewService>();
+// Singleton — must be shared across every background service (themselves singletons via
+// AddHostedService) and outlive per-request scopes. See IWorkerHeartbeatRegistry's own doc
+// comment.
+builder.Services.AddSingleton<IWorkerHeartbeatRegistry, WorkerHeartbeatRegistry>();
+builder.Services.AddScoped<IDiagnosticsService, DiagnosticsService>();
 builder.Services.AddHostedService<DueDateNotificationBackgroundService>();
 builder.Services.AddHostedService<RecurringTaskGenerationBackgroundService>();
 builder.Services.AddHostedService<AutomationQueueBackgroundService>();
@@ -203,6 +230,12 @@ foreach (var proxy in app.Configuration.GetSection("ForwardedHeaders:KnownProxie
 }
 app.UseForwardedHeaders(forwardedHeadersOptions);
 
+// Phase 59 — registered before MaintenanceModeMiddleware specifically so even a 503 maintenance
+// response (which short-circuits before reaching anything below it) still carries these headers —
+// SecurityHeadersMiddleware only registers an OnStarting callback, it never itself short-circuits
+// or blocks the request.
+app.UseMiddleware<SecurityHeadersMiddleware>();
+
 // Phase 54 — checked before literally everything else (including ExceptionHandlingMiddleware and
 // the static SPA assets below), so a maintenance window enabled by scripts/update-debian.sh
 // --activate blocks the whole app, not just authenticated API routes. See the middleware's own
@@ -228,6 +261,13 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// Phase 59 — HSTS is never sent in Development (a dev instance is almost always plain HTTP over
+// localhost; browsers cache the HSTS directive and would then force HTTPS even for that localhost
+// origin, breaking the dev workflow). Matches the standard ASP.NET Core template's own gating.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
 app.UseHttpsRedirection();
 
 app.UseCors(FrontendCorsPolicy);
@@ -235,6 +275,7 @@ app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseMiddleware<ActiveUserMiddleware>();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");

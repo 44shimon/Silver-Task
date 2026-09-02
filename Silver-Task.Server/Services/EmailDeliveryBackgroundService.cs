@@ -15,12 +15,15 @@ namespace Silver_Task.Server.Services
     /// </summary>
     public class EmailDeliveryBackgroundService(
         IServiceScopeFactory scopeFactory,
+        IWorkerHeartbeatRegistry heartbeats,
         ILogger<EmailDeliveryBackgroundService> logger) : BackgroundService
     {
         private static readonly TimeSpan Interval = TimeSpan.FromSeconds(20);
         private const int BatchSize = 50;
+        private const string WorkerName = "email-delivery";
 
         private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
+        private readonly IWorkerHeartbeatRegistry _heartbeats = heartbeats;
         private readonly ILogger<EmailDeliveryBackgroundService> _logger = logger;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -42,24 +45,23 @@ namespace Silver_Task.Server.Services
                 var deliveryService = scope.ServiceProvider.GetRequiredService<IEmailDeliveryService>();
 
                 var due = await deliveryService.ClaimDueAsync(BatchSize, stoppingToken);
-                if (due.Count == 0)
+                if (due.Count > 0)
                 {
-                    return;
-                }
-
-                var groups = due.GroupBy(d => (d.RecipientUserId, d.NotificationType));
-                foreach (var group in groups)
-                {
-                    var items = group.ToList();
-                    if (items.Count > 1)
+                    var groups = due.GroupBy(d => (d.RecipientUserId, d.NotificationType));
+                    foreach (var group in groups)
                     {
-                        await deliveryService.AttemptGroupedDeliveryAsync(items, stoppingToken);
-                    }
-                    else
-                    {
-                        await deliveryService.AttemptDeliveryAsync(items[0], stoppingToken);
+                        var items = group.ToList();
+                        if (items.Count > 1)
+                        {
+                            await deliveryService.AttemptGroupedDeliveryAsync(items, stoppingToken);
+                        }
+                        else
+                        {
+                            await deliveryService.AttemptDeliveryAsync(items[0], stoppingToken);
+                        }
                     }
                 }
+                _heartbeats.ReportSuccess(WorkerName, Interval);
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {

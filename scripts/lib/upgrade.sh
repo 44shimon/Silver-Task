@@ -694,7 +694,11 @@ st_up_maintenance_enable() {
   "startedAtUtc": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 }
 EOF
-    chmod 644 "$SILVERTASK_MAINTENANCE_FLAG_FILE" 2>/dev/null || true
+    # Phase 59 — 640, not 644: every sibling state file (upgrade-state.json, rollback-state.json,
+    # release-history.jsonl) is already 640; this one was the sole world-readable exception,
+    # needlessly disclosing upgrade-in-progress state (upgradeId/targetVersion/startedAtUtc) to any
+    # local user on the host. Owner (silvertask, chowned below) keeps full read access either way.
+    chmod 640 "$SILVERTASK_MAINTENANCE_FLAG_FILE" 2>/dev/null || true
     chown "$SILVERTASK_SERVICE_USER:$SILVERTASK_SERVICE_USER" "$SILVERTASK_MAINTENANCE_FLAG_FILE" 2>/dev/null || true
 }
 
