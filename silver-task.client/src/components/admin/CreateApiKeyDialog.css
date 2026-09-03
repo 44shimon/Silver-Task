@@ -1,0 +1,82 @@
+.create-api-key-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-h);
+  margin-top: 12px;
+}
+
+.create-api-key-dialog__field input,
+.create-api-key-dialog__field select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-h);
+}
+
+.create-api-key-dialog__field input:focus,
+.create-api-key-dialog__field select:focus {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.create-api-key-dialog__warning {
+  font-size: 13px;
+  color: var(--text);
+  margin-top: -6px;
+}
+
+.create-api-key-dialog__key-box {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  word-break: break-all;
+  font-size: 13px;
+}
+
+.create-api-key-dialog__key-box code {
+  font-family: var(--font-mono, monospace);
+}
+
+.create-api-key-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.create-api-key-dialog__cancel,
+.create-api-key-dialog__copy {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.create-api-key-dialog__submit {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.create-api-key-dialog__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

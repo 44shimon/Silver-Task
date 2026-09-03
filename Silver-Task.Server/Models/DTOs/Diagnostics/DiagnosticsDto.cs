@@ -28,6 +28,11 @@ namespace Silver_Task.Server.Models.DTOs.Diagnostics
         /// body. Never affects the top-level Status (a slow endpoint isn't the same signal as a
         /// database/disk/worker problem) — purely informational, for "what's been slow recently."</summary>
         public required List<SlowOperationDto> RecentSlowOperations { get; set; }
+
+        /// <summary>Phase 62 — counts only, never a key value or prefix. Never affects the
+        /// top-level Status — an expiring/failing key is an operational note for an admin, not
+        /// evidence the application itself is unhealthy.</summary>
+        public required ApiKeyDiagnosticsDto ApiKeys { get; set; }
     }
 
     public class DatabaseDiagnosticsDto
@@ -75,5 +80,21 @@ namespace Silver_Task.Server.Models.DTOs.Diagnostics
         public long DurationMs { get; set; }
 
         public DateTime RecordedAtUtc { get; set; }
+    }
+
+    public class ApiKeyDiagnosticsDto
+    {
+        public int Active { get; set; }
+
+        /// <summary>Active keys expiring within 7 days — a nudge to rotate, not a health signal.</summary>
+        public int ExpiringSoon { get; set; }
+
+        public int Revoked { get; set; }
+
+        public int Expired { get; set; }
+
+        /// <summary>From IApiKeyFailureTracker — invalid X-Api-Key attempts in the last hour,
+        /// across every source IP. Never which key was attempted.</summary>
+        public int RecentAuthFailures { get; set; }
     }
 }

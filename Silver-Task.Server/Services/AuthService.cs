@@ -35,6 +35,17 @@ namespace Silver_Task.Server.Services
                 return null;
             }
 
+            // Phase 62 — service accounts authenticate only via API key, never a password, even
+            // though PasswordHash is technically set (a random, never-disclosed value — see
+            // ApiKeyService.CreateServiceAccountAsync). Defense in depth: this guard makes that
+            // true regardless of whether anything upstream ever tries to attempt it. Same
+            // generic outcome as every other rejection below — never reveals *why*.
+            if (user.IsServiceAccount)
+            {
+                _logger.LogWarning("Failed login attempt for {Email}: account is a service account (password login not permitted)", normalizedEmail);
+                return null;
+            }
+
             // Deliberately the same generic "failed login" outcome as a wrong password below —
             // callers never learn whether an account exists or is locked out, only that this
             // attempt didn't work. The lockout itself is still logged distinctly server-side.

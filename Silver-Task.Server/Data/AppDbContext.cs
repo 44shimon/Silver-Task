@@ -105,6 +105,8 @@ namespace Silver_Task.Server.Data
 
         public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
 
+        public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

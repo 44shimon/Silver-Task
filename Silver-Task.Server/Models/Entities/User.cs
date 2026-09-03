@@ -16,6 +16,14 @@ namespace Silver_Task.Server.Models.Entities
 
         public bool IsActive { get; set; } = true;
 
+        /// <summary>Phase 62 — a non-human identity for API-key authentication (see ApiKey.cs).
+        /// Still an ordinary User row (same Role/ProjectMembers/authorization checks as a human),
+        /// so nothing in ProjectAccessService or any service method needs to know this flag
+        /// exists — the only place that does is AuthService.LoginAsync, which unconditionally
+        /// rejects password login for one of these regardless of PasswordHash (set to a random,
+        /// never-disclosed value at creation, never intended to be guessable or usable).</summary>
+        public bool IsServiceAccount { get; set; }
+
         /// <summary>Consecutive failed login attempts since the last success — reset to 0 on any
         /// successful login. Compared against Security.MaxFailedLoginAttempts in AuthService.</summary>
         public int FailedLoginAttempts { get; set; }

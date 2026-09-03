@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using Microsoft.EntityFrameworkCore;
 using Silver_Task.Server.Common;
 using Silver_Task.Server.Data;
 using Silver_Task.Server.Models.DTOs.Diagnostics;
@@ -21,6 +22,7 @@ namespace Silver_Task.Server.Services
         AppDbContext db,
         IWorkerHeartbeatRegistry heartbeats,
         ISlowOperationTracker slowOperations,
+        IApiKeyFailureTracker apiKeyFailures,
         IConfiguration configuration,
         IWebHostEnvironment environment) : IDiagnosticsService
     {
@@ -57,6 +59,7 @@ namespace Silver_Task.Server.Services
         private readonly AppDbContext _db = db;
         private readonly IWorkerHeartbeatRegistry _heartbeats = heartbeats;
         private readonly ISlowOperationTracker _slowOperations = slowOperations;
+        private readonly IApiKeyFailureTracker _apiKeyFailures = apiKeyFailures;
         private readonly IConfiguration _configuration = configuration;
         private readonly IWebHostEnvironment _environment = environment;
 
@@ -75,6 +78,8 @@ namespace Silver_Task.Server.Services
                 .Select(o => new SlowOperationDto { Operation = o.Operation, DurationMs = o.DurationMs, RecordedAtUtc = o.RecordedAtUtc })
                 .ToList();
 
+            var apiKeys = await CheckApiKeysAsync();
+
             return new DiagnosticsDto
             {
                 Status = overallStatus,
@@ -85,6 +90,50 @@ namespace Silver_Task.Server.Services
                 DiskSpace = diskSpace,
                 BackgroundWorkers = workers,
                 RecentSlowOperations = recentSlowOperations,
+                ApiKeys = apiKeys,
+            };
+        }
+
+        private async Task<ApiKeyDiagnosticsDto> CheckApiKeysAsync()
+        {
+            var now = DateTime.UtcNow;
+            var expiringSoonCutoff = now.AddDays(7);
+
+            var keys = await _db.ApiKeys
+                .Select(k => new { k.RevokedAt, k.ExpiresAt })
+                .ToListAsync();
+
+            var active = 0;
+            var expiringSoon = 0;
+            var revoked = 0;
+            var expired = 0;
+            foreach (var key in keys)
+            {
+                if (key.RevokedAt is not null)
+                {
+                    revoked++;
+                }
+                else if (key.ExpiresAt is { } expiresAt && expiresAt <= now)
+                {
+                    expired++;
+                }
+                else
+                {
+                    active++;
+                    if (key.ExpiresAt is { } activeExpiresAt && activeExpiresAt <= expiringSoonCutoff)
+                    {
+                        expiringSoon++;
+                    }
+                }
+            }
+
+            return new ApiKeyDiagnosticsDto
+            {
+                Active = active,
+                ExpiringSoon = expiringSoon,
+                Revoked = revoked,
+                Expired = expired,
+                RecentAuthFailures = _apiKeyFailures.GetRecentFailureCount(TimeSpan.FromHours(1))
             };
         }
 

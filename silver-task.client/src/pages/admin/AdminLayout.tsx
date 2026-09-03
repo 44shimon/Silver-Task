@@ -70,6 +70,12 @@ export function AdminLayout() {
         >
           Email
         </NavLink>
+        <NavLink
+          to="/admin/api-keys"
+          className={({ isActive }) => `admin-layout__nav-item${isActive ? ' admin-layout__nav-item--active' : ''}`}
+        >
+          API Keys
+        </NavLink>
       </nav>
 
       <div className="admin-layout__content">

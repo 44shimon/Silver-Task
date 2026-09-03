@@ -20,7 +20,7 @@ data, no hardcoded task data anywhere in the UI.
 [Updating](#updating) · [Upgrade Engine](#upgrade-engine) · [Backup](#backup) · [Restore](#restore) ·
 [Troubleshooting](#troubleshooting) · [Security](#security) · [Uninstallation](#uninstallation) ·
 [Project Structure](#project-structure) · [Development](#development) · [Testing](#testing) ·
-[Performance Testing](#performance-testing) ·
+[Performance Testing](#performance-testing) · [Public API](#public-api) ·
 [Release Information](#release-information) ·
 [Appendix: feature & phase implementation notes](#appendix-feature--phase-implementation-notes)
 
@@ -1004,6 +1004,7 @@ Silver-Task/
 │   ├── check-dependencies.sh  Dependency vulnerability scan (dotnet/npm), dev/CI use
 │   ├── security-probe.sh      Live unauthenticated/unauthorized/IDOR probe against a running instance
 │   ├── test-performance.sh    Load/scale testing (SMOKE/NORMAL/HEAVY profiles, --json reports)
+│   ├── test-api-keys.sh       Live API key / service account authentication probe
 │   └── lib/common.sh          Shared helpers (logging, checks, secret generation)
 │
 ├── deploy/                    Reference config templates the installer generates from
@@ -1013,10 +1014,10 @@ Silver-Task/
 │   └── silvertask.env.example
 │
 ├── Silver-Task.Server/        ASP.NET Core Web API
-│   ├── Controllers/           HTTP endpoints (thin; no business logic)
+│   ├── Controllers/           HTTP endpoints (thin; no business logic); V1/ = public API (docs/public-api.md)
 │   ├── Services/               Business logic — one interface + implementation per file
 │   ├── Models/Entities/        EF Core entities + enums
-│   ├── Models/DTOs/            Request/response shapes (entities never round-trip to the client)
+│   ├── Models/DTOs/            Request/response shapes (entities never round-trip to the client); V1/ = public API's own contract
 │   ├── Data/                   AppDbContext, Fluent API configurations, EF Core migrations
 │   ├── Middleware/              Cross-cutting concerns (exception handling, etc.)
 │   ├── Common/                  Shared helpers (claims extensions, domain exceptions, templates)
@@ -1103,6 +1104,51 @@ sudo ./scripts/certify-release.sh --candidate=1.2.0 --with-performance \
   rendering in `TaskTable`/`AdminUsersTable` (now row-virtualized above 100 rows via
   `@tanstack/react-virtual`, client-side filtering/sorting otherwise left exactly as it was — see
   docs/performance.md for why server-side pagination was deliberately not attempted).
+
+## Public API
+
+**Phase 61** — a versioned, stable public API foundation under `/api/v1/`, separate from the
+unversioned internal API the SPA itself uses. See [docs/public-api.md](docs/public-api.md) for the
+full reference (versioning scheme, conventions, auth integration point, how to add a new resource).
+
+A **reference implementation** covering two resources end-to-end (Projects, Tasks) — the other
+internal resources aren't ported yet; see the doc's own "Scope of this phase" section for why.
+
+```bash
+# Login (browser/cookie session — still works exactly as before)
+curl -c cookies.txt -X POST -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"..."}' https://your-instance/api/auth/login
+
+# Or, for non-browser integrations (Phase 62): an API key issued to a service account,
+# via Admin -> API Keys, sent as a header instead of a session
+curl -H "X-Api-Key: stak_..." 'https://your-instance/api/v1/tasks?projectId=<id>'
+
+# Paginated, filterable, sortable, searchable list (works with either auth method)
+curl -b cookies.txt 'https://your-instance/api/v1/tasks?projectId=<id>&status=InProgress&sort=-dueDate&page=1&pageSize=25'
+
+# Version metadata / health (both anonymous)
+curl https://your-instance/api/v1/meta
+curl https://your-instance/api/v1/health
+```
+
+- **Pagination/filtering/sorting/search**: one canonical `PagedResult<T>` envelope and query-param
+  convention (`page`, `pageSize`, `sort`, `q`, plus resource-specific filters) — replacing the
+  internal API's several different ad-hoc shapes for any *new* v1 endpoint.
+- **One error shape everywhere** (`ApiErrorResponse`) — Phase 61 also fixed a real, confirmed
+  inconsistency where `[ApiController]`'s automatic 400 on a malformed request body used to return
+  a different shape (`ValidationProblemDetails`) than every other error in the app. This fix
+  applies to the internal API too (non-breaking — confirmed the SPA's `httpClient.ts` only reads
+  the fields both shapes already had in common).
+- **Auth**: `/api/v1/*` accepts either the existing cookie session or an `X-Api-Key` header
+  (Phase 62) — a second, named auth scheme that coexists with, never replaces, the cookie one.
+  Keys authenticate as a **service account** (a non-human `User` row — see
+  [docs/api-keys.md](docs/api-keys.md)), managed under Admin → API Keys: generate, name, set an
+  optional expiration, rotate, or revoke. The raw key is shown exactly once at creation/rotation
+  time and never again. See [docs/n8n-integration.md](docs/n8n-integration.md) for a concrete
+  n8n setup walkthrough, and `scripts/test-api-keys.sh` for the live authentication test suite.
+- **Docs**: `docs/public-api.md` is the authoritative reference. A machine-readable OpenAPI
+  document also exists (`/openapi/v1.json`, scoped to only the v1 routes) with one known,
+  documented limitation — see the doc's own "API documentation" section.
 
 ## Release Information
 
@@ -1273,6 +1319,40 @@ for 45–47, their own dedicated sections there.
   regression check integrated into `certify-release.sh` (Phase 57), and `recentSlowOperations` on
   `GET /api/admin/diagnostics` (Phase 58). No index changes — every current query pattern was
   already covered, confirmed by direct audit of every `Data/Configurations/*.cs` file.
+- [x] **Phase 61** — Public API Foundation & Architecture. Spec arrived truncated (like 56–59);
+  scoped from a direct audit of the actual backend (confirmed: no versioning existed, auth is
+  cookie-only, and `[ApiController]`'s automatic validation 400 used a different error shape than
+  every other error in the app). Built a **reference implementation** — `Controllers/V1/` with
+  Projects and Tasks fully ported (own DTOs, own request validation), establishing and documenting
+  the versioning scheme, resource conventions, pagination/filtering/sorting/search convention
+  (`PagedResult<T>`, `ApiV1QueryOptions`), `/api/v1/meta`/`/api/v1/health`, and a scoped `v1`
+  OpenAPI document — rather than porting all ~29 internal resources (deliberately out of scope for
+  one phase; see [Public API](#public-api)/docs/public-api.md). Fixed a real, confirmed
+  inconsistency globally: malformed request bodies now return the same `ApiErrorResponse` shape as
+  every other error, for internal endpoints too (non-breaking — the SPA only ever read the fields
+  both shapes already shared). No API keys built (deliberately deferred per the spec's own
+  instruction — the integration point is documented, not implemented). One known, documented
+  limitation: `/openapi/v1.json` currently still requires the same session as everything else, due
+  to a confirmed `MapOpenApi` metadata-propagation gap in the installed OpenAPI package version
+  (see docs/public-api.md's own "API documentation" section) — the markdown doc is the reliable
+  anonymous reference in the meantime.
+- [x] **Phase 62** — API Keys, Service Accounts & Integration Authentication. Spec arrived
+  truncated (like 56–59, 61) — the goal list cuts off mid-sentence. Built the integration point
+  Phase 61 documented but didn't implement: a service account is a `User` row
+  (`IsServiceAccount`, no usable password — confirmed defense-in-depth rejected at
+  `AuthService.LoginAsync` too) so every existing authorization check keeps working unmodified.
+  API keys (`stak_...`, 256-bit random, SHA-256 hash + prefix only ever stored, raw value shown
+  exactly once at create/rotate) authenticate via a new `X-Api-Key` header and `"ApiKeyOrCookie"`
+  policy, applied only to `Controllers/V1/*` — the cookie scheme and every internal controller
+  are completely unchanged. Confirmed with you: includes a minimal Admin UI (Admin → API Keys),
+  not backend-only, and all management is Administrator-only this phase. `IApiKeyFailureTracker`
+  (same singleton shape as Phases 58/60's trackers) — deliberately *not* a login-style lockout
+  (a random key isn't brute-forceable the way a password is), just a cheap early-reject for
+  repeated invalid attempts, documented in docs/api-keys.md alongside the reasoning. Extended
+  `GET /api/admin/diagnostics` with counts-only key/failure visibility (never a key value).
+  `scripts/test-api-keys.sh` (live probe, mirrors `security-probe.sh`) and
+  `docs/n8n-integration.md` (concrete integration walkthrough) round out the two remaining
+  checklist items. One additive migration (`AddApiKeysAndServiceAccounts`).
 
 ### GitHub / secrets hygiene
 

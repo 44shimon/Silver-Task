@@ -1,9 +1,11 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -89,7 +91,12 @@ builder.Services
                 return Task.CompletedTask;
             }
         };
-    });
+    })
+    // Phase 62 — a second, named scheme coexisting with the cookie/JWT one above (never replaces
+    // it — the internal API and every FallbackPolicy-gated controller keep using the cookie
+    // exactly as before). Only ever selected via the "ApiKeyOrCookie" policy below, applied to
+    // Controllers/V1/* specifically. See ApiKeyAuthenticationHandler's own doc comment.
+    .AddScheme<AuthenticationSchemeOptions, Silver_Task.Server.Services.ApiKeyAuthenticationHandler>("ApiKey", _ => { });
 
 builder.Services.AddAuthorization(options =>
 {
@@ -98,6 +105,14 @@ builder.Services.AddAuthorization(options =>
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build();
+
+    // Phase 62 — accepts either the existing cookie session or an X-Api-Key header. Applied via
+    // [Authorize(Policy = "ApiKeyOrCookie")] only on Controllers/V1/ProjectsController and
+    // TasksController; every internal controller keeps relying on FallbackPolicy (cookie only),
+    // completely unchanged.
+    options.AddPolicy("ApiKeyOrCookie", policy => policy
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme, "ApiKey")
+        .RequireAuthenticatedUser());
 });
 
 // Phase 59 — first-party, ships in the shared framework already (no new package). Only applied to
@@ -165,6 +180,7 @@ builder.Services.AddScoped<ITemplateService, TemplateService>();
 builder.Services.AddScoped<ITemplateInstantiationService, TemplateInstantiationService>();
 builder.Services.AddScoped<ISavedViewFilterEngine, SavedViewFilterEngine>();
 builder.Services.AddScoped<ISavedViewService, SavedViewService>();
+builder.Services.AddScoped<IApiKeyService, ApiKeyService>();
 // Singleton — must be shared across every background service (themselves singletons via
 // AddHostedService) and outlive per-request scopes. See IWorkerHeartbeatRegistry's own doc
 // comment.
@@ -172,6 +188,8 @@ builder.Services.AddSingleton<IWorkerHeartbeatRegistry, WorkerHeartbeatRegistry>
 // Phase 60 — same "must outlive per-request scopes" reasoning as the heartbeat registry above;
 // fed by SlowOperationActionFilter (registered as an MVC filter further below).
 builder.Services.AddSingleton<ISlowOperationTracker, SlowOperationTracker>();
+// Phase 62 — same "must outlive per-request scopes" reasoning; fed by ApiKeyAuthenticationHandler.
+builder.Services.AddSingleton<IApiKeyFailureTracker, ApiKeyFailureTracker>();
 builder.Services.AddScoped<IDiagnosticsService, DiagnosticsService>();
 builder.Services.AddHostedService<DueDateNotificationBackgroundService>();
 builder.Services.AddHostedService<RecurringTaskGenerationBackgroundService>();
@@ -197,9 +215,41 @@ builder.Services.AddControllers(options =>
         // Enums (Status, Priority, Role, ...) travel over the wire as their string names
         // (e.g. "Administrator"), not numbers, to match the frontend's string literal types.
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    })
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        // Phase 61 — [ApiController]'s automatic 400 on invalid ModelState otherwise returns the
+        // framework's default ValidationProblemDetails ({type, title, status, errors}), a second,
+        // different error shape from the one ExceptionHandlingMiddleware already uses for every
+        // domain exception (ApiErrorResponse: {message, traceId, errors}). httpClient.ts only
+        // ever reads .message/.errors from an error body (confirmed by direct read), so unifying
+        // on ApiErrorResponse here is a pure consistency fix, not a breaking change for the SPA.
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var errors = context.ModelState
+                .Where(kvp => kvp.Value?.Errors.Count > 0)
+                .ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value!.Errors.Select(e => e.ErrorMessage).ToArray());
+            return new BadRequestObjectResult(new Silver_Task.Server.Models.Common.ApiErrorResponse
+            {
+                Message = "One or more validation errors occurred.",
+                TraceId = context.HttpContext.TraceIdentifier,
+                Errors = errors.Count > 0 ? errors : null
+            });
+        };
     });
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+// Explicitly named ("internal", not the framework's implicit default) so it can never collide
+// with the "v1" document below — this one covers every controller (including every Admin*
+// controller) and stays Development-only, unchanged from before Phase 61.
+builder.Services.AddOpenApi("internal");
+// Phase 61 — a second, named OpenAPI document scoped to only the public v1 surface
+// (Controllers/V1/*), never the 29 internal/admin controllers the document above covers.
+builder.Services.AddOpenApi("v1", options =>
+{
+    options.ShouldInclude = apiDesc => apiDesc.RelativePath?.StartsWith("api/v1/", StringComparison.OrdinalIgnoreCase) == true;
+});
 
 var app = builder.Build();
 
@@ -292,8 +342,29 @@ app.MapStaticAssets().AllowAnonymous();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi("internal");
 }
+
+// Phase 61 — the v1 public API's own OpenAPI document. Intended to be reachable in every
+// environment, anonymously (a public API's docs shouldn't need a session) — see the KNOWN
+// LIMITATION note below; that intent isn't fully achieved yet. Resolves to /openapi/v1.json.
+//
+// KNOWN LIMITATION (confirmed via direct live testing, not a code mistake): this app's global
+// AuthorizationOptions.FallbackPolicy requires authentication for any endpoint lacking recognized
+// anonymous-access metadata. That's normally opted out of per-endpoint via .AllowAnonymous() —
+// proven working elsewhere in this exact file (MapStaticAssets, MapFallbackToFile, plain MapGet,
+// and every [AllowAnonymous]-attributed controller, including Controllers/V1/ApiInfoController
+// right above). The identical .AllowAnonymous() call chained onto MapOpenApi(...)'s own return
+// value does not take effect — verified with three independent attempts (.AllowAnonymous(),
+// .WithMetadata(new AllowAnonymousAttribute()) equivalent, and an explicit always-succeeding
+// RequireAuthorization policy), all still returning 401, against Microsoft.AspNetCore.OpenApi
+// 10.0.11. This appears to be a metadata-propagation gap specific to MapOpenApi's endpoint
+// registration in this package version, not something fixable from application code without
+// bypassing MapOpenApi's routing entirely (e.g. serving a pre-generated static JSON file instead)
+// — out of scope for a foundation phase to build around. Documented plainly in
+// docs/public-api.md rather than silently left to look intentional; the markdown documentation
+// there is the authoritative, always-anonymously-reachable API reference regardless of this gap.
+app.MapOpenApi("v1").AllowAnonymous();
 
 // Phase 59 — HSTS is never sent in Development (a dev instance is almost always plain HTTP over
 // localhost; browsers cache the HSTS directive and would then force HTTPS even for that localhost
